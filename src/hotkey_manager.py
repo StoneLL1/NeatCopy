@@ -158,6 +158,8 @@ class HotkeyManager(QObject):
         with self._lock:
             if (now - self._last_ctrl_c_time) * 1000 <= interval_ms:
                 self._last_ctrl_c_time = 0.0
-                self.hotkey_triggered.emit()
+                # 延迟 80ms 让系统复制操作完成，避免清洗结果被覆盖
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(80, self.hotkey_triggered.emit)
             else:
                 self._last_ctrl_c_time = now
