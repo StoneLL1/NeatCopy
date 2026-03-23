@@ -30,7 +30,7 @@ class SettingsWindow(QDialog):
         self._pending: dict = {}
 
         self.setWindowTitle('NeatCopy 设置')
-        self.setMinimumWidth(480)
+        self.setFixedWidth(520)
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, False)
         import os
         icon_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'assets', 'idle.png'))
@@ -39,50 +39,49 @@ class SettingsWindow(QDialog):
             os.path.join(os.path.dirname(__file__), '..', '..', 'assets', 'check.png')
         ).replace('\\', '/')
         self.setStyleSheet(f"""
-            QDialog {{ background:#F3F3F3; font-family:"Microsoft YaHei UI","Segoe UI",sans-serif; font-size:13px; color:#1A1A1A; }}
-            QTabWidget::pane {{ border:1px solid #E0E0E0; border-radius:8px; background:#FFF; top:-1px; }}
-            QTabBar::tab {{ background:transparent; color:#606060; padding:8px 20px; border:none; border-bottom:2px solid transparent; }}
-            QTabBar::tab:selected {{ color:#3B82F6; border-bottom:2px solid #3B82F6; font-weight:bold; }}
-            QTabBar::tab:hover:!selected {{ color:#1A1A1A; background:#F0F0F0; border-radius:4px 4px 0 0; }}
-            QGroupBox {{ background:#FAFAFA; border:1px solid #E5E5E5; border-radius:8px; margin-top:16px; padding:16px 12px 12px; font-weight:bold; }}
-            QGroupBox::title {{ subcontrol-origin:margin; left:12px; top:4px; padding:0 6px; background:#FAFAFA; color:#3B82F6; }}
-            QCheckBox {{ spacing:8px; font-weight:normal; padding:4px 0; }}
-            QCheckBox::indicator {{ width:18px; height:18px; border:2px solid #C0C0C0; border-radius:4px; background:#FFF; }}
+            QDialog {{ background:#F5F5F5; font-family:"Microsoft YaHei UI","Segoe UI",sans-serif; font-size:13px; color:#202020; }}
+            QTabWidget::pane {{ border:1px solid #E8E8E8; border-radius:8px; background:#FFFFFF; top:-1px; }}
+            QTabBar::tab {{ background:transparent; color:#888; padding:8px 18px 6px; border:none; border-bottom:2px solid transparent; font-size:13px; }}
+            QTabBar::tab:selected {{ color:#333; border-bottom:2px solid #3B82F6; font-weight:bold; }}
+            QTabBar::tab:hover:!selected {{ color:#555; background:#ECECEC; border-radius:4px 4px 0 0; }}
+            QGroupBox {{ background:#FFFFFF; border:1px solid #EBEBEB; border-radius:8px; margin-top:12px; padding:14px 12px 10px; font-weight:normal; }}
+            QGroupBox::title {{ subcontrol-origin:margin; left:10px; top:2px; padding:0 4px; background:#FFFFFF; color:#888; font-size:12px; }}
+            QCheckBox {{ spacing:6px; font-weight:normal; padding:3px 0; color:#333; }}
+            QCheckBox::indicator {{ width:16px; height:16px; border:1.5px solid #BEBEBE; border-radius:3px; background:#FFF; }}
             QCheckBox::indicator:hover {{ border-color:#3B82F6; }}
             QCheckBox::indicator:checked {{ background:#3B82F6; border-color:#3B82F6; image:url({check_path}); }}
-            QRadioButton {{ spacing:8px; font-weight:normal; padding:4px 0; }}
-            QRadioButton::indicator {{ width:18px; height:18px; border:2px solid #C0C0C0; border-radius:10px; background:#FFF; }}
-            QRadioButton::indicator:hover {{ border-color:#3B82F6; }}
-            QRadioButton::indicator:checked {{ border:5px solid #3B82F6; background:#3B82F6; }}
-            QPushButton {{ background:#FFF; border:1px solid #D0D0D0; border-radius:6px; padding:6px 16px; min-height:20px; }}
-            QPushButton:hover {{ background:#F0F0F0; border-color:#B0B0B0; }}
-            QPushButton:pressed {{ background:#E0E0E0; }}
-            QPushButton:checked {{ background:#EBF2FF; border-color:#3B82F6; color:#3B82F6; }}
-            QPushButton#btn_save {{ background:#3B82F6; border:1px solid #2563EB; color:#FFF; font-weight:bold; padding:7px 24px; }}
+            QCheckBox::indicator:checked:hover {{ background:#2563EB; border-color:#2563EB; }}
+            QPushButton {{ background:#FAFAFA; border:1px solid #DADADA; border-radius:6px; padding:5px 14px; min-height:28px; color:#333; }}
+            QPushButton:hover {{ background:#F0F0F0; border-color:#C0C0C0; }}
+            QPushButton:pressed {{ background:#E4E4E4; }}
+            QPushButton:checked {{ background:#EEF4FF; border-color:#3B82F6; color:#3B82F6; }}
+            QPushButton#btn_save {{ background:#3B82F6; border:none; color:#FFF; font-weight:bold; padding:6px 28px; border-radius:6px; }}
             QPushButton#btn_save:hover {{ background:#2563EB; }}
             QPushButton#btn_save:pressed {{ background:#1D4ED8; }}
-            QLineEdit {{ border:1px solid #D0D0D0; border-radius:6px; padding:6px 10px; background:#FFF; selection-background-color:#3B82F6; }}
-            QLineEdit:focus {{ border:2px solid #3B82F6; padding:5px 9px; }}
-            QTextEdit {{ border:1px solid #D0D0D0; border-radius:6px; padding:6px; background:#FFF; }}
-            QTextEdit:focus {{ border:2px solid #3B82F6; padding:5px; }}
-            QListWidget {{ border:1px solid #D0D0D0; border-radius:6px; background:#FFF; padding:4px; outline:none; }}
-            QListWidget::item {{ padding:6px 8px; border-radius:4px; }}
-            QListWidget::item:hover {{ background:#F0F4FF; }}
-            QListWidget::item:selected {{ background:#E0EAFF; color:#1A1A1A; }}
-            QSlider::groove:horizontal {{ height:4px; background:#E0E0E0; border-radius:2px; }}
-            QSlider::handle:horizontal {{ width:16px; height:16px; margin:-6px 0; background:#FFF; border:2px solid #3B82F6; border-radius:9px; }}
-            QSlider::handle:horizontal:hover {{ background:#EBF2FF; }}
-            QSlider::sub-page:horizontal {{ background:#3B82F6; border-radius:2px; }}
-            QLabel {{ background:transparent; }}
+            QLineEdit {{ border:1px solid #DADADA; border-radius:5px; padding:5px 8px; background:#FFF; selection-background-color:#3B82F6; color:#333; }}
+            QLineEdit:focus {{ border:1.5px solid #3B82F6; padding:4px 7px; }}
+            QTextEdit {{ border:1px solid #DADADA; border-radius:5px; padding:5px; background:#FFF; color:#333; }}
+            QTextEdit:focus {{ border:1.5px solid #3B82F6; padding:4px; }}
+            QListWidget {{ border:1px solid #DADADA; border-radius:6px; background:#FFF; padding:3px; outline:none; }}
+            QListWidget::item {{ padding:5px 8px; border-radius:4px; color:#333; }}
+            QListWidget::item:hover {{ background:#F5F8FF; }}
+            QListWidget::item:selected {{ background:#E8F0FE; color:#202020; }}
+            QSlider::groove:horizontal {{ height:3px; background:#E0E0E0; border-radius:1px; }}
+            QSlider::handle:horizontal {{ width:14px; height:14px; margin:-5px 0; background:#FFF; border:1.5px solid #3B82F6; border-radius:7px; }}
+            QSlider::handle:horizontal:hover {{ background:#EEF4FF; }}
+            QSlider::handle:horizontal:pressed {{ background:#3B82F6; border-color:#2563EB; }}
+            QSlider::sub-page:horizontal {{ background:#3B82F6; border-radius:1px; }}
+            QLabel {{ background:transparent; color:#444; }}
             QLabel#status_label {{ color:#4CAF50; font-weight:bold; }}
-            QScrollBar:vertical {{ width:6px; background:transparent; }}
-            QScrollBar::handle:vertical {{ background:#C0C0C0; border-radius:3px; min-height:30px; }}
-            QScrollBar::handle:vertical:hover {{ background:#A0A0A0; }}
+            QScrollBar:vertical {{ width:5px; background:transparent; }}
+            QScrollBar::handle:vertical {{ background:#CCC; border-radius:2px; min-height:24px; }}
+            QScrollBar::handle:vertical:hover {{ background:#AAA; }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height:0; background:none; }}
             QMenu {{ background:#FFF; border:1px solid #E0E0E0; border-radius:8px; padding:4px; }}
-            QMenu::item {{ padding:6px 24px 6px 12px; border-radius:4px; }}
-            QMenu::item:selected {{ background:#EBF2FF; }}
-            QMenu::item:disabled {{ color:#A0A0A0; }}
+            QMenu::item {{ padding:5px 20px 5px 10px; border-radius:4px; }}
+            QMenu::item:selected {{ background:#EEF4FF; }}
+            QMenu::item:disabled {{ color:#B0B0B0; }}
+            QToolTip {{ background:#FFF; border:1px solid #DDD; border-radius:4px; padding:4px 8px; color:#333; font-size:12px; }}
         """)
 
         layout = QVBoxLayout(self)
@@ -111,7 +110,7 @@ class SettingsWindow(QDialog):
         w = QWidget()
         layout = QVBoxLayout(w)
         layout.setContentsMargins(12, 8, 12, 12)
-        layout.setSpacing(8)
+        layout.setSpacing(6)
 
         self._chk_toast = QCheckBox('显示清洗完成通知（Toast）')
         self._chk_toast.setChecked(self._config.get('general.toast_notification', True))
@@ -219,7 +218,7 @@ class SettingsWindow(QDialog):
         w = QWidget()
         layout = QVBoxLayout(w)
         layout.setContentsMargins(12, 8, 12, 12)
-        layout.setSpacing(8)
+        layout.setSpacing(6)
 
         mode_box = QGroupBox('清洗模式')
         mode_lay = QHBoxLayout(mode_box)
@@ -236,6 +235,7 @@ class SettingsWindow(QDialog):
 
         rules_box = QGroupBox('规则开关（规则模式下生效）')
         rules_lay = QVBoxLayout(rules_box)
+        rules_lay.setSpacing(2)
         self._rule_chks: dict[str, QCheckBox] = {}
         for key, (label, tip) in RULE_LABELS.items():
             chk = QCheckBox(label)
@@ -279,7 +279,7 @@ class SettingsWindow(QDialog):
         w = QWidget()
         layout = QVBoxLayout(w)
         layout.setContentsMargins(12, 8, 12, 12)
-        layout.setSpacing(8)
+        layout.setSpacing(6)
 
         self._chk_llm = QCheckBox('启用大模型模式（与规则模式互斥）')
         self._chk_llm.setChecked(self._config.get('rules.mode') == 'llm')

@@ -124,7 +124,7 @@ class HotkeyManager(QObject):
                     # 检查 Ctrl 是否按下（高位为1表示按下）
                     if user32.GetAsyncKeyState(VK_CONTROL) & 0x8000:
                         self._on_ctrl_c()
-            return user32.CallNextHookEx(None, nCode, wParam, lParam)
+            return user32.CallNextHookEx(None, nCode, wParam, ctypes.c_long(lParam))
 
         self._ll_proc = _HOOKPROC(hook_proc)
         self._ll_hook = user32.SetWindowsHookExW(
