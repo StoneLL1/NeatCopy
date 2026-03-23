@@ -32,20 +32,21 @@ class TrayManager(QObject):
         self._restore_timer.timeout.connect(self._restore_idle)
 
     def _build_menu(self):
-        menu = QMenu()
-        act_settings = QAction('打开设置')
-        act_settings.triggered.connect(self.open_settings_requested)
-        self._act_pause = QAction('暂停监听')
+        # 所有 QMenu/QAction 必须存为实例变量，防止 GC 回收
+        self._menu = QMenu()
+        self._act_settings = QAction('打开设置', self._menu)
+        self._act_settings.triggered.connect(self.open_settings_requested)
+        self._act_pause = QAction('暂停监听', self._menu)
         self._act_pause.setCheckable(True)
         self._act_pause.triggered.connect(self._on_pause_toggled)
-        act_quit = QAction('退出')
-        act_quit.triggered.connect(self.quit_requested)
+        self._act_quit = QAction('退出', self._menu)
+        self._act_quit.triggered.connect(self.quit_requested)
 
-        menu.addAction(act_settings)
-        menu.addAction(self._act_pause)
-        menu.addSeparator()
-        menu.addAction(act_quit)
-        self._tray.setContextMenu(menu)
+        self._menu.addAction(self._act_settings)
+        self._menu.addAction(self._act_pause)
+        self._menu.addSeparator()
+        self._menu.addAction(self._act_quit)
+        self._tray.setContextMenu(self._menu)
 
     def _on_pause_toggled(self, checked: bool):
         self._act_pause.setText('继续监听' if checked else '暂停监听')

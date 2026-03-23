@@ -86,7 +86,11 @@ class ClipProcessor(QObject):
 
     def process(self):
         text = _read_clipboard()
-        if not text or not text.strip():
+        if text is None:
+            self.process_done.emit(False, '读取剪贴板失败，请重试')
+            return
+        if not text.strip():
+            self.process_done.emit(False, '剪贴板为空')
             return
 
         mode = self._config.get('rules.mode', 'rules')

@@ -47,7 +47,12 @@ class HotkeyManager(QObject):
                 hook = keyboard.add_hotkey(keys, self._on_custom_hotkey, suppress=True)
                 self._hooks.append(hook)
             except Exception:
-                pass
+                # suppress=True 可能需要管理员权限，回退到不拦截模式
+                try:
+                    hook = keyboard.add_hotkey(keys, self._on_custom_hotkey)
+                    self._hooks.append(hook)
+                except Exception:
+                    pass
 
         cfg_double = self._config.get('general.double_ctrl_c') or {}
         if cfg_double.get('enabled', False):
