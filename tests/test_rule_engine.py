@@ -142,6 +142,31 @@ class TestSmartPunctuation:
         assert result is not None
 
 
+class TestCodeBlockContentProtection:
+    """C1 回归测试：代码块内容不被规则 3-6 修改。"""
+
+    def test_fenced_code_multiple_spaces_preserved(self):
+        text = '前文\n\n```\nx  =  1\ny    = 2\n```\n\n后文'
+        result = clean(text)
+        assert 'x  =  1' in result
+        assert 'y    = 2' in result
+
+    def test_fenced_code_cjk_no_pangu(self):
+        text = '段落\n\n```\nprint("你好world")\n```\n\n段落'
+        result = clean(text)
+        assert 'print("你好world")' in result  # 不应被加空格
+
+    def test_fenced_code_punctuation_not_converted(self):
+        text = '段落\n\n```\n// 注意,这里有逗号\n```\n\n段落'
+        result = clean(text)
+        assert '注意,这里有逗号' in result  # 半角逗号不应变全角
+
+    def test_indented_code_spaces_preserved(self):
+        text = '段落\n\n    x  =  1\n    y  =  2\n\n后段落'
+        result = clean(text)
+        assert 'x  =  1' in result
+
+
 class TestIntegration:
     def test_pdf_typical_copy(self):
         pdf_text = (

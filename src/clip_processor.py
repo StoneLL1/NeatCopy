@@ -38,8 +38,8 @@ def _write_clipboard(text: str) -> bool:
 
 
 class _LLMWorker(QThread):
-    finished = pyqtSignal(str)
-    error = pyqtSignal(str)
+    succeeded = pyqtSignal(str)
+    failed = pyqtSignal(str)
 
     def __init__(self, text: str, prompt: str, llm_config: dict, parent=None):
         super().__init__(parent)
@@ -48,15 +48,28 @@ class _LLMWorker(QThread):
         self._llm_config = llm_config
 
     def run(self):
-        import asyncio
-        from llm_client import LLMClient, classify_error
+        import httpx
+        from llm_client import classify_error
         try:
-            client = LLMClient()
-            result = asyncio.run(client.format(self._text, self._prompt, self._llm_config))
-            self.finished.emit(result)
+            cfg = self._llm_config
+            headers = {'Authorization': f'Bearer {cfg.get("api_key", "")}'}
+            payload = {
+                'model': cfg.get('model_id', 'gpt-4o-mini'),
+                'temperature': cfg.get('temperature', 0.2),
+                'messages': [
+                    {'role': 'system', 'content': self._prompt},
+                    {'role': 'user', 'content': self._text},
+                ],
+            }
+            base_url = cfg.get('base_url', 'https://api.openai.com/v1').rstrip('/')
+            with httpx.Client(timeout=30.0) as client:
+                resp = client.post(f'{base_url}/chat/completions',
+                                   json=payload, headers=headers)
+                resp.raise_for_status()
+                content = resp.json()['choices'][0]['message']['content']
+                self.succeeded.emit(content)
         except Exception as e:
-            from llm_client import classify_error
-            self.error.emit(classify_error(e))
+            self.failed.emit(classify_error(e))
 
 
 class ClipProcessor(QObject):
@@ -83,6 +96,7 @@ class ClipProcessor(QObject):
             self._process_rules(text)
 
     def _process_rules(self, text: str):
+        self.processing_started.emit()
         try:
             rule_config = self._config.get('rules') or {}
             cleaned = RuleEngine.clean(text, rule_config)
@@ -95,8 +109,8 @@ class ClipProcessor(QObject):
 
     def _process_llm(self, text: str):
         llm_config = self._config.get('llm') or {}
-        if not llm_config.get('enabled', False):
-            self.process_done.emit(False, '请先在设置中启用大模型模式')
+        if not llm_config.get('api_key'):
+            self.process_done.emit(False, '请先在设置中配置 API Key')
             return
 
         active_id = llm_config.get('active_prompt_id', 'default')
@@ -109,8 +123,8 @@ class ClipProcessor(QObject):
 
         self.processing_started.emit()
         worker = _LLMWorker(text, prompt_obj['content'], llm_config, parent=self)
-        worker.finished.connect(self._on_llm_success)
-        worker.error.connect(self._on_llm_error)
+        worker.succeeded.connect(self._on_llm_success)
+        worker.failed.connect(self._on_llm_error)
         worker.start()
         self._current_worker = worker
 

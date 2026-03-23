@@ -121,6 +121,20 @@ class SettingsWindow(QDialog):
                 self._btn_record.setText(combo)
                 self._mark('general.custom_hotkey.keys', combo)
 
+    # Qt.Key 到 keyboard 库键名的映射
+    _KEY_MAP = {
+        Qt.Key.Key_F1: 'f1', Qt.Key.Key_F2: 'f2', Qt.Key.Key_F3: 'f3',
+        Qt.Key.Key_F4: 'f4', Qt.Key.Key_F5: 'f5', Qt.Key.Key_F6: 'f6',
+        Qt.Key.Key_F7: 'f7', Qt.Key.Key_F8: 'f8', Qt.Key.Key_F9: 'f9',
+        Qt.Key.Key_F10: 'f10', Qt.Key.Key_F11: 'f11', Qt.Key.Key_F12: 'f12',
+        Qt.Key.Key_Insert: 'insert', Qt.Key.Key_Delete: 'delete',
+        Qt.Key.Key_Home: 'home', Qt.Key.Key_End: 'end',
+        Qt.Key.Key_PageUp: 'page up', Qt.Key.Key_PageDown: 'page down',
+        Qt.Key.Key_Space: 'space', Qt.Key.Key_Tab: 'tab',
+        Qt.Key.Key_Escape: 'esc', Qt.Key.Key_Return: 'enter',
+        Qt.Key.Key_Enter: 'enter', Qt.Key.Key_Backspace: 'backspace',
+    }
+
     def keyPressEvent(self, event):
         if not self._btn_record.isChecked():
             return super().keyPressEvent(event)
@@ -131,9 +145,14 @@ class SettingsWindow(QDialog):
             mods.append('shift')
         if event.modifiers() & Qt.KeyboardModifier.AltModifier:
             mods.append('alt')
-        key_text = event.text().lower().strip()
-        if key_text and key_text.isprintable():
-            self._recording_keys = mods + [key_text]
+        # 优先查映射表（F 键、特殊键）
+        key_name = self._KEY_MAP.get(Qt.Key(event.key()))
+        if not key_name:
+            key_text = event.text().lower().strip()
+            if key_text and key_text.isprintable():
+                key_name = key_text
+        if key_name:
+            self._recording_keys = mods + [key_name]
             self._btn_record.setChecked(False)
 
     # ── 规则 Tab ──────────────────────────────────────────────
@@ -149,10 +168,8 @@ class SettingsWindow(QDialog):
         current = self._config.get('rules.mode', 'rules')
         self._rb_rules.setChecked(current == 'rules')
         self._rb_llm.setChecked(current == 'llm')
-        self._rb_rules.toggled.connect(
-            lambda on: self._mark('rules.mode', 'rules') if on else None)
-        self._rb_llm.toggled.connect(
-            lambda on: self._mark('rules.mode', 'llm') if on else None)
+        self._rb_rules.toggled.connect(self._on_mode_radio_toggled)
+        self._rb_llm.toggled.connect(self._on_mode_radio_toggled)
         mode_lay.addWidget(self._rb_rules)
         mode_lay.addWidget(self._rb_llm)
         layout.addWidget(mode_box)
@@ -173,6 +190,16 @@ class SettingsWindow(QDialog):
         layout.addStretch()
         return w
 
+    def _on_mode_radio_toggled(self, on: bool):
+        if not on:
+            return
+        mode = 'rules' if self._rb_rules.isChecked() else 'llm'
+        self._mark('rules.mode', mode)
+        # 同步LLM Tab的Checkbox
+        self._chk_llm.blockSignals(True)
+        self._chk_llm.setChecked(mode == 'llm')
+        self._chk_llm.blockSignals(False)
+
     # ── 大模型 Tab ────────────────────────────────────────────
 
     def _build_llm_tab(self) -> QWidget:
@@ -180,9 +207,8 @@ class SettingsWindow(QDialog):
         layout = QVBoxLayout(w)
 
         self._chk_llm = QCheckBox('启用大模型模式（与规则模式互斥）')
-        self._chk_llm.setChecked(self._config.get('llm.enabled', False))
-        self._chk_llm.stateChanged.connect(
-            lambda v: self._mark('llm.enabled', bool(v)))
+        self._chk_llm.setChecked(self._config.get('rules.mode') == 'llm')
+        self._chk_llm.stateChanged.connect(self._on_llm_checkbox_toggled)
         layout.addWidget(self._chk_llm)
 
         api_box = QGroupBox('API 配置')
@@ -228,9 +254,9 @@ class SettingsWindow(QDialog):
         api_lay.addLayout(temp_row)
         layout.addWidget(api_box)
 
-        btn_test = QPushButton('测试连接')
-        btn_test.clicked.connect(self._on_test_connection)
-        layout.addWidget(btn_test)
+        self._btn_test = QPushButton('测试连接')
+        self._btn_test.clicked.connect(self._on_test_connection)
+        layout.addWidget(self._btn_test)
 
         prompt_box = QGroupBox('Prompt 模板')
         prompt_lay = QVBoxLayout(prompt_box)
@@ -249,6 +275,17 @@ class SettingsWindow(QDialog):
 
         layout.addStretch()
         return w
+
+    def _on_llm_checkbox_toggled(self, checked):
+        mode = 'llm' if checked else 'rules'
+        self._mark('rules.mode', mode)
+        # 同步规则Tab的RadioButton（不触发信号避免循环）
+        self._rb_rules.blockSignals(True)
+        self._rb_llm.blockSignals(True)
+        self._rb_rules.setChecked(mode == 'rules')
+        self._rb_llm.setChecked(mode == 'llm')
+        self._rb_rules.blockSignals(False)
+        self._rb_llm.blockSignals(False)
 
     def _on_temp_changed(self, value: int):
         temp = value / 10.0
@@ -347,17 +384,62 @@ class SettingsWindow(QDialog):
             self._refresh_prompts()
 
     def _on_test_connection(self):
-        import asyncio
         self._do_save()
         llm_cfg = self._config.get('llm') or {}
-        try:
-            from llm_client import LLMClient, classify_error
-            client = LLMClient()
-            result = asyncio.run(client.test_connection(llm_cfg))
-            QMessageBox.information(self, '连接成功', f'模型回复：{result[:200]}')
-        except Exception as e:
-            from llm_client import classify_error
-            QMessageBox.critical(self, '连接失败', classify_error(e))
+        self._btn_test.setEnabled(False)
+        self._btn_test.setText('测试中...')
+
+        from PyQt6.QtCore import QThread as _QT
+        from PyQt6.QtCore import pyqtSignal as _sig
+
+        class _TestWorker(_QT):
+            success = _sig(str)
+            error = _sig(str)
+
+            def __init__(self, cfg):
+                super().__init__()
+                self._cfg = cfg
+
+            def run(self):
+                try:
+                    import httpx
+                    headers = {'Authorization': f'Bearer {self._cfg.get("api_key", "")}'}
+                    payload = {
+                        'model': self._cfg.get('model_id', 'gpt-4o-mini'),
+                        'temperature': self._cfg.get('temperature', 0.2),
+                        'messages': [
+                            {'role': 'system', 'content': '请原样返回我发送给你的文字，不做任何修改。'},
+                            {'role': 'user', 'content': '测试文本：hello world'},
+                        ],
+                    }
+                    base_url = self._cfg.get('base_url', 'https://api.openai.com/v1').rstrip('/')
+                    with httpx.Client(timeout=30.0) as client:
+                        resp = client.post(f'{base_url}/chat/completions',
+                                           json=payload, headers=headers)
+                        resp.raise_for_status()
+                        content = resp.json()['choices'][0]['message']['content']
+                        self.success.emit(content)
+                except Exception as e:
+                    from llm_client import classify_error
+                    self.error.emit(classify_error(e))
+
+        worker = _TestWorker(llm_cfg)
+        worker.success.connect(lambda r: (
+            QMessageBox.information(self, '连接成功', f'模型回复：{r[:200]}'),
+            self._btn_test.setEnabled(True),
+            self._btn_test.setText('测试连接'),
+        ))
+        worker.error.connect(lambda e: (
+            QMessageBox.critical(self, '连接失败', e),
+            self._btn_test.setEnabled(True),
+            self._btn_test.setText('测试连接'),
+        ))
+        worker.finished.connect(lambda: (
+            self._btn_test.setEnabled(True),
+            self._btn_test.setText('测试连接'),
+        ))
+        worker.start()
+        self._test_worker = worker
 
     # ── 保存 ─────────────────────────────────────────────────
 

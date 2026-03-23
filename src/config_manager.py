@@ -59,8 +59,15 @@ class ConfigManager:
         if not self._config_path.exists():
             self._write(DEFAULT_CONFIG)
             return self._deep_copy(DEFAULT_CONFIG)
-        with open(self._config_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        try:
+            with open(self._config_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, ValueError):
+            # 配置文件损坏，备份后重置为默认
+            backup = self._config_path.with_suffix('.json.bak')
+            self._config_path.rename(backup)
+            self._write(DEFAULT_CONFIG)
+            return self._deep_copy(DEFAULT_CONFIG)
         return self._merge_defaults(data, DEFAULT_CONFIG)
 
     def _deep_copy(self, obj):
@@ -99,4 +106,4 @@ class ConfigManager:
         self._write(self._data)
 
     def all(self) -> dict:
-        return self._data
+        return self._deep_copy(self._data)

@@ -10,19 +10,22 @@ _HALF_TO_FULL = str.maketrans(',.!?;:', '\uff0c\u3002\uff01\uff1f\uff1b\uff1a')
 
 class RuleEngine:
 
+    _PLACEHOLDER_PREFIX = '\x00CODEBLOCK_'
+
     @staticmethod
     def clean(text: str, config: dict) -> str:
         if not text or not text.strip():
             return text
 
+        # 规则7: 提取代码块，用占位符替换，保护其不受后续规则影响
+        code_blocks: dict[str, str] = {}
+        if config.get('protect_code_blocks', True):
+            text = RuleEngine._extract_code_blocks(text, code_blocks)
+
         lines = text.split('\n')
 
-        # 规则7: 标记代码块行
-        protected: set[int] = set()
-        if config.get('protect_code_blocks', True):
-            protected |= RuleEngine._find_code_block_lines(lines)
-
         # 规则8: 标记列表行
+        protected: set[int] = set()
         if config.get('protect_lists', True):
             protected |= RuleEngine._find_list_lines(lines)
 
@@ -40,6 +43,10 @@ class RuleEngine:
         paragraphs = text.split('\n\n')
         processed = []
         for para in paragraphs:
+            # 含占位符的段落跳过所有清洗
+            if RuleEngine._PLACEHOLDER_PREFIX in para:
+                processed.append(para)
+                continue
             if config.get('merge_spaces', True):
                 para = RuleEngine._merge_spaces(para)
             if config.get('smart_punctuation', True):
@@ -50,28 +57,48 @@ class RuleEngine:
                 para = RuleEngine._trim_lines(para)
             processed.append(para)
 
-        return '\n\n'.join(processed)
+        text = '\n\n'.join(processed)
+
+        # 还原代码块
+        for placeholder, original in code_blocks.items():
+            text = text.replace(placeholder, original)
+
+        return text
 
     @staticmethod
-    def _find_code_block_lines(lines: list) -> set:
-        protected: set[int] = set()
-        in_fence = False
-        fence_start = 0
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped.startswith('```') or stripped.startswith('~~~'):
-                if not in_fence:
-                    in_fence = True
-                    fence_start = i
-                    protected.add(i)
-                else:
-                    in_fence = False
-                    protected.add(i)
-            elif in_fence:
-                protected.add(i)
-            elif line.startswith('    ') or line.startswith('\t'):
-                protected.add(i)
-        return protected
+    def _extract_code_blocks(text: str, store: dict) -> str:
+        """将 fenced 代码块和连续缩进代码块替换为占位符，原文存入 store。"""
+        counter = 0
+
+        # 1) fenced code blocks (``` or ~~~)
+        def _replace_fenced(m):
+            nonlocal counter
+            key = f'{RuleEngine._PLACEHOLDER_PREFIX}{counter}\x00'
+            store[key] = m.group(0)
+            counter += 1
+            return key
+
+        text = re.sub(
+            r'(?:^|\n)([ \t]*(?:```|~~~)[^\n]*\n[\s\S]*?\n[ \t]*(?:```|~~~))',
+            lambda m: ('\n' if m.group(0).startswith('\n') else '') + _replace_fenced(m),
+            text,
+        )
+
+        # 2) indented code blocks: 连续的 ≥4空格/Tab 开头的非空行
+        def _replace_indented(m):
+            nonlocal counter
+            key = f'{RuleEngine._PLACEHOLDER_PREFIX}{counter}\x00'
+            store[key] = m.group(0)
+            counter += 1
+            return key
+
+        text = re.sub(
+            r'((?:^|\n)(?:(?:    |\t)[^\n]*\n?){2,})',
+            lambda m: ('\n' if m.group(0).startswith('\n') else '') + _replace_indented(m),
+            text,
+        )
+
+        return text
 
     @staticmethod
     def _find_list_lines(lines: list) -> set:
@@ -114,14 +141,7 @@ class RuleEngine:
 
     @staticmethod
     def _merge_spaces(text: str) -> str:
-        lines = []
-        for line in text.split('\n'):
-            # 保留行首缩进，只折叠行内多余空格
-            stripped = line.lstrip(' \t')
-            indent = line[:len(line) - len(stripped)]
-            collapsed = re.sub(r' {2,}', ' ', stripped)
-            lines.append(indent + collapsed)
-        return '\n'.join(lines)
+        return re.sub(r' {2,}', ' ', text)
 
     @staticmethod
     def _smart_punctuation(text: str) -> str:
@@ -152,11 +172,4 @@ class RuleEngine:
 
     @staticmethod
     def _trim_lines(text: str) -> str:
-        lines = []
-        for line in text.split('\n'):
-            # 保留缩进代码行的前导空格
-            if line.startswith('    ') or line.startswith('\t'):
-                lines.append(line.rstrip())
-            else:
-                lines.append(line.strip())
-        return '\n'.join(lines)
+        return '\n'.join(line.strip() for line in text.split('\n'))

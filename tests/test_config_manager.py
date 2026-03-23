@@ -50,6 +50,45 @@ class TestConfigManagerGetSet:
         assert cm.get('nonexistent.key', default='fallback') == 'fallback'
 
 
+class TestConfigManagerCorruptedFile:
+    """C3 回归测试：损坏的 config.json 应回退到默认配置。"""
+
+    def test_corrupted_json_falls_back_to_defaults(self, tmp_config_dir):
+        cfg_dir = tmp_config_dir / 'NeatCopy'
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        cfg_file = cfg_dir / 'config.json'
+        cfg_file.write_text('{corrupted json!!!', encoding='utf-8')
+        cm = ConfigManager(config_dir=str(cfg_dir))
+        assert cm.get('general.toast_notification') is True
+        assert cm.get('rules.mode') == 'rules'
+
+    def test_corrupted_json_creates_backup(self, tmp_config_dir):
+        cfg_dir = tmp_config_dir / 'NeatCopy'
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        cfg_file = cfg_dir / 'config.json'
+        cfg_file.write_text('{bad}', encoding='utf-8')
+        ConfigManager(config_dir=str(cfg_dir))
+        assert (cfg_dir / 'config.json.bak').exists()
+
+    def test_empty_file_falls_back_to_defaults(self, tmp_config_dir):
+        cfg_dir = tmp_config_dir / 'NeatCopy'
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        cfg_file = cfg_dir / 'config.json'
+        cfg_file.write_text('', encoding='utf-8')
+        cm = ConfigManager(config_dir=str(cfg_dir))
+        assert cm.get('general.toast_notification') is True
+
+
+class TestConfigManagerAllReturnsCopy:
+    """H2 回归测试：all() 返回深拷贝，外部修改不影响内部状态。"""
+
+    def test_all_returns_copy(self, tmp_config_dir):
+        cm = ConfigManager(config_dir=str(tmp_config_dir / 'NeatCopy'))
+        data = cm.all()
+        data['general']['toast_notification'] = 'MUTATED'
+        assert cm.get('general.toast_notification') is True
+
+
 class TestConfigManagerPrompts:
     def test_default_prompt_exists(self, tmp_config_dir):
         cm = ConfigManager(config_dir=str(tmp_config_dir / 'NeatCopy'))

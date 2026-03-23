@@ -14,6 +14,7 @@ class HotkeyManager(QObject):
         self._paused = False
         self._last_ctrl_c_time = 0.0
         self._lock = threading.Lock()
+        self._hooks: list = []  # 保存已注册的钩子引用
         self._thread = threading.Thread(target=self._listen, daemon=True)
         self._thread.start()
 
@@ -22,8 +23,17 @@ class HotkeyManager(QObject):
 
     def reload_config(self, config):
         self._config = config
-        keyboard.unhook_all()
+        self._unhook_own()
         self._register_hooks()
+
+    def _unhook_own(self):
+        """仅移除本管理器注册的钩子。"""
+        for hook in self._hooks:
+            try:
+                keyboard.unhook(hook)
+            except (ValueError, KeyError):
+                pass
+        self._hooks.clear()
 
     def _listen(self):
         self._register_hooks()
@@ -34,13 +44,15 @@ class HotkeyManager(QObject):
         if cfg_hotkey.get('enabled', True):
             keys = cfg_hotkey.get('keys', 'ctrl+shift+c')
             try:
-                keyboard.add_hotkey(keys, self._on_custom_hotkey, suppress=True)
+                hook = keyboard.add_hotkey(keys, self._on_custom_hotkey, suppress=True)
+                self._hooks.append(hook)
             except Exception:
                 pass
 
         cfg_double = self._config.get('general.double_ctrl_c') or {}
         if cfg_double.get('enabled', False):
-            keyboard.on_press_key('c', self._on_c_pressed)
+            hook = keyboard.on_press_key('c', self._on_c_pressed)
+            self._hooks.append(hook)
 
     def _on_custom_hotkey(self):
         if not self._paused:
