@@ -7,6 +7,7 @@ from config_manager import ConfigManager
 from tray_manager import TrayManager
 from hotkey_manager import HotkeyManager
 from clip_processor import ClipProcessor
+from ui.settings_window import SettingsWindow
 
 
 def main():
@@ -32,6 +33,18 @@ def main():
             tray.set_error(message=message, toast_enabled=toast_enabled)
 
     processor.process_done.connect(on_process_done)
+
+    settings_win = SettingsWindow(config, hotkey_manager=hotkey)
+
+    def on_open_settings():
+        if settings_win.isVisible():
+            settings_win.hide()
+        else:
+            settings_win.show()
+            settings_win.raise_()
+            settings_win.activateWindow()
+
+    tray.open_settings_requested.connect(on_open_settings)
 
     sys.exit(app.exec())
 
