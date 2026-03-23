@@ -1,40 +1,24 @@
 # 剪贴板处理调度：读取剪贴板 → 规则/LLM → 写回剪贴板。
-# 所有剪贴板操作必须在主线程（Qt event loop）中执行。
-import win32clipboard
-import win32con
+# 使用 Qt QClipboard（避免 win32clipboard 在 Qt 事件循环中 Access Denied）。
+from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QObject, pyqtSignal, QThread
 
 from rule_engine import RuleEngine
 
 
 def _read_clipboard() -> str | None:
-    try:
-        win32clipboard.OpenClipboard()
-        if win32clipboard.IsClipboardFormatAvailable(win32con.CF_UNICODETEXT):
-            return win32clipboard.GetClipboardData(win32con.CF_UNICODETEXT)
-        return None
-    except Exception:
-        return None
-    finally:
-        try:
-            win32clipboard.CloseClipboard()
-        except Exception:
-            pass
+    clipboard = QApplication.clipboard()
+    text = clipboard.text()
+    return text if text else None
 
 
 def _write_clipboard(text: str) -> bool:
     try:
-        win32clipboard.OpenClipboard()
-        win32clipboard.EmptyClipboard()
-        win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, text)
+        clipboard = QApplication.clipboard()
+        clipboard.setText(text)
         return True
     except Exception:
         return False
-    finally:
-        try:
-            win32clipboard.CloseClipboard()
-        except Exception:
-            pass
 
 
 class _LLMWorker(QThread):
