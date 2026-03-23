@@ -1,0 +1,125 @@
+# 剪贴板处理调度：读取剪贴板 → 规则/LLM → 写回剪贴板。
+# 所有剪贴板操作必须在主线程（Qt event loop）中执行。
+import win32clipboard
+import win32con
+from PyQt6.QtCore import QObject, pyqtSignal, QThread
+
+from rule_engine import RuleEngine
+
+
+def _read_clipboard() -> str | None:
+    try:
+        win32clipboard.OpenClipboard()
+        if win32clipboard.IsClipboardFormatAvailable(win32con.CF_UNICODETEXT):
+            return win32clipboard.GetClipboardData(win32con.CF_UNICODETEXT)
+        return None
+    except Exception:
+        return None
+    finally:
+        try:
+            win32clipboard.CloseClipboard()
+        except Exception:
+            pass
+
+
+def _write_clipboard(text: str) -> bool:
+    try:
+        win32clipboard.OpenClipboard()
+        win32clipboard.EmptyClipboard()
+        win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, text)
+        return True
+    except Exception:
+        return False
+    finally:
+        try:
+            win32clipboard.CloseClipboard()
+        except Exception:
+            pass
+
+
+class _LLMWorker(QThread):
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self, text: str, prompt: str, llm_config: dict, parent=None):
+        super().__init__(parent)
+        self._text = text
+        self._prompt = prompt
+        self._llm_config = llm_config
+
+    def run(self):
+        import asyncio
+        from llm_client import LLMClient, classify_error
+        try:
+            client = LLMClient()
+            result = asyncio.run(client.format(self._text, self._prompt, self._llm_config))
+            self.finished.emit(result)
+        except Exception as e:
+            from llm_client import classify_error
+            self.error.emit(classify_error(e))
+
+
+class ClipProcessor(QObject):
+    process_done = pyqtSignal(bool, str)     # (success, message)
+    processing_started = pyqtSignal()
+
+    def __init__(self, config, parent=None):
+        super().__init__(parent)
+        self._config = config
+        self._current_worker = None
+
+    def reload_config(self, config):
+        self._config = config
+
+    def process(self):
+        text = _read_clipboard()
+        if not text or not text.strip():
+            return
+
+        mode = self._config.get('rules.mode', 'rules')
+        if mode == 'llm':
+            self._process_llm(text)
+        else:
+            self._process_rules(text)
+
+    def _process_rules(self, text: str):
+        try:
+            rule_config = self._config.get('rules') or {}
+            cleaned = RuleEngine.clean(text, rule_config)
+            if _write_clipboard(cleaned):
+                self.process_done.emit(True, '已清洗，可直接粘贴')
+            else:
+                self.process_done.emit(False, '写入剪贴板失败')
+        except Exception as e:
+            self.process_done.emit(False, f'清洗出错：{e}')
+
+    def _process_llm(self, text: str):
+        llm_config = self._config.get('llm') or {}
+        if not llm_config.get('enabled', False):
+            self.process_done.emit(False, '请先在设置中启用大模型模式')
+            return
+
+        active_id = llm_config.get('active_prompt_id', 'default')
+        prompts = llm_config.get('prompts') or []
+        prompt_obj = next((p for p in prompts if p['id'] == active_id),
+                          prompts[0] if prompts else None)
+        if not prompt_obj:
+            self.process_done.emit(False, '未找到有效的 Prompt 模板')
+            return
+
+        self.processing_started.emit()
+        worker = _LLMWorker(text, prompt_obj['content'], llm_config, parent=self)
+        worker.finished.connect(self._on_llm_success)
+        worker.error.connect(self._on_llm_error)
+        worker.start()
+        self._current_worker = worker
+
+    def _on_llm_success(self, result: str):
+        if _write_clipboard(result):
+            self.process_done.emit(True, '大模型处理完成，可直接粘贴')
+        else:
+            self.process_done.emit(False, '写入剪贴板失败')
+
+    def _on_llm_error(self, message: str):
+        # 不写剪贴板，原文保持不变
+        self.process_done.emit(False, message)
