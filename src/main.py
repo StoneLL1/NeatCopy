@@ -1,5 +1,6 @@
 import sys
 import os
+import ctypes
 sys.path.insert(0, os.path.dirname(__file__))
 
 from PyQt6.QtWidgets import QApplication
@@ -10,7 +11,18 @@ from clip_processor import ClipProcessor
 from ui.settings_window import SettingsWindow
 
 
+def _ensure_admin():
+    """非管理员时自动以管理员身份重新启动，然后退出当前进程。"""
+    if ctypes.windll.shell32.IsUserAnAdmin():
+        return
+    # ShellExecuteW runas 触发 UAC 提示
+    ctypes.windll.shell32.ShellExecuteW(
+        None, 'runas', sys.executable, ' '.join(sys.argv), None, 1)
+    sys.exit(0)
+
+
 def main():
+    _ensure_admin()
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName('NeatCopy')
