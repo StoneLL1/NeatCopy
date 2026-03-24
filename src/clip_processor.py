@@ -15,6 +15,8 @@ def _read_clipboard() -> str | None:
             try:
                 if win32clipboard.IsClipboardFormatAvailable(win32clipboard.CF_UNICODETEXT):
                     data = win32clipboard.GetClipboardData(win32clipboard.CF_UNICODETEXT)
+                    if data:
+                        data = data.replace('\r\n', '\n').replace('\r', '\n')
                     return data if data else None
                 return None
             finally:

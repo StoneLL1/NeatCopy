@@ -1,4 +1,6 @@
 # 设置界面：三Tab（通用/清洗规则/大模型），点击保存后写入配置。
+import sys
+import os
 import uuid
 from PyQt6.QtWidgets import (
     QDialog, QTabWidget, QWidget, QVBoxLayout, QHBoxLayout,
@@ -8,6 +10,14 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QTimer
+
+
+def _asset(filename: str) -> str:
+    if getattr(sys, 'frozen', False):
+        base = os.path.join(sys._MEIPASS, 'assets')
+    else:
+        base = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'assets'))
+    return os.path.join(base, filename)
 
 
 RULE_LABELS = {
@@ -32,12 +42,8 @@ class SettingsWindow(QDialog):
         self.setWindowTitle('NeatCopy 设置')
         self.setFixedWidth(520)
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, False)
-        import os
-        icon_path = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'assets', 'idle.png'))
-        self.setWindowIcon(QIcon(icon_path))
-        check_path = os.path.normpath(
-            os.path.join(os.path.dirname(__file__), '..', '..', 'assets', 'check.png')
-        ).replace('\\', '/')
+        self.setWindowIcon(QIcon(_asset('idle.png')))
+        check_path = _asset('check.png').replace('\\', '/')
         self.setStyleSheet(f"""
             QDialog {{ background:#F5F5F5; font-family:"Microsoft YaHei UI","Segoe UI",sans-serif; font-size:13px; color:#202020; }}
             QTabWidget::pane {{ border:1px solid #E8E8E8; border-radius:8px; background:#FFFFFF; top:-1px; }}
