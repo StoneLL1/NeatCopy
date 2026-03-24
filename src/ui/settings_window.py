@@ -58,6 +58,9 @@ class SettingsWindow(QDialog):
             QPushButton#btn_save {{ background:#3B82F6; border:none; color:#FFF; font-weight:bold; padding:6px 28px; border-radius:6px; }}
             QPushButton#btn_save:hover {{ background:#2563EB; }}
             QPushButton#btn_save:pressed {{ background:#1D4ED8; }}
+            QPushButton#btn_reset {{ background:#FFF5F5; border:1px solid #FECACA; border-radius:6px; padding:5px 14px; min-height:28px; color:#DC2626; }}
+            QPushButton#btn_reset:hover {{ background:#FEE2E2; border-color:#FCA5A5; }}
+            QPushButton#btn_reset:pressed {{ background:#FECACA; }}
             QLineEdit {{ border:1px solid #DADADA; border-radius:5px; padding:5px 8px; background:#FFF; selection-background-color:#3B82F6; color:#333; }}
             QLineEdit:focus {{ border:1.5px solid #3B82F6; padding:4px 7px; }}
             QTextEdit {{ border:1px solid #DADADA; border-radius:5px; padding:5px; background:#FFF; color:#333; }}
@@ -162,7 +165,48 @@ class SettingsWindow(QDialog):
         layout.addWidget(dbl_box)
 
         layout.addStretch()
+        btn_reset_general = QPushButton('恢复通用默认设置')
+        btn_reset_general.setObjectName('btn_reset')
+        btn_reset_general.clicked.connect(self._confirm_and_reset_general)
+        layout.addWidget(btn_reset_general)
         return w
+
+    def _confirm_and_reset_general(self):
+        reply = QMessageBox.question(
+            self, '确认恢复默认',
+            '确定要将通用设置（热键、双击 Ctrl+C、Toast 通知等）恢复为默认值吗？\n此操作不可撤销。',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        from config_manager import DEFAULT_CONFIG
+        g = DEFAULT_CONFIG['general']
+        # 写入待保存列表
+        self._mark('general.toast_notification',         g['toast_notification'])
+        self._mark('general.startup_with_windows',       g['startup_with_windows'])
+        self._mark('general.double_ctrl_c.enabled',      g['double_ctrl_c']['enabled'])
+        self._mark('general.double_ctrl_c.interval_ms',  g['double_ctrl_c']['interval_ms'])
+        self._mark('general.custom_hotkey.enabled',      g['custom_hotkey']['enabled'])
+        self._mark('general.custom_hotkey.keys',         g['custom_hotkey']['keys'])
+        # 刷新 UI（阻断信号，避免触发二次 _mark）
+        for widget, value in [
+            (self._chk_toast,    g['toast_notification']),
+            (self._chk_startup,  g['startup_with_windows']),
+            (self._chk_hotkey,   g['custom_hotkey']['enabled']),
+            (self._chk_dbl,      g['double_ctrl_c']['enabled']),
+        ]:
+            widget.blockSignals(True)
+            widget.setChecked(value)
+            widget.blockSignals(False)
+        self._btn_record.blockSignals(True)
+        self._btn_record.setText(g['custom_hotkey']['keys'])
+        self._btn_record.blockSignals(False)
+        self._sld_interval.blockSignals(True)
+        self._sld_interval.setValue(g['double_ctrl_c']['interval_ms'])
+        self._sld_interval.blockSignals(False)
+        self._lbl_interval.setText(f'间隔阈值：{g["double_ctrl_c"]["interval_ms"]} ms')
+        self._do_save()
 
     def _on_interval_changed(self, value: int):
         self._lbl_interval.setText(f'间隔阈值：{value} ms')
@@ -289,10 +333,13 @@ class SettingsWindow(QDialog):
         api_box = QGroupBox('API 配置')
         api_lay = QVBoxLayout(api_box)
 
-        for label, key, placeholder in [
+        _api_fields = [
             ('Base URL', 'llm.base_url', 'https://api.openai.com/v1'),
             ('Model ID', 'llm.model_id', 'gpt-4o-mini'),
-        ]:
+        ]
+        self._le_base_url: QLineEdit | None = None
+        self._le_model_id: QLineEdit | None = None
+        for label, key, placeholder in _api_fields:
             row = QHBoxLayout()
             row.addWidget(QLabel(f'{label}：'))
             le = QLineEdit(str(self._config.get(key, placeholder)))
@@ -300,6 +347,10 @@ class SettingsWindow(QDialog):
             le.textChanged.connect(lambda t, k=key: self._mark(k, t))
             row.addWidget(le)
             api_lay.addLayout(row)
+            if key == 'llm.base_url':
+                self._le_base_url = le
+            elif key == 'llm.model_id':
+                self._le_model_id = le
 
         key_row = QHBoxLayout()
         key_row.addWidget(QLabel('API Key：'))
@@ -329,9 +380,15 @@ class SettingsWindow(QDialog):
         api_lay.addLayout(temp_row)
         layout.addWidget(api_box)
 
+        btn_row = QHBoxLayout()
         self._btn_test = QPushButton('测试连接')
         self._btn_test.clicked.connect(self._on_test_connection)
-        layout.addWidget(self._btn_test)
+        btn_row.addWidget(self._btn_test)
+        btn_reset_llm = QPushButton('恢复 API 默认配置')
+        btn_reset_llm.setObjectName('btn_reset')
+        btn_reset_llm.clicked.connect(self._confirm_and_reset_llm_api)
+        btn_row.addWidget(btn_reset_llm)
+        layout.addLayout(btn_row)
 
         prompt_box = QGroupBox('Prompt 模板')
         prompt_lay = QVBoxLayout(prompt_box)
@@ -350,6 +407,40 @@ class SettingsWindow(QDialog):
 
         layout.addStretch()
         return w
+
+    def _confirm_and_reset_llm_api(self):
+        reply = QMessageBox.question(
+            self, '确认恢复默认',
+            '确定要将 API 配置（Base URL、Model ID、API Key、Temperature）恢复为默认值吗？\n'
+            'API Key 将被清空，Prompt 模板不受影响。此操作不可撤销。',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        from config_manager import DEFAULT_CONFIG
+        llm = DEFAULT_CONFIG['llm']
+        self._mark('llm.base_url',    llm['base_url'])
+        self._mark('llm.model_id',    llm['model_id'])
+        self._mark('llm.api_key',     llm['api_key'])
+        self._mark('llm.temperature', llm['temperature'])
+        # 刷新 UI
+        if self._le_base_url:
+            self._le_base_url.blockSignals(True)
+            self._le_base_url.setText(llm['base_url'])
+            self._le_base_url.blockSignals(False)
+        if self._le_model_id:
+            self._le_model_id.blockSignals(True)
+            self._le_model_id.setText(llm['model_id'])
+            self._le_model_id.blockSignals(False)
+        self._le_apikey.blockSignals(True)
+        self._le_apikey.setText(llm['api_key'])
+        self._le_apikey.blockSignals(False)
+        self._sld_temp.blockSignals(True)
+        self._sld_temp.setValue(int(llm['temperature'] * 10))
+        self._sld_temp.blockSignals(False)
+        self._lbl_temp.setText(f'Temperature：{llm["temperature"]:.1f}')
+        self._do_save()
 
     def _on_llm_checkbox_toggled(self, checked):
         mode = 'llm' if checked else 'rules'
