@@ -82,6 +82,7 @@ class HotkeyManager(QObject):
         self._ll_proc = None  # prevent GC of ctypes callback
         self._lock = threading.Lock()
         self._last_ctrl_c_time = 0.0
+        self._simulating = False  # 防止注入 Ctrl+C 时 Shift 仍按下导致 WM_HOTKEY 重入
         self._register_hotkey()
 
     def set_paused(self, paused: bool):
@@ -147,17 +148,27 @@ class HotkeyManager(QObject):
             self._ll_proc = None
 
     def _on_hotkey(self):
-        if self._paused:
+        if self._paused or self._simulating:
+            # _simulating=True 说明是我们自己注入的 Ctrl+C 在 Shift 仍按下时触发的重入，忽略
             return
-        # 延迟到下一个事件循环再注入 Ctrl+C，避免在 nativeEventFilter 内触发重入
+        self._simulating = True
         from PyQt6.QtCore import QTimer
         def _simulate():
+            # Shift 仍物理按下时，注入的 Ctrl+C 会被系统识别为 Ctrl+Shift+C
+            # 再次触发 RegisterHotKey 并消耗按键，导致 App X 收不到 Ctrl+C
+            # 先注入 Shift-up，确保系统只看到普通 Ctrl+C
+            VK_SHIFT = 0x10
+            if user32.GetAsyncKeyState(VK_SHIFT) & 0x8000:
+                user32.keybd_event(VK_SHIFT, 0, 2, 0)    # Shift up
             user32.keybd_event(VK_CONTROL, 0, 0, 0)      # Ctrl down
             user32.keybd_event(VK_C, 0, 0, 0)            # C down
             user32.keybd_event(VK_C, 0, 2, 0)            # C up
             user32.keybd_event(VK_CONTROL, 0, 2, 0)      # Ctrl up
-            # 等待 App 写入剪贴板（延迟渲染场景需要更多时间）
-            QTimer.singleShot(150, self.hotkey_triggered.emit)
+            # 等待 App 写入剪贴板后触发处理，同时重置标志位
+            def _done():
+                self._simulating = False
+                self.hotkey_triggered.emit()
+            QTimer.singleShot(150, _done)
         QTimer.singleShot(0, _simulate)
 
     def _on_ctrl_c(self):
