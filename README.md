@@ -1,4 +1,7 @@
-# NeatCopy
+
+<img width="556" height="244" alt="image" src="https://github.com/user-attachments/assets/a09faa5b-7990-47b4-827e-f8574c9ae083" />
+
+# NeatCopy | 让复制粘贴更轻松
 
 **复制文本，按下快捷键，粘贴干净的内容。**
 
