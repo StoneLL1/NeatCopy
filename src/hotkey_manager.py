@@ -145,8 +145,18 @@ class HotkeyManager(QObject):
             self._ll_proc = None
 
     def _on_hotkey(self):
-        if not self._paused:
-            self.hotkey_triggered.emit()
+        if self._paused:
+            return
+        # 延迟到下一个事件循环再注入 Ctrl+C，避免在 nativeEventFilter 内触发重入
+        from PyQt6.QtCore import QTimer
+        def _simulate():
+            user32.keybd_event(VK_CONTROL, 0, 0, 0)      # Ctrl down
+            user32.keybd_event(VK_C, 0, 0, 0)            # C down
+            user32.keybd_event(VK_C, 0, 2, 0)            # C up
+            user32.keybd_event(VK_CONTROL, 0, 2, 0)      # Ctrl up
+            # 等待 App 写入剪贴板（延迟渲染场景需要更多时间）
+            QTimer.singleShot(150, self.hotkey_triggered.emit)
+        QTimer.singleShot(0, _simulate)
 
     def _on_ctrl_c(self):
         """检测双击 Ctrl+C：两次 Ctrl+C 间隔在阈值内触发清洗。"""

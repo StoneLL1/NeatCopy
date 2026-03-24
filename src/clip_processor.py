@@ -1,24 +1,44 @@
 # 剪贴板处理调度：读取剪贴板 → 规则/LLM → 写回剪贴板。
-# 使用 Qt QClipboard（避免 win32clipboard 在 Qt 事件循环中 Access Denied）。
-from PyQt6.QtWidgets import QApplication
+# 使用 win32clipboard 直接操作，绕过 Qt OleSetClipboard 无重试的问题。
+# 写入时重试（App 可能以延迟渲染持有 clipboard owner，需等其释放）。
+import time
 from PyQt6.QtCore import QObject, pyqtSignal, QThread
 
 from rule_engine import RuleEngine
 
 
 def _read_clipboard() -> str | None:
-    clipboard = QApplication.clipboard()
-    text = clipboard.text()
-    return text if text else None
+    import win32clipboard
+    for _ in range(5):
+        try:
+            win32clipboard.OpenClipboard(0)
+            try:
+                if win32clipboard.IsClipboardFormatAvailable(win32clipboard.CF_UNICODETEXT):
+                    data = win32clipboard.GetClipboardData(win32clipboard.CF_UNICODETEXT)
+                    return data if data else None
+                return None
+            finally:
+                win32clipboard.CloseClipboard()
+        except Exception:
+            time.sleep(0.02)
+    return None
 
 
 def _write_clipboard(text: str) -> bool:
-    try:
-        clipboard = QApplication.clipboard()
-        clipboard.setText(text)
-        return True
-    except Exception:
-        return False
+    import win32clipboard
+    for attempt in range(10):
+        try:
+            win32clipboard.OpenClipboard(0)
+            try:
+                win32clipboard.EmptyClipboard()
+                win32clipboard.SetClipboardData(win32clipboard.CF_UNICODETEXT, text)
+                return True
+            finally:
+                win32clipboard.CloseClipboard()
+        except Exception:
+            if attempt < 9:
+                time.sleep(0.05)
+    return False
 
 
 class _LLMWorker(QThread):
