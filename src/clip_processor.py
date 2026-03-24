@@ -116,6 +116,11 @@ class ClipProcessor(QObject):
             self.process_done.emit(False, f'清洗出错：{e}')
 
     def _process_llm(self, text: str):
+        # 若上一次请求仍在运行，拒绝新请求，防止 QThread 被 GC 且重复触发
+        if self._current_worker is not None and self._current_worker.isRunning():
+            self.process_done.emit(False, '正在处理中，请稍候')
+            return
+
         llm_config = self._config.get('llm') or {}
         if not llm_config.get('api_key'):
             self.process_done.emit(False, '请先在设置中配置 API Key')
@@ -130,9 +135,10 @@ class ClipProcessor(QObject):
             return
 
         self.processing_started.emit()
-        worker = _LLMWorker(text, prompt_obj['content'], llm_config, parent=self)
+        worker = _LLMWorker(text, prompt_obj['content'], llm_config)
         worker.succeeded.connect(self._on_llm_success)
         worker.failed.connect(self._on_llm_error)
+        worker.finished.connect(lambda: setattr(self, '_current_worker', None))
         worker.start()
         self._current_worker = worker
 

@@ -117,10 +117,12 @@ class HotkeyManager(QObject):
 
     def _install_ll_hook(self):
         """安装 WH_KEYBOARD_LL 钩子检测双击 Ctrl+C。不拦截按键，正常复制不受影响。"""
+        LLKHF_INJECTED = 0x10  # keybd_event/SendInput 注入的事件，跳过避免自触发
+
         def hook_proc(nCode, wParam, lParam):
             if nCode >= 0 and wParam == WM_KEYDOWN:
                 kb = _KBDLLHOOKSTRUCT.from_address(lParam)
-                if kb.vkCode == VK_C:
+                if kb.vkCode == VK_C and not (kb.flags & LLKHF_INJECTED):
                     # 检查 Ctrl 是否按下（高位为1表示按下）
                     if user32.GetAsyncKeyState(VK_CONTROL) & 0x8000:
                         self._on_ctrl_c()
