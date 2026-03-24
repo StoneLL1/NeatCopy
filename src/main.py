@@ -1,6 +1,14 @@
 import sys
 import os
+import traceback
 sys.path.insert(0, os.path.dirname(__file__))
+
+
+def _setup_logging():
+    """崩溃时写 crash.log，方便冻结模式无 console 时排查问题。"""
+    log_dir = os.path.join(os.environ.get('APPDATA', '.'), 'NeatCopy')
+    os.makedirs(log_dir, exist_ok=True)
+    return os.path.join(log_dir, 'crash.log')
 
 from PyQt6.QtWidgets import QApplication
 from config_manager import ConfigManager
@@ -50,4 +58,10 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception:
+        log_path = _setup_logging()
+        with open(log_path, 'w', encoding='utf-8') as f:
+            f.write(traceback.format_exc())
+        raise
