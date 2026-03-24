@@ -142,10 +142,6 @@ class SettingsWindow(QDialog):
             lambda v: self._mark('general.custom_hotkey.enabled', bool(v)))
         self._btn_record = QPushButton(
             self._config.get('general.custom_hotkey.keys', 'ctrl+shift+c'))
-        self._btn_record.setCheckable(True)
-        self._btn_record.setToolTip('点击后按下组合键进行录制')
-        self._btn_record.toggled.connect(self._on_record_toggle)
-        self._recording_keys: list[str] = []
         hk_lay.addWidget(self._chk_hotkey)
         hk_lay.addWidget(QLabel('热键：'))
         hk_lay.addWidget(self._btn_record)
@@ -217,50 +213,6 @@ class SettingsWindow(QDialog):
     def _on_interval_changed(self, value: int):
         self._lbl_interval.setText(f'间隔阈值：{value} ms')
         self._mark('general.double_ctrl_c.interval_ms', value)
-
-    def _on_record_toggle(self, recording: bool):
-        if recording:
-            self._btn_record.setText('按下组合键...')
-            self._recording_keys = []
-        else:
-            if self._recording_keys:
-                combo = '+'.join(self._recording_keys)
-                self._btn_record.setText(combo)
-                self._mark('general.custom_hotkey.keys', combo)
-
-    # Qt.Key 到 keyboard 库键名的映射
-    _KEY_MAP = {
-        Qt.Key.Key_F1: 'f1', Qt.Key.Key_F2: 'f2', Qt.Key.Key_F3: 'f3',
-        Qt.Key.Key_F4: 'f4', Qt.Key.Key_F5: 'f5', Qt.Key.Key_F6: 'f6',
-        Qt.Key.Key_F7: 'f7', Qt.Key.Key_F8: 'f8', Qt.Key.Key_F9: 'f9',
-        Qt.Key.Key_F10: 'f10', Qt.Key.Key_F11: 'f11', Qt.Key.Key_F12: 'f12',
-        Qt.Key.Key_Insert: 'insert', Qt.Key.Key_Delete: 'delete',
-        Qt.Key.Key_Home: 'home', Qt.Key.Key_End: 'end',
-        Qt.Key.Key_PageUp: 'page up', Qt.Key.Key_PageDown: 'page down',
-        Qt.Key.Key_Space: 'space', Qt.Key.Key_Tab: 'tab',
-        Qt.Key.Key_Escape: 'esc', Qt.Key.Key_Return: 'enter',
-        Qt.Key.Key_Enter: 'enter', Qt.Key.Key_Backspace: 'backspace',
-    }
-
-    def keyPressEvent(self, event):
-        if not self._btn_record.isChecked():
-            return super().keyPressEvent(event)
-        mods = []
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            mods.append('ctrl')
-        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
-            mods.append('shift')
-        if event.modifiers() & Qt.KeyboardModifier.AltModifier:
-            mods.append('alt')
-        # 优先查映射表（F 键、特殊键）
-        key_name = self._KEY_MAP.get(Qt.Key(event.key()))
-        if not key_name:
-            key_text = event.text().lower().strip()
-            if key_text and key_text.isprintable():
-                key_name = key_text
-        if key_name:
-            self._recording_keys = mods + [key_name]
-            self._btn_record.setChecked(False)
 
     # ── 规则 Tab ──────────────────────────────────────────────
 
