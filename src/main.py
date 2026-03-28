@@ -33,15 +33,17 @@ def main():
 
     tray.quit_requested.connect(app.quit)
     tray.pause_toggled.connect(hotkey.set_paused)
-    tray.locked_prompt_changed.connect(
-        lambda pid: (
-            config.set('wheel.locked_prompt_id', pid or None),
-            tray.update_locked_prompt(
-                next((p['name'] for p in (config.get('llm.prompts') or []) if p['id'] == pid), None)
-                if pid else None
-            )
-        )
-    )
+
+    def on_locked_prompt_changed(pid: str):
+        config.set('wheel.locked_prompt_id', pid or None)
+        if pid:
+            prompts = config.get('llm.prompts') or []
+            name = next((p['name'] for p in prompts if p['id'] == pid), None)
+        else:
+            name = None
+        tray.update_locked_prompt(name)
+
+    tray.locked_prompt_changed.connect(on_locked_prompt_changed)
 
     processor.processing_started.connect(tray.set_processing)
 

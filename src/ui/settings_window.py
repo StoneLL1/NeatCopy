@@ -318,30 +318,27 @@ class SettingsWindow(QDialog):
     def _on_clean_hotkey_btn(self, checked: bool):
         if checked:
             self._btn_record.setText('请按下热键组合...')
-            self.grabKeyboard()
-            self._clean_hotkey_recording = True
-            self._wheel_hotkey_recording = False
             self._btn_wheel_hotkey.setChecked(False)
+            self.grabKeyboard()
+            self._recording_target = 'clean'
         else:
             self.releaseKeyboard()
-            self._clean_hotkey_recording = False
+            self._recording_target = None
 
     def _on_wheel_hotkey_btn(self, checked: bool):
         if checked:
             self._btn_wheel_hotkey.setText('请按下热键组合...')
-            self.grabKeyboard()
-            self._wheel_hotkey_recording = True
-            self._clean_hotkey_recording = False
             self._btn_record.setChecked(False)
+            self.grabKeyboard()
+            self._recording_target = 'wheel'
         else:
             self.releaseKeyboard()
-            self._wheel_hotkey_recording = False
+            self._recording_target = None
 
     def keyPressEvent(self, event):
         """捕获热键录制（清洗热键和轮盘切换热键通用）。"""
-        recording_clean = getattr(self, '_clean_hotkey_recording', False)
-        recording_wheel = getattr(self, '_wheel_hotkey_recording', False)
-        if not recording_clean and not recording_wheel:
+        target = getattr(self, '_recording_target', None)
+        if target is None:
             return super().keyPressEvent(event)
 
         from PyQt6.QtCore import Qt as _Qt
@@ -374,7 +371,7 @@ class SettingsWindow(QDialog):
 
         if len(parts) >= 2:
             hotkey_str = '+'.join(parts)
-            if recording_clean:
+            if target == 'clean':
                 self._btn_record.setText(hotkey_str)
                 self._mark('general.custom_hotkey.keys', hotkey_str)
             else:
@@ -382,12 +379,11 @@ class SettingsWindow(QDialog):
                 self._mark('wheel.switch_hotkey', hotkey_str)
 
         self.releaseKeyboard()
-        if recording_clean:
+        self._recording_target = None
+        if target == 'clean':
             self._btn_record.setChecked(False)
-            self._clean_hotkey_recording = False
         else:
             self._btn_wheel_hotkey.setChecked(False)
-            self._wheel_hotkey_recording = False
 
     def _on_interval_changed(self, value: int):
         self._lbl_interval.setText(f'间隔阈值：{value} ms')

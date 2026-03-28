@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QWidget, QApplication, QGraphicsOpacityEffect
 from PyQt6.QtCore import (
     Qt, QPoint, QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer
 )
-from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QPainterPath, QBrush
+from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QPainterPath, QBrush, QCursor
 
 _user32 = ctypes.windll.user32
 _WH_MOUSE_LL = 14
@@ -59,6 +59,10 @@ class WheelWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setFixedSize(self._WINDOW_SIZE, self._WINDOW_SIZE)
         self.setMouseTracking(True)
+
+        # 字体（避免在 paintEvent 中每帧重复创建）
+        self._font_name = QFont('Microsoft YaHei UI', 9)
+        self._font_num = QFont('Microsoft YaHei UI', 8)
 
         # 透明度动画
         self._opacity_effect = QGraphicsOpacityEffect(self)
@@ -117,8 +121,6 @@ class WheelWindow(QWidget):
         def _hook(nCode, wParam, lParam):
             if nCode >= 0 and wParam in (_WM_LBUTTONDOWN, _WM_RBUTTONDOWN):
                 if self._wheel_open:
-                    # 用 QCursor.pos() 获取逻辑像素坐标，避免 HiDPI 下物理/逻辑坐标不一致
-                    from PyQt6.QtGui import QCursor
                     click_pos = QCursor.pos()
                     if not self.geometry().contains(click_pos):
                         # 点击在轮盘外部，延到下一帧关闭（不在钩子内直接操作 Qt）
@@ -143,7 +145,8 @@ class WheelWindow(QWidget):
         self._uninstall_mouse_hook()
 
         self._anim.stop()
-        self._anim.finished.disconnect() if self._anim.receivers(self._anim.finished) else None
+        if self._anim.receivers(self._anim.finished) > 0:
+            self._anim.finished.disconnect()
         self._anim.setDuration(100)
         self._anim.setStartValue(self._opacity_effect.opacity())
         self._anim.setEndValue(0.0)
@@ -238,8 +241,7 @@ class WheelWindow(QWidget):
             ty = cy + text_r * math.sin(mid_angle)
 
             # Prompt 名称
-            font = QFont('Microsoft YaHei UI', 9)
-            painter.setFont(font)
+            painter.setFont(self._font_name)
             painter.setPen(QPen(self._TEXT_COLOR))
             name = prompt.get('name', '')
             if len(name) > 5:
@@ -253,12 +255,12 @@ class WheelWindow(QWidget):
             num_r = self._INNER_R + 14
             nx = cx + num_r * math.cos(mid_angle)
             ny = cy + num_r * math.sin(mid_angle)
-            num_font = QFont('Microsoft YaHei UI', 8)
-            painter.setFont(num_font)
+            painter.setFont(self._font_num)
             painter.setPen(QPen(self._NUM_COLOR))
             num_str = str(i + 1)
-            nw = painter.fontMetrics().horizontalAdvance(num_str)
-            nh = painter.fontMetrics().height()
+            fm_num = painter.fontMetrics()
+            nw = fm_num.horizontalAdvance(num_str)
+            nh = fm_num.height()
             painter.drawText(int(nx - nw / 2), int(ny + nh / 4), num_str)
 
         # 中心圆（ESC 提示）
@@ -266,12 +268,12 @@ class WheelWindow(QWidget):
         painter.setBrush(QBrush(QColor(30, 30, 30, 230)))
         painter.drawEllipse(cx - self._INNER_R, cy - self._INNER_R,
                             self._INNER_R * 2, self._INNER_R * 2)
-        center_font = QFont('Microsoft YaHei UI', 8)
-        painter.setFont(center_font)
+        painter.setFont(self._font_num)
         painter.setPen(QPen(self._CENTER_LABEL_COLOR))
         esc_txt = 'ESC'
-        fw = painter.fontMetrics().horizontalAdvance(esc_txt)
-        fh = painter.fontMetrics().height()
+        fm_center = painter.fontMetrics()
+        fw = fm_center.horizontalAdvance(esc_txt)
+        fh = fm_center.height()
         painter.drawText(cx - fw // 2, cy + fh // 4, esc_txt)
 
         # 外圆边框
