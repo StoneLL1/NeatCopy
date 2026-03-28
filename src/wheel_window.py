@@ -60,6 +60,9 @@ class WheelWindow(QWidget):
     _CENTER_TEXT   = QColor( 55,  55,  55)
     # 装饰外圈
     _DECO_RING     = QColor(255, 255, 255,  10)
+    # 数字药丸背景
+    _PILL_HOVER    = QColor(255, 255, 255,  22)
+    _PILL_NORMAL   = QColor(255, 255, 255,  13)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -299,7 +302,7 @@ class WheelWindow(QWidget):
             pill_h = nh - 1
             pill_x = int(nx - pill_w / 2)
             pill_y = int(ny - pill_h / 2)
-            pill_color = QColor(255, 255, 255, 22) if is_hovered else QColor(255, 255, 255, 13)
+            pill_color = self._PILL_HOVER if is_hovered else self._PILL_NORMAL
             painter.setBrush(QBrush(pill_color))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawRoundedRect(pill_x, pill_y, pill_w, pill_h, 3, 3)
