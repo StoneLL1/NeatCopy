@@ -589,7 +589,7 @@ class SettingsWindow(QDialog):
         # 作者信息
         author_box = QGroupBox('作者')
         author_lay = QVBoxLayout(author_box)
-        author_lay.addWidget(QLabel('NeatCopy Team'))
+        author_lay.addWidget(QLabel('StoneLL1'))
         layout.addWidget(author_box)
 
         # GitHub 链接
@@ -600,6 +600,7 @@ class SettingsWindow(QDialog):
         github_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         github_link.linkActivated.connect(self._open_github)
         github_lay.addWidget(github_link)
+        github_lay.addWidget(QLabel('欢迎 Star ⭐'))
         layout.addWidget(github_box)
 
         layout.addStretch()
