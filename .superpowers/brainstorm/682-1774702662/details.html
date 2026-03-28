@@ -1,0 +1,31 @@
+<h2>已确认设置项</h2>
+<p class="subtitle">启用开关 + 独立热键配置 + 随清洗触发开关（默认扇形样式）</p>
+
+<h2>还有什么细节需要确认？</h2>
+<p class="subtitle">以下是一些可能影响实现的小细节</p>
+
+<div class="options" data-multiselect>
+  <div class="option" data-choice="remember-last" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>记住上次选择</h3>
+      <p>随清洗触发模式下，是否记住上次选的 Prompt（下次默认选中它）</p>
+    </div>
+  </div>
+  <div class="option" data-choice="show-count" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>显示 Prompt 数量限制</h3>
+      <p>轮盘最多显示几个 Prompt？超过时如何处理？（滚动/分页）</p>
+    </div>
+  </div>
+  <div class="option" data-choice="animation" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>动画效果</h3>
+      <p>轮盘弹出/关闭是否需要动画？（淡入淡出/展开收起）</p>
+    </div>
+  </div>
+</div>
+
+<p style="color:#888;margin-top:1rem;font-size:0.85rem">可多选，选择你认为需要进一步讨论的细节。如果这些都不重要，可以不选。</p>

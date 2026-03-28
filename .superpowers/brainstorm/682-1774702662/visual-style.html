@@ -1,0 +1,43 @@
+<h2>已确认触发方式</h2>
+<p class="subtitle">两种模式并存</p>
+
+<div class="section">
+<div class="mockup" style="background:#1a1a2e;padding:1rem;border-radius:8px">
+<div style="color:#00d4ff;font-weight:bold;margin-bottom:0.5rem">模式1：随清洗触发</div>
+<div style="color:#aaa;font-size:0.9rem">按 Ctrl+C+C 或 Ctrl+Shift+C → 弹出轮盘 → 选择 Prompt → 执行清洗</div>
+</div>
+</div>
+
+<div class="section">
+<div class="mockup" style="background:#1a1a2e;padding:1rem;border-radius:8px">
+<div style="color:#00d4ff;font-weight:bold;margin-bottom:0.5rem">模式2：独立切换（锁定模式）</div>
+<div style="color:#aaa;font-size:0.9rem">按独立快捷键 → 弹出轮盘 → 选择后"锁定" → 后续清洗直接用锁定的 Prompt</div>
+</div>
+</div>
+
+<h2>轮盘的视觉形态？</h2>
+<p class="subtitle">选择后回到终端继续</p>
+
+<div class="options">
+  <div class="option" data-choice="radial" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>扇形/圆形轮盘</h3>
+      <p>Prompt 围绕鼠标位置呈扇形展开，类似 macOS 独角兽轮盘</p>
+    </div>
+  </div>
+  <div class="option" data-choice="list" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>垂直列表</h3>
+      <p>简洁的上下滚动列表，类似右键菜单样式</p>
+    </div>
+  </div>
+  <div class="option" data-choice="grid" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>网格卡片</h3>
+      <p>2-3 列卡片布局，每个 Prompt 显示名称和简短描述</p>
+    </div>
+  </div>
+</div>

@@ -146,6 +146,8 @@ class SettingsWindow(QDialog):
             lambda v: self._mark('general.custom_hotkey.enabled', bool(v)))
         self._btn_record = QPushButton(
             self._config.get('general.custom_hotkey.keys', 'ctrl+shift+c'))
+        self._btn_record.setCheckable(True)
+        self._btn_record.clicked.connect(self._on_clean_hotkey_btn)
         hk_lay.addWidget(self._chk_hotkey)
         hk_lay.addWidget(QLabel('热键：'))
         hk_lay.addWidget(self._btn_record)
@@ -169,6 +171,9 @@ class SettingsWindow(QDialog):
         dbl_lay.addWidget(self._lbl_interval)
         dbl_lay.addWidget(self._sld_interval)
         layout.addWidget(dbl_box)
+
+        # 轮盘 Prompt 选择器设置
+        layout.addWidget(self._build_wheel_group())
 
         layout.addStretch()
         btn_reset_general = QPushButton('恢复通用默认设置')
@@ -213,6 +218,176 @@ class SettingsWindow(QDialog):
         self._sld_interval.blockSignals(False)
         self._lbl_interval.setText(f'间隔阈值：{g["double_ctrl_c"]["interval_ms"]} ms')
         self._do_save()
+
+    def _build_wheel_group(self) -> QGroupBox:
+        """构建轮盘 Prompt 选择器设置分组。"""
+        wheel_box = QGroupBox('轮盘 Prompt 选择器')
+        wheel_lay = QVBoxLayout(wheel_box)
+        wheel_lay.setSpacing(6)
+
+        # 启用开关
+        self._chk_wheel = QCheckBox('启用轮盘 Prompt 选择器')
+        self._chk_wheel.setChecked(self._config.get('wheel.enabled', True))
+        self._chk_wheel.stateChanged.connect(self._on_wheel_enabled_changed)
+        wheel_lay.addWidget(self._chk_wheel)
+
+        # 随清洗触发
+        self._chk_wheel_trigger = QCheckBox('随清洗热键触发（弹出轮盘后执行清洗）')
+        self._chk_wheel_trigger.setChecked(self._config.get('wheel.trigger_with_clean', True))
+        self._chk_wheel_trigger.stateChanged.connect(
+            lambda v: self._mark('wheel.trigger_with_clean', bool(v)))
+        wheel_lay.addWidget(self._chk_wheel_trigger)
+
+        # 独立切换热键
+        sw_hk_lay = QHBoxLayout()
+        sw_hk_lay.addWidget(QLabel('切换热键：'))
+        self._btn_wheel_hotkey = QPushButton(
+            self._config.get('wheel.switch_hotkey', 'ctrl+shift+p'))
+        self._btn_wheel_hotkey.setCheckable(True)
+        self._btn_wheel_hotkey.clicked.connect(self._on_wheel_hotkey_btn)
+        sw_hk_lay.addWidget(self._btn_wheel_hotkey)
+        sw_hk_lay.addStretch()
+        wheel_lay.addLayout(sw_hk_lay)
+
+        # 可见 Prompt 配置
+        wheel_lay.addWidget(QLabel('轮盘显示的 Prompt（最多5个）：'))
+        self._wheel_prompt_list = QListWidget()
+        self._wheel_prompt_list.setMaximumHeight(100)
+        self._wheel_prompt_list.itemChanged.connect(self._on_wheel_prompt_item_changed)
+        self._refresh_wheel_prompts()
+        wheel_lay.addWidget(self._wheel_prompt_list)
+
+        # 根据启用状态更新子控件可用性
+        self._update_wheel_subwidgets()
+        return wheel_box
+
+    def _refresh_wheel_prompts(self):
+        """刷新轮盘可见 Prompt 列表。"""
+        self._wheel_prompt_list.blockSignals(True)
+        self._wheel_prompt_list.clear()
+        prompts = self._config.get('llm.prompts') or []
+        for p in prompts:
+            item = QListWidgetItem(p['name'])
+            item.setData(Qt.ItemDataRole.UserRole, p['id'])
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(
+                Qt.CheckState.Checked if p.get('visible_in_wheel', True)
+                else Qt.CheckState.Unchecked
+            )
+            self._wheel_prompt_list.addItem(item)
+        self._wheel_prompt_list.blockSignals(False)
+
+    def _on_wheel_prompt_item_changed(self, item: QListWidgetItem):
+        """处理轮盘可见 Prompt 勾选变化，最多5个。"""
+        checked_count = sum(
+            1 for i in range(self._wheel_prompt_list.count())
+            if self._wheel_prompt_list.item(i).checkState() == Qt.CheckState.Checked
+        )
+        if checked_count > 5:
+            # 超过5个，阻止勾选
+            self._wheel_prompt_list.blockSignals(True)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            self._wheel_prompt_list.blockSignals(False)
+            # 状态栏提示（借用 _status_lbl）
+            self._status_lbl.setText('轮盘最多显示5个 Prompt')
+            QTimer.singleShot(2000, lambda: self._status_lbl.setText(''))
+            return
+
+        # 更新 pending 中的 prompts 列表
+        prompts = list(self._config.get('llm.prompts') or [])
+        for i in range(self._wheel_prompt_list.count()):
+            list_item = self._wheel_prompt_list.item(i)
+            pid = list_item.data(Qt.ItemDataRole.UserRole)
+            visible = list_item.checkState() == Qt.CheckState.Checked
+            for p in prompts:
+                if p['id'] == pid:
+                    p['visible_in_wheel'] = visible
+        self._mark('llm.prompts', prompts)
+
+    def _on_wheel_enabled_changed(self, state):
+        enabled = bool(state)
+        self._mark('wheel.enabled', enabled)
+        self._update_wheel_subwidgets()
+
+    def _update_wheel_subwidgets(self):
+        enabled = self._chk_wheel.isChecked()
+        self._chk_wheel_trigger.setEnabled(enabled)
+        self._btn_wheel_hotkey.setEnabled(enabled)
+        self._wheel_prompt_list.setEnabled(enabled)
+
+    def _on_clean_hotkey_btn(self, checked: bool):
+        if checked:
+            self._btn_record.setText('请按下热键组合...')
+            self.grabKeyboard()
+            self._clean_hotkey_recording = True
+            self._wheel_hotkey_recording = False
+            self._btn_wheel_hotkey.setChecked(False)
+        else:
+            self.releaseKeyboard()
+            self._clean_hotkey_recording = False
+
+    def _on_wheel_hotkey_btn(self, checked: bool):
+        if checked:
+            self._btn_wheel_hotkey.setText('请按下热键组合...')
+            self.grabKeyboard()
+            self._wheel_hotkey_recording = True
+            self._clean_hotkey_recording = False
+            self._btn_record.setChecked(False)
+        else:
+            self.releaseKeyboard()
+            self._wheel_hotkey_recording = False
+
+    def keyPressEvent(self, event):
+        """捕获热键录制（清洗热键和轮盘切换热键通用）。"""
+        recording_clean = getattr(self, '_clean_hotkey_recording', False)
+        recording_wheel = getattr(self, '_wheel_hotkey_recording', False)
+        if not recording_clean and not recording_wheel:
+            return super().keyPressEvent(event)
+
+        from PyQt6.QtCore import Qt as _Qt
+        key = event.key()
+        mods = event.modifiers()
+
+        # 忽略纯修饰键
+        if key in (
+            _Qt.Key.Key_Control, _Qt.Key.Key_Shift, _Qt.Key.Key_Alt,
+            _Qt.Key.Key_Meta, _Qt.Key.Key_unknown
+        ):
+            return
+
+        parts = []
+        if mods & _Qt.KeyboardModifier.ControlModifier:
+            parts.append('ctrl')
+        if mods & _Qt.KeyboardModifier.ShiftModifier:
+            parts.append('shift')
+        if mods & _Qt.KeyboardModifier.AltModifier:
+            parts.append('alt')
+
+        # 始终用枚举名获取键名，避免 Ctrl 按住时 event.text() 返回控制字符（如 \x03）
+        try:
+            key_str = _Qt.Key(key).name  # e.g. 'Key_C' → 'c', 'Key_F5' → 'f5'
+            key_name = key_str.replace('Key_', '').lower()
+        except (ValueError, KeyError):
+            key_name = ''
+        if key_name:
+            parts.append(key_name)
+
+        if len(parts) >= 2:
+            hotkey_str = '+'.join(parts)
+            if recording_clean:
+                self._btn_record.setText(hotkey_str)
+                self._mark('general.custom_hotkey.keys', hotkey_str)
+            else:
+                self._btn_wheel_hotkey.setText(hotkey_str)
+                self._mark('wheel.switch_hotkey', hotkey_str)
+
+        self.releaseKeyboard()
+        if recording_clean:
+            self._btn_record.setChecked(False)
+            self._clean_hotkey_recording = False
+        else:
+            self._btn_wheel_hotkey.setChecked(False)
+            self._wheel_hotkey_recording = False
 
     def _on_interval_changed(self, value: int):
         self._lbl_interval.setText(f'间隔阈值：{value} ms')
@@ -430,6 +605,9 @@ class SettingsWindow(QDialog):
             item = QListWidgetItem(f"{tag}{p['name']}{lock}")
             item.setData(Qt.ItemDataRole.UserRole, p['id'])
             self._prompt_list.addItem(item)
+        # 同步轮盘可见 Prompt 列表
+        if hasattr(self, '_wheel_prompt_list'):
+            self._refresh_wheel_prompts()
 
     def _show_prompt_menu(self, pos):
         item = self._prompt_list.itemAt(pos)

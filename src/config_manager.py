@@ -40,8 +40,16 @@ DEFAULT_CONFIG = {
                     '修复标点符号使用。直接返回整理后的文本，不要任何解释。'
                 ),
                 'readonly': True,
+                'visible_in_wheel': True,
             }
         ],
+    },
+    'wheel': {
+        'enabled': True,
+        'trigger_with_clean': True,
+        'switch_hotkey': 'ctrl+shift+p',
+        'last_prompt_id': None,
+        'locked_prompt_id': None,
     },
 }
 
@@ -68,7 +76,12 @@ class ConfigManager:
             self._config_path.rename(backup)
             self._write(DEFAULT_CONFIG)
             return self._deep_copy(DEFAULT_CONFIG)
-        return self._merge_defaults(data, DEFAULT_CONFIG)
+        merged = self._merge_defaults(data, DEFAULT_CONFIG)
+        # 旧配置兼容：为缺少 visible_in_wheel 的 prompt 自动补 True
+        for p in merged.get('llm', {}).get('prompts', []):
+            if 'visible_in_wheel' not in p:
+                p['visible_in_wheel'] = True
+        return merged
 
     def _deep_copy(self, obj):
         return json.loads(json.dumps(obj))
