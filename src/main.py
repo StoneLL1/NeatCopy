@@ -1,7 +1,15 @@
 import sys
 import os
 import traceback
+import ctypes
 sys.path.insert(0, os.path.dirname(__file__))
+
+# 设置 AppUserModelID，让 Windows 任务栏显示应用图标而非 Python 图标
+# （不设置时 Python 进程继承 python.exe 的 AUMID，任务栏显示 Python 默认图标）
+try:
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('NeatCopy.App')
+except (AttributeError, OSError):
+    pass
 
 
 def _setup_logging():
@@ -11,7 +19,8 @@ def _setup_logging():
     return os.path.join(log_dir, 'crash.log')
 
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtGui import QCursor
+from PyQt6.QtGui import QCursor, QIcon
+from assets import asset as _asset
 from config_manager import ConfigManager
 from tray_manager import TrayManager
 from hotkey_manager import HotkeyManager
@@ -24,6 +33,7 @@ def main():
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName('NeatCopy')
+    app.setWindowIcon(QIcon(_asset('idle.ico')))  # 应用级别图标
 
     config = ConfigManager()
     tray = TrayManager(config)

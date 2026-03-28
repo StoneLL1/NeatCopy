@@ -1,19 +1,9 @@
 # 托盘管理：图标三态变色、右键菜单、Toast 通知。
-import os
 import sys
 from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
 from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtCore import QTimer, pyqtSignal, QObject
-
-
-def _asset(filename: str) -> str:
-    # PyInstaller onefile 将 datas 解压到 sys._MEIPASS/assets/
-    # 源码运行时 assets 在项目根目录（src/../assets）
-    if getattr(sys, 'frozen', False):
-        base = os.path.join(sys._MEIPASS, 'assets')
-    else:
-        base = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'assets'))
-    return os.path.join(base, filename)
+from assets import asset as _asset
 
 
 class TrayManager(QObject):

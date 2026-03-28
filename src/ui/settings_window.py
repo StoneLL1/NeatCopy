@@ -13,14 +13,7 @@ from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtGui import QDesktopServices
 
 from version import VERSION
-
-
-def _asset(filename: str) -> str:
-    if getattr(sys, 'frozen', False):
-        base = os.path.join(sys._MEIPASS, 'assets')
-    else:
-        base = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', 'assets'))
-    return os.path.join(base, filename)
+from assets import asset as _asset
 
 
 RULE_LABELS = {
@@ -45,7 +38,7 @@ class SettingsWindow(QDialog):
         self.setWindowTitle('NeatCopy 设置')
         self.setFixedWidth(520)
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, False)
-        self.setWindowIcon(QIcon(_asset('idle.png')))
+        self.setWindowIcon(QIcon(_asset('idle.ico')))
         check_path = _asset('check.png').replace('\\', '/')
         self.setStyleSheet(f"""
             QDialog {{ background:#F5F5F5; font-family:"Microsoft YaHei UI","Segoe UI",sans-serif; font-size:13px; color:#202020; }}
