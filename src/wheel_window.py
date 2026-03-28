@@ -6,7 +6,9 @@ from PyQt6.QtWidgets import QWidget, QApplication, QGraphicsOpacityEffect
 from PyQt6.QtCore import (
     Qt, QPoint, QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer
 )
-from PyQt6.QtGui import QPainter, QColor, QPen, QFont, QPainterPath, QBrush, QCursor
+from PyQt6.QtGui import (
+    QPainter, QColor, QPen, QFont, QPainterPath, QBrush, QCursor, QRadialGradient
+)
 
 _user32 = ctypes.windll.user32
 _WH_MOUSE_LL = 14
@@ -30,15 +32,34 @@ class WheelWindow(QWidget):
     prompt_selected = pyqtSignal(str)   # 发射选中的 prompt id
     wheel_cancelled = pyqtSignal()      # ESC / 点击外部取消
 
-    _WINDOW_SIZE = 240
-    _OUTER_R = 100
-    _INNER_R = 34
-    _BG_COLOR = QColor(40, 40, 40, 230)
-    _HOVER_COLOR = QColor(80, 80, 80, 230)
-    _BORDER_COLOR = QColor(100, 100, 100, 150)
-    _TEXT_COLOR = QColor(255, 255, 255)
-    _NUM_COLOR = QColor(180, 180, 180)
-    _CENTER_LABEL_COLOR = QColor(160, 160, 160)
+    _WINDOW_SIZE = 268
+    _OUTER_R = 112
+    _INNER_R = 40
+
+    # ── 调色板（Editorial Monochrome） ───────────────────────
+    # 扇区基底（径向渐变：内深 → 外略浅，纯灰阶）
+    _SECTOR_INNER = QColor(16, 16, 16, 242)
+    _SECTOR_OUTER = QColor(26, 26, 26, 235)
+    # 悬停：白色高亮（纯亮度，无色相）
+    _HOVER_TINT   = QColor(255, 255, 255,  18)
+    _HOVER_BORDER = QColor(255, 255, 255, 128)
+    _HOVER_TEXT   = QColor(255, 255, 255)
+    _HOVER_NUM    = QColor(195, 195, 195)
+    # 上次使用：略亮边框区分（无色相）
+    _LAST_TINT    = QColor(255, 255, 255,  10)
+    _LAST_BORDER  = QColor(255, 255, 255,  62)
+    _LAST_TEXT    = QColor(235, 235, 235)
+    # 普通状态
+    _BORDER_NORMAL = QColor(255, 255, 255,  18)
+    _TEXT_NORMAL   = QColor(205, 205, 205)
+    _NUM_NORMAL    = QColor( 70,  70,  70)
+    # 中心圆
+    _CENTER_INNER  = QColor(10,  10,  10, 252)
+    _CENTER_OUTER  = QColor(20,  20,  20, 246)
+    _CENTER_BORDER = QColor(255, 255, 255,  25)
+    _CENTER_TEXT   = QColor( 55,  55,  55)
+    # 装饰外圈
+    _DECO_RING     = QColor(255, 255, 255,  10)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -61,8 +82,9 @@ class WheelWindow(QWidget):
         self.setMouseTracking(True)
 
         # 字体（避免在 paintEvent 中每帧重复创建）
-        self._font_name = QFont('Microsoft YaHei UI', 9)
-        self._font_num = QFont('Microsoft YaHei UI', 8)
+        self._font_name = QFont('Microsoft YaHei UI', 10)
+        self._font_num = QFont('Microsoft YaHei UI', 7)
+        self._font_num.setBold(True)
 
         # 透明度动画
         self._opacity_effect = QGraphicsOpacityEffect(self)
@@ -196,53 +218,64 @@ class WheelWindow(QWidget):
         sector_deg = 360.0 / n
         start_offset = -90.0  # 从正上方开始
 
+        # 扇区基底径向渐变（所有扇区共用，从中心到外缘）
+        base_grad = QRadialGradient(cx, cy, self._OUTER_R * 1.05)
+        inner_stop = self._INNER_R / (self._OUTER_R * 1.05)
+        base_grad.setColorAt(inner_stop, self._SECTOR_INNER)
+        base_grad.setColorAt(1.0, self._SECTOR_OUTER)
+
         for i, prompt in enumerate(self._prompts):
             start_angle = start_offset + i * sector_deg
             is_hovered = (i == self._hovered)
             is_last = (prompt['id'] == self._last_prompt_id)
 
-            # 扇形路径（环形）
+            # 环形扇区路径
             path = QPainterPath()
-            # 外弧
-            outer_rect_x = cx - self._OUTER_R
-            outer_rect_y = cy - self._OUTER_R
             outer_size = self._OUTER_R * 2
+            inner_size = self._INNER_R * 2
             path.moveTo(
                 cx + self._OUTER_R * math.cos(math.radians(start_angle)),
                 cy + self._OUTER_R * math.sin(math.radians(start_angle)),
             )
-            path.arcTo(outer_rect_x, outer_rect_y, outer_size, outer_size,
-                       -start_angle, -sector_deg)
-            # 内弧（反向）
-            inner_rect_x = cx - self._INNER_R
-            inner_rect_y = cy - self._INNER_R
-            inner_size = self._INNER_R * 2
-            path.arcTo(inner_rect_x, inner_rect_y, inner_size, inner_size,
+            path.arcTo(cx - self._OUTER_R, cy - self._OUTER_R,
+                       outer_size, outer_size, -start_angle, -sector_deg)
+            path.arcTo(cx - self._INNER_R, cy - self._INNER_R,
+                       inner_size, inner_size,
                        -(start_angle + sector_deg), sector_deg)
             path.closeSubpath()
 
-            # 填充
-            if is_hovered:
-                fill = self._HOVER_COLOR
-            elif is_last:
-                fill = QColor(60, 60, 60, 230)
-            else:
-                fill = self._BG_COLOR
-            painter.fillPath(path, QBrush(fill))
+            # 1. 基底渐变填充
+            painter.fillPath(path, QBrush(base_grad))
 
-            # 扇区边框
-            painter.setPen(QPen(self._BORDER_COLOR, 1))
+            # 2. 状态叠加色（半透明覆盖层）
+            if is_hovered:
+                painter.fillPath(path, QBrush(self._HOVER_TINT))
+            elif is_last:
+                painter.fillPath(path, QBrush(self._LAST_TINT))
+
+            # 3. 边框
+            if is_hovered:
+                painter.setPen(QPen(self._HOVER_BORDER, 1.2))
+            elif is_last:
+                painter.setPen(QPen(self._LAST_BORDER, 0.8))
+            else:
+                painter.setPen(QPen(self._BORDER_NORMAL, 0.6))
             painter.drawPath(path)
 
-            # 文字位置：沿径向中点
+            # 文字位置
             mid_angle = math.radians(start_angle + sector_deg / 2)
-            text_r = (self._INNER_R + self._OUTER_R) / 2
+            text_r = self._INNER_R + (self._OUTER_R - self._INNER_R) * 0.60
             tx = cx + text_r * math.cos(mid_angle)
             ty = cy + text_r * math.sin(mid_angle)
 
             # Prompt 名称
             painter.setFont(self._font_name)
-            painter.setPen(QPen(self._TEXT_COLOR))
+            if is_hovered:
+                painter.setPen(QPen(self._HOVER_TEXT))
+            elif is_last:
+                painter.setPen(QPen(self._LAST_TEXT))
+            else:
+                painter.setPen(QPen(self._TEXT_NORMAL))
             name = prompt.get('name', '')
             if len(name) > 5:
                 name = name[:4] + '…'
@@ -251,36 +284,49 @@ class WheelWindow(QWidget):
             th = fm.height()
             painter.drawText(int(tx - tw / 2), int(ty + th / 4), name)
 
-            # 数字标签
-            num_r = self._INNER_R + 14
+            # 数字标签（带小药丸背景）
+            num_r = self._INNER_R + 13
             nx = cx + num_r * math.cos(mid_angle)
             ny = cy + num_r * math.sin(mid_angle)
             painter.setFont(self._font_num)
-            painter.setPen(QPen(self._NUM_COLOR))
             num_str = str(i + 1)
             fm_num = painter.fontMetrics()
             nw = fm_num.horizontalAdvance(num_str)
             nh = fm_num.height()
+
+            pill_w = nw + 7
+            pill_h = nh - 1
+            pill_x = int(nx - pill_w / 2)
+            pill_y = int(ny - pill_h / 2)
+            pill_color = QColor(255, 255, 255, 22) if is_hovered else QColor(255, 255, 255, 13)
+            painter.setBrush(QBrush(pill_color))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(pill_x, pill_y, pill_w, pill_h, 3, 3)
+
+            painter.setPen(QPen(self._HOVER_NUM if is_hovered else self._NUM_NORMAL))
             painter.drawText(int(nx - nw / 2), int(ny + nh / 4), num_str)
 
-        # 中心圆（ESC 提示）
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(30, 30, 30, 230)))
+        # ── 中心圆（ESC 提示） ────────────────────────────────
+        center_grad = QRadialGradient(cx, cy, self._INNER_R)
+        center_grad.setColorAt(0.0, self._CENTER_INNER)
+        center_grad.setColorAt(1.0, self._CENTER_OUTER)
+        painter.setBrush(QBrush(center_grad))
+        painter.setPen(QPen(self._CENTER_BORDER, 0.8))
         painter.drawEllipse(cx - self._INNER_R, cy - self._INNER_R,
                             self._INNER_R * 2, self._INNER_R * 2)
         painter.setFont(self._font_num)
-        painter.setPen(QPen(self._CENTER_LABEL_COLOR))
+        painter.setPen(QPen(self._CENTER_TEXT))
         esc_txt = 'ESC'
         fm_center = painter.fontMetrics()
         fw = fm_center.horizontalAdvance(esc_txt)
         fh = fm_center.height()
         painter.drawText(cx - fw // 2, cy + fh // 4, esc_txt)
 
-        # 外圆边框
-        painter.setPen(QPen(self._BORDER_COLOR, 1))
+        # ── 装饰外圈 ──────────────────────────────────────────
+        deco_r = self._OUTER_R + 4
+        painter.setPen(QPen(self._DECO_RING, 1.5))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawEllipse(cx - self._OUTER_R, cy - self._OUTER_R,
-                            self._OUTER_R * 2, self._OUTER_R * 2)
+        painter.drawEllipse(cx - deco_r, cy - deco_r, deco_r * 2, deco_r * 2)
 
     def mouseMoveEvent(self, event):
         new_hovered = self._index_at(event.pos().x(), event.pos().y())
