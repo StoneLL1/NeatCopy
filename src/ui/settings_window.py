@@ -48,47 +48,47 @@ class SettingsWindow(QDialog):
             QDialog {{ background:#F5F5F5; font-family:"Microsoft YaHei UI","Segoe UI",sans-serif; font-size:13px; color:#202020; }}
             QTabWidget::pane {{ border:1px solid #E8E8E8; border-radius:8px; background:#FFFFFF; top:-1px; }}
             QTabBar::tab {{ background:transparent; color:#888; padding:8px 18px 6px; border:none; border-bottom:2px solid transparent; font-size:13px; }}
-            QTabBar::tab:selected {{ color:#333; border-bottom:2px solid #3B82F6; font-weight:bold; }}
+            QTabBar::tab:selected {{ color:#111; border-bottom:2px solid #222222; font-weight:bold; }}
             QTabBar::tab:hover:!selected {{ color:#555; background:#ECECEC; border-radius:4px 4px 0 0; }}
             QGroupBox {{ background:#FFFFFF; border:1px solid #EBEBEB; border-radius:8px; margin-top:12px; padding:14px 12px 10px; font-weight:normal; }}
             QGroupBox::title {{ subcontrol-origin:margin; left:10px; top:2px; padding:0 4px; background:#FFFFFF; color:#888; font-size:12px; }}
             QCheckBox {{ spacing:6px; font-weight:normal; padding:3px 0; color:#333; }}
             QCheckBox::indicator {{ width:16px; height:16px; border:1.5px solid #BEBEBE; border-radius:3px; background:#FFF; }}
-            QCheckBox::indicator:hover {{ border-color:#3B82F6; }}
-            QCheckBox::indicator:checked {{ background:#3B82F6; border-color:#3B82F6; image:url({check_path}); }}
-            QCheckBox::indicator:checked:hover {{ background:#2563EB; border-color:#2563EB; }}
+            QCheckBox::indicator:hover {{ border-color:#555555; }}
+            QCheckBox::indicator:checked {{ background:#222222; border-color:#222222; image:url({check_path}); }}
+            QCheckBox::indicator:checked:hover {{ background:#111111; border-color:#111111; }}
             QPushButton {{ background:#FAFAFA; border:1px solid #DADADA; border-radius:6px; padding:5px 14px; min-height:28px; color:#333; }}
             QPushButton:hover {{ background:#F0F0F0; border-color:#C0C0C0; }}
             QPushButton:pressed {{ background:#E4E4E4; }}
-            QPushButton:checked {{ background:#EEF4FF; border-color:#3B82F6; color:#3B82F6; }}
-            QPushButton#btn_save {{ background:#3B82F6; border:none; color:#FFF; font-weight:bold; padding:6px 28px; border-radius:6px; }}
-            QPushButton#btn_save:hover {{ background:#2563EB; }}
-            QPushButton#btn_save:pressed {{ background:#1D4ED8; }}
-            QPushButton#btn_reset {{ background:#FFF5F5; border:1px solid #FECACA; border-radius:6px; padding:5px 14px; min-height:28px; color:#DC2626; }}
-            QPushButton#btn_reset:hover {{ background:#FEE2E2; border-color:#FCA5A5; }}
-            QPushButton#btn_reset:pressed {{ background:#FECACA; }}
-            QLineEdit {{ border:1px solid #DADADA; border-radius:5px; padding:5px 8px; background:#FFF; selection-background-color:#3B82F6; color:#333; }}
-            QLineEdit:focus {{ border:1.5px solid #3B82F6; padding:4px 7px; }}
+            QPushButton:checked {{ background:#EBEBEB; border-color:#333333; color:#333333; }}
+            QPushButton#btn_save {{ background:#222222; border:none; color:#FFF; font-weight:bold; padding:6px 28px; border-radius:6px; }}
+            QPushButton#btn_save:hover {{ background:#111111; }}
+            QPushButton#btn_save:pressed {{ background:#000000; }}
+            QPushButton#btn_reset {{ background:#F5F5F5; border:1px solid #DADADA; border-radius:6px; padding:5px 14px; min-height:28px; color:#333333; }}
+            QPushButton#btn_reset:hover {{ background:#EBEBEB; border-color:#C0C0C0; }}
+            QPushButton#btn_reset:pressed {{ background:#E0E0E0; }}
+            QLineEdit {{ border:1px solid #DADADA; border-radius:5px; padding:5px 8px; background:#FFF; selection-background-color:#444444; color:#333; }}
+            QLineEdit:focus {{ border:1.5px solid #444444; padding:4px 7px; }}
             QTextEdit {{ border:1px solid #DADADA; border-radius:5px; padding:5px; background:#FFF; color:#333; }}
-            QTextEdit:focus {{ border:1.5px solid #3B82F6; padding:4px; }}
+            QTextEdit:focus {{ border:1.5px solid #444444; padding:4px; }}
             QListWidget {{ border:1px solid #DADADA; border-radius:6px; background:#FFF; padding:3px; outline:none; }}
             QListWidget::item {{ padding:5px 8px; border-radius:4px; color:#333; }}
-            QListWidget::item:hover {{ background:#F5F8FF; }}
-            QListWidget::item:selected {{ background:#E8F0FE; color:#202020; }}
+            QListWidget::item:hover {{ background:#F0F0F0; }}
+            QListWidget::item:selected {{ background:#E0E0E0; color:#111111; }}
             QSlider::groove:horizontal {{ height:3px; background:#E0E0E0; border-radius:1px; }}
-            QSlider::handle:horizontal {{ width:14px; height:14px; margin:-5px 0; background:#FFF; border:1.5px solid #3B82F6; border-radius:7px; }}
-            QSlider::handle:horizontal:hover {{ background:#EEF4FF; }}
-            QSlider::handle:horizontal:pressed {{ background:#3B82F6; border-color:#2563EB; }}
-            QSlider::sub-page:horizontal {{ background:#3B82F6; border-radius:1px; }}
+            QSlider::handle:horizontal {{ width:14px; height:14px; margin:-5px 0; background:#FFF; border:1.5px solid #444444; border-radius:7px; }}
+            QSlider::handle:horizontal:hover {{ background:#EBEBEB; }}
+            QSlider::handle:horizontal:pressed {{ background:#222222; border-color:#111111; }}
+            QSlider::sub-page:horizontal {{ background:#444444; border-radius:1px; }}
             QLabel {{ background:transparent; color:#444; }}
-            QLabel#status_label {{ color:#4CAF50; font-weight:bold; }}
+            QLabel#status_label {{ color:#222222; font-weight:bold; }}
             QScrollBar:vertical {{ width:5px; background:transparent; }}
             QScrollBar::handle:vertical {{ background:#CCC; border-radius:2px; min-height:24px; }}
             QScrollBar::handle:vertical:hover {{ background:#AAA; }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height:0; background:none; }}
             QMenu {{ background:#FFF; border:1px solid #E0E0E0; border-radius:8px; padding:4px; }}
             QMenu::item {{ padding:5px 20px 5px 10px; border-radius:4px; }}
-            QMenu::item:selected {{ background:#EEF4FF; }}
+            QMenu::item:selected {{ background:#EBEBEB; }}
             QMenu::item:disabled {{ color:#B0B0B0; }}
             QToolTip {{ background:#FFF; border:1px solid #DDD; border-radius:4px; padding:4px 8px; color:#333; font-size:12px; }}
         """)
