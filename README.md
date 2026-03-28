@@ -1,8 +1,11 @@
-# NeatCopy
+
+<img width="556" height="244" alt="image" src="https://github.com/user-attachments/assets/a09faa5b-7990-47b4-827e-f8574c9ae083" />
+
+# NeatCopy | 让复制粘贴更轻松
 
 **复制文本，按下快捷键，粘贴干净的内容。**
 
-NeatCopy 常驻 Windows 系统托盘，按 `Ctrl+Shift+C` 即可一键清洗剪贴板里的文字——合并 PDF 乱行、修正标点、整理间距，或者直接让大模型帮你翻译、摘要、润色。
+NeatCopy 常驻 Windows 系统托盘，按 `Ctrl+Shift+C` 或者快速点击`Ctrl+C+C`即可一键清洗剪贴板里的文字——合并 PDF 乱行、修正标点、整理间距，或者直接让大模型帮你翻译、摘要、润色。
 
 ---
 
@@ -103,7 +106,7 @@ NeatCopy 是一款 Windows 工具，支持 LLM 模式
 
 ## 安装
 
-1. 前往 [Releases](https://github.com/alettaG/NeatCopy/releases) 下载 `NeatCopy_Setup_v1.0.0.exe`
+1. 前往 [Releases](https://github.com/StoneLL1/NeatCopy/releases) 下载 `NeatCopy_Setup_v1.0.0.exe`
 2. 双击运行，Next → Next → Finish
 3. 程序自动启动，系统托盘出现图标
 
