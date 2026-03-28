@@ -67,7 +67,8 @@
       "Bash(powershell -Command \"Get-Command iscc -ErrorAction SilentlyContinue; Get-Item ''C:\\\\Program Files \\(x86\\)\\\\Inno Setup 6\\\\iscc.exe'' -ErrorAction SilentlyContinue\")",
       "Bash(powershell -Command \"Get-ChildItem ''C:\\\\Program Files*'' -Recurse -Filter ''iscc.exe'' -ErrorAction SilentlyContinue | Select-Object FullName\")",
       "Bash(powershell -Command \"Get-ChildItem ''C:\\\\Users\\\\Aletta\\\\AppData\\\\Local\\\\Programs'' -Recurse -Filter ''iscc.exe'' -ErrorAction SilentlyContinue | Select-Object FullName; Get-ChildItem ''C:\\\\Users\\\\Aletta'' -Recurse -Filter ''iscc.exe'' -ErrorAction SilentlyContinue -Depth 5 | Select-Object FullName\")",
-      "Bash(\"C:/Users/Aletta/AppData/Local/Programs/Inno Setup 6/ISCC.exe\" installer/NeatCopy_Setup.iss)"
+      "Bash(\"C:/Users/Aletta/AppData/Local/Programs/Inno Setup 6/ISCC.exe\" installer/NeatCopy_Setup.iss)",
+      "Bash(python -c \"from ui.settings_window import SettingsWindow; print\\(''OK''\\)\")"
     ]
   }
 }
