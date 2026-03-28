@@ -83,6 +83,7 @@ class WheelWindow(QWidget):
 
         # 字体（避免在 paintEvent 中每帧重复创建）
         self._font_name = QFont('Microsoft YaHei UI', 10)
+        self._font_name.setBold(True)
         self._font_num = QFont('Microsoft YaHei UI', 7)
         self._font_num.setBold(True)
 
