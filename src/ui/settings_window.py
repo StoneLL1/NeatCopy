@@ -9,7 +9,10 @@ from PyQt6.QtWidgets import (
     QTextEdit, QInputDialog, QMessageBox, QMenu, QSizePolicy,
 )
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QUrl
+from PyQt6.QtGui import QDesktopServices
+
+from version import VERSION
 
 
 def _asset(filename: str) -> str:
@@ -100,6 +103,7 @@ class SettingsWindow(QDialog):
         self._tabs.addTab(self._build_general_tab(), '通用')
         self._tabs.addTab(self._build_rules_tab(), '清洗规则')
         self._tabs.addTab(self._build_llm_tab(), '大模型')
+        self._tabs.addTab(self._build_about_tab(), '关于')
         layout.addWidget(self._tabs)
 
         bottom = QHBoxLayout()
@@ -564,6 +568,100 @@ class SettingsWindow(QDialog):
         ))
         worker.start()
         self._test_worker = worker
+
+    # ── 关于 Tab ──────────────────────────────────────────────
+
+    def _build_about_tab(self) -> QWidget:
+        w = QWidget()
+        layout = QVBoxLayout(w)
+        layout.setContentsMargins(12, 20, 12, 12)
+        layout.setSpacing(12)
+
+        # 版本信息
+        version_box = QGroupBox('版本信息')
+        version_lay = QVBoxLayout(version_box)
+        version_lay.addWidget(QLabel(f'当前版本：v{VERSION}'))
+        btn_check = QPushButton('检查更新')
+        btn_check.clicked.connect(self._on_check_update)
+        version_lay.addWidget(btn_check)
+        layout.addWidget(version_box)
+
+        # 作者信息
+        author_box = QGroupBox('作者')
+        author_lay = QVBoxLayout(author_box)
+        author_lay.addWidget(QLabel('NeatCopy Team'))
+        layout.addWidget(author_box)
+
+        # GitHub 链接
+        github_box = QGroupBox('项目地址')
+        github_lay = QVBoxLayout(github_box)
+        github_link = QLabel('<a href="https://github.com/StoneLL1/NeatCopy" style="color:#333;">github.com/StoneLL1/NeatCopy</a>')
+        github_link.setTextFormat(Qt.TextFormat.RichText)
+        github_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        github_link.linkActivated.connect(self._open_github)
+        github_lay.addWidget(github_link)
+        layout.addWidget(github_box)
+
+        layout.addStretch()
+        return w
+
+    def _on_check_update(self):
+        btn = self.findChild(QPushButton, 'btn_check_update')
+        if btn:
+            btn.setEnabled(False)
+            btn.setText('检查中...')
+
+        from PyQt6.QtCore import QThread as _QT
+        from PyQt6.QtCore import pyqtSignal as _sig
+
+        class _UpdateWorker(_QT):
+            result = _sig(str, str)  # latest_version, download_url
+
+            def run(self):
+                try:
+                    import httpx
+                    with httpx.Client(timeout=10.0) as client:
+                        resp = client.get('https://api.github.com/repos/StoneLL1/NeatCopy/releases/latest')
+                        resp.raise_for_status()
+                        data = resp.json()
+                        latest = data.get('tag_name', '').lstrip('v')
+                        download_url = data.get('html_url', '')
+                        self.result.emit(latest, download_url)
+                except Exception as e:
+                    self.result.emit('', str(e))
+
+        worker = _UpdateWorker()
+        worker.result.connect(self._on_update_result)
+        worker.start()
+        self._update_worker = worker
+
+    def _on_update_result(self, latest: str, url_or_error: str):
+        btn = self.findChild(QPushButton)
+        # 查找"检查更新"按钮
+        for b in self.findChildren(QPushButton):
+            if b.text() in ('检查更新', '检查中...'):
+                b.setEnabled(True)
+                b.setText('检查更新')
+                break
+
+        if not latest:
+            QMessageBox.warning(self, '检查失败', f'无法获取最新版本信息：{url_or_error}')
+            return
+
+        if latest == VERSION:
+            QMessageBox.information(self, '已是最新', f'当前版本 v{VERSION} 已是最新版本。')
+        else:
+            msg = f'发现新版本：v{latest}\n当前版本：v{VERSION}\n\n是否前往下载页面？'
+            reply = QMessageBox.question(
+                self, '发现新版本', msg,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                QDesktopServices.openUrl(QUrl(url_or_error))
+
+    def _open_github(self, url: str):
+        QDesktopServices.openUrl(QUrl(url))
 
     # ── 保存 ─────────────────────────────────────────────────
 
