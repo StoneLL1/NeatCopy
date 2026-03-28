@@ -90,6 +90,12 @@ class ClipProcessor(QObject):
     def reload_config(self, config):
         self._config = config
 
+    def get_visible_prompts(self) -> list[dict]:
+        """返回轮盘可见的 prompt 列表（visible_in_wheel=True，最多5个）。"""
+        prompts = self._config.get('llm.prompts') or []
+        visible = [p for p in prompts if p.get('visible_in_wheel', True)]
+        return visible[:5]
+
     def process(self):
         text = _read_clipboard()
         if text is None:
@@ -101,9 +107,25 @@ class ClipProcessor(QObject):
 
         mode = self._config.get('rules.mode', 'rules')
         if mode == 'llm':
-            self._process_llm(text)
+            # 若有锁定的 prompt，使用锁定的；否则走正常逻辑
+            locked_id = self._config.get('wheel.locked_prompt_id')
+            if locked_id:
+                self._process_llm_by_id(text, locked_id)
+            else:
+                self._process_llm(text)
         else:
             self._process_rules(text)
+
+    def process_with_prompt(self, prompt_id: str):
+        """指定 prompt_id 进行 LLM 处理（供轮盘选择后调用）。"""
+        text = _read_clipboard()
+        if text is None:
+            self.process_done.emit(False, '读取剪贴板失败，请重试')
+            return
+        if not text.strip():
+            self.process_done.emit(False, '剪贴板为空')
+            return
+        self._process_llm_by_id(text, prompt_id)
 
     def _process_rules(self, text: str):
         self.processing_started.emit()
@@ -118,7 +140,12 @@ class ClipProcessor(QObject):
             self.process_done.emit(False, f'清洗出错：{e}')
 
     def _process_llm(self, text: str):
-        # 若上一次请求仍在运行，拒绝新请求，防止 QThread 被 GC 且重复触发
+        llm_config = self._config.get('llm') or {}
+        active_id = llm_config.get('active_prompt_id', 'default')
+        self._process_llm_by_id(text, active_id)
+
+    def _process_llm_by_id(self, text: str, prompt_id: str):
+        """使用指定 prompt_id 调用 LLM。"""
         if self._current_worker is not None and self._current_worker.isRunning():
             self.process_done.emit(False, '正在处理中，请稍候')
             return
@@ -128,14 +155,16 @@ class ClipProcessor(QObject):
             self.process_done.emit(False, '请先在设置中配置 API Key')
             return
 
-        active_id = llm_config.get('active_prompt_id', 'default')
         prompts = llm_config.get('prompts') or []
-        prompt_obj = next((p for p in prompts if p['id'] == active_id),
+        prompt_obj = next((p for p in prompts if p['id'] == prompt_id),
                           prompts[0] if prompts else None)
         if not prompt_obj:
             self.process_done.emit(False, '未找到有效的 Prompt 模板')
             return
 
+        self._start_llm_worker(text, prompt_obj, llm_config)
+
+    def _start_llm_worker(self, text: str, prompt_obj: dict, llm_config: dict):
         self.processing_started.emit()
         worker = _LLMWorker(text, prompt_obj['content'], llm_config)
         worker.succeeded.connect(self._on_llm_success)

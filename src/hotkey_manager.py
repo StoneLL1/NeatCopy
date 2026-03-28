@@ -24,6 +24,7 @@ _VK_MAP = {
 }
 
 HOTKEY_ID_CUSTOM = 1
+HOTKEY_ID_WHEEL = 2
 
 # WH_KEYBOARD_LL 回调签名
 _HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int,
@@ -56,27 +57,34 @@ def _parse_hotkey(keys_str: str):
 class _HotkeyFilter(QAbstractNativeEventFilter):
     """拦截 Qt 主线程消息循环中的 WM_HOTKEY。"""
 
-    def __init__(self, callback):
+    def __init__(self, callback, wheel_callback=None):
         super().__init__()
         self._callback = callback
+        self._wheel_callback = wheel_callback
 
     def nativeEventFilter(self, eventType, message):
         if eventType == QByteArray(b'windows_generic_MSG'):
             msg = wintypes.MSG.from_address(int(message))
-            if msg.message == WM_HOTKEY and msg.wParam == HOTKEY_ID_CUSTOM:
-                self._callback()
-                return True, 0
+            if msg.message == WM_HOTKEY:
+                if msg.wParam == HOTKEY_ID_CUSTOM:
+                    self._callback()
+                    return True, 0
+                elif msg.wParam == HOTKEY_ID_WHEEL and self._wheel_callback:
+                    self._wheel_callback()
+                    return True, 0
         return False, 0
 
 
 class HotkeyManager(QObject):
     hotkey_triggered = pyqtSignal()
+    wheel_hotkey_triggered = pyqtSignal()   # 独立轮盘切换热键
 
     def __init__(self, config, parent=None):
         super().__init__(parent)
         self._config = config
         self._paused = False
         self._registered = False
+        self._wheel_registered = False
         self._filter = None
         self._ll_hook = None
         self._ll_proc = None  # prevent GC of ctypes callback
@@ -98,7 +106,7 @@ class HotkeyManager(QObject):
         from PyQt6.QtWidgets import QApplication
         app = QApplication.instance()
 
-        # 独立热键（RegisterHotKey）
+        # 清洗独立热键（RegisterHotKey）
         cfg_hotkey = self._config.get('general.custom_hotkey') or {}
         if cfg_hotkey.get('enabled', True):
             keys = cfg_hotkey.get('keys', 'ctrl+shift+c')
@@ -107,8 +115,17 @@ class HotkeyManager(QObject):
                 ok = user32.RegisterHotKey(None, HOTKEY_ID_CUSTOM, mods, vk)
                 self._registered = bool(ok)
 
-        if self._registered and app:
-            self._filter = _HotkeyFilter(self._on_hotkey)
+        # 轮盘切换热键
+        cfg_wheel = self._config.get('wheel') or {}
+        if cfg_wheel.get('enabled', True):
+            wheel_keys = cfg_wheel.get('switch_hotkey', 'ctrl+shift+p')
+            w_mods, w_vk = _parse_hotkey(wheel_keys)
+            if w_vk:
+                ok2 = user32.RegisterHotKey(None, HOTKEY_ID_WHEEL, w_mods, w_vk)
+                self._wheel_registered = bool(ok2)
+
+        if (self._registered or self._wheel_registered) and app:
+            self._filter = _HotkeyFilter(self._on_hotkey, self._on_wheel_hotkey)
             app.installNativeEventFilter(self._filter)
 
         # 双击 Ctrl+C（WH_KEYBOARD_LL 低级键盘钩子，主线程消息泵驱动）
@@ -142,6 +159,9 @@ class HotkeyManager(QObject):
         if self._registered:
             user32.UnregisterHotKey(None, HOTKEY_ID_CUSTOM)
             self._registered = False
+        if self._wheel_registered:
+            user32.UnregisterHotKey(None, HOTKEY_ID_WHEEL)
+            self._wheel_registered = False
         if self._ll_hook:
             user32.UnhookWindowsHookEx(self._ll_hook)
             self._ll_hook = None
@@ -170,6 +190,11 @@ class HotkeyManager(QObject):
                 self.hotkey_triggered.emit()
             QTimer.singleShot(150, _done)
         QTimer.singleShot(0, _simulate)
+
+    def _on_wheel_hotkey(self):
+        if self._paused:
+            return
+        self.wheel_hotkey_triggered.emit()
 
     def _on_ctrl_c(self):
         """检测双击 Ctrl+C：两次 Ctrl+C 间隔在阈值内触发清洗。"""
