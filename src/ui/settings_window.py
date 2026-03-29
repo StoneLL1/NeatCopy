@@ -1,12 +1,10 @@
 # 设置界面：侧边栏导航 + GroupBox 分组布局
-import sys
-import os
 import uuid
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QCheckBox, QSlider, QPushButton, QGroupBox,
     QLineEdit, QListWidget, QListWidgetItem,
-    QTextEdit, QInputDialog, QMessageBox, QMenu, QSizePolicy,
+    QTextEdit, QInputDialog, QMessageBox, QMenu,
     QStackedWidget, QFrame, QScrollArea,
 )
 from PyQt6.QtGui import QIcon
@@ -15,10 +13,7 @@ from PyQt6.QtGui import QDesktopServices
 
 from version import VERSION
 from assets import asset as _asset
-from ui.styles import (
-    get_settings_stylesheet, get_sidebar_stylesheet,
-    get_content_stylesheet, ColorPalette,
-)
+from ui.styles import get_settings_stylesheet, get_sidebar_stylesheet, ColorPalette
 from ui.components.sidebar import Sidebar
 
 

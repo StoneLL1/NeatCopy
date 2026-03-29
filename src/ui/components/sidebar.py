@@ -5,6 +5,14 @@ from PyQt6.QtCore import pyqtSignal, Qt
 
 from ui.styles import get_sidebar_stylesheet
 
+# Notion-style icons using Unicode characters
+NAV_ICONS = {
+    '通用': '⚙',      # Gear/settings
+    '清洗规则': '✓',   # Checkmark
+    '大模型': '◈',    # Diamond/bullet
+    '关于': 'ⓘ',      # Info
+}
+
 
 class SidebarWidget(QWidget):
     """Left sidebar navigation with Notion-style visual indicators."""
@@ -33,10 +41,13 @@ class SidebarWidget(QWidget):
         self._list.setObjectName('sidebarNav')
         self._list.setCurrentRow(0)
         for item_text in items:
-            item = QListWidgetItem(item_text)
+            # 添加图标前缀
+            icon = NAV_ICONS.get(item_text, '•')
+            display_text = f'  {icon}  {item_text}'
+            item = QListWidgetItem(display_text)
             # 字体样式由 QSS 控制，这里只设置高度
             item.setSizeHint(item.sizeHint().expandedTo(
-                item.sizeHint().__class__(0, 36)))
+                item.sizeHint().__class__(0, 32)))
             self._list.addItem(item)
         self._list.currentRowChanged.connect(self._on_row_changed)
         layout.addWidget(self._list)
