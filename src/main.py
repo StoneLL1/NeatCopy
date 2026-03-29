@@ -27,6 +27,7 @@ from hotkey_manager import HotkeyManager
 from clip_processor import ClipProcessor
 from wheel_window import WheelWindow
 from ui.settings_window import SettingsWindow
+from ui.preview_window import PreviewWindow
 
 
 def main():
@@ -40,6 +41,7 @@ def main():
     hotkey = HotkeyManager(config)
     processor = ClipProcessor(config)
     wheel = WheelWindow()
+    preview = PreviewWindow(config)
 
     tray.quit_requested.connect(app.quit)
     tray.pause_toggled.connect(hotkey.set_paused)
@@ -114,6 +116,17 @@ def main():
         wheel.show_at(pos, visible, on_lock_selected, locked_id)
 
     hotkey.wheel_hotkey_triggered.connect(on_wheel_hotkey_triggered)
+
+    # ── 预览面板信号连接 ───────────────────────────────────────
+    hotkey.preview_hotkey_triggered.connect(preview.toggle_visibility)
+    processor.processing_started.connect(
+        lambda: preview.set_status("处理中...") if preview.isVisible() else None)
+    processor.preview_ready.connect(
+        lambda result, prompt_name: preview.update_result(result, prompt_name))
+    processor.preview_failed.connect(
+        lambda error: preview.set_status(f"处理失败: {error}"))
+    preview.apply_to_clipboard.connect(
+        lambda text: processor.write_to_clipboard(text))
 
     # ── 初始化托盘锁定状态显示 ───────────────────────────────
     locked_id = config.get('wheel.locked_prompt_id')

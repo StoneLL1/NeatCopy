@@ -168,6 +168,9 @@ class SettingsWindow(QDialog):
         # 轮盘 Prompt 选择器设置
         layout.addWidget(self._build_wheel_group())
 
+        # 预览面板设置
+        layout.addWidget(self._build_preview_group())
+
         layout.addStretch()
         btn_reset_general = QPushButton('恢复通用默认设置')
         btn_reset_general.setObjectName('btn_reset')
@@ -308,10 +311,50 @@ class SettingsWindow(QDialog):
         self._btn_wheel_hotkey.setEnabled(enabled)
         self._wheel_prompt_list.setEnabled(enabled)
 
+    def _build_preview_group(self) -> QGroupBox:
+        """构建预览面板设置分组。"""
+        preview_box = QGroupBox('预览面板')
+        preview_lay = QVBoxLayout(preview_box)
+        preview_lay.setSpacing(6)
+
+        # 启用开关
+        self._chk_preview = QCheckBox('启用预览面板（LLM 处理后查看结果）')
+        self._chk_preview.setChecked(self._config.get('preview.enabled', True))
+        self._chk_preview.stateChanged.connect(
+            lambda v: self._mark('preview.enabled', bool(v)))
+        preview_lay.addWidget(self._chk_preview)
+
+        # 快捷键录制
+        hk_lay = QHBoxLayout()
+        hk_lay.addWidget(QLabel('快捷键：'))
+        self._btn_preview_hotkey = QPushButton(
+            self._config.get('preview.hotkey', 'ctrl+q'))
+        self._btn_preview_hotkey.setCheckable(True)
+        self._btn_preview_hotkey.clicked.connect(self._on_preview_hotkey_btn)
+        hk_lay.addWidget(self._btn_preview_hotkey)
+        hk_lay.addStretch()
+        preview_lay.addLayout(hk_lay)
+
+        return preview_box
+
+    def _on_preview_hotkey_btn(self, checked: bool):
+        """预览热键录制按钮点击。"""
+        if checked:
+            self._btn_preview_hotkey.setText('请按下热键组合...')
+            # 取消其他录制按钮的 checked 状态
+            self._btn_record.setChecked(False)
+            self._btn_wheel_hotkey.setChecked(False)
+            self.grabKeyboard()
+            self._recording_target = 'preview'
+        else:
+            self.releaseKeyboard()
+            self._recording_target = None
+
     def _on_clean_hotkey_btn(self, checked: bool):
         if checked:
             self._btn_record.setText('请按下热键组合...')
             self._btn_wheel_hotkey.setChecked(False)
+            self._btn_preview_hotkey.setChecked(False)
             self.grabKeyboard()
             self._recording_target = 'clean'
         else:
@@ -322,6 +365,7 @@ class SettingsWindow(QDialog):
         if checked:
             self._btn_wheel_hotkey.setText('请按下热键组合...')
             self._btn_record.setChecked(False)
+            self._btn_preview_hotkey.setChecked(False)
             self.grabKeyboard()
             self._recording_target = 'wheel'
         else:
@@ -367,16 +411,21 @@ class SettingsWindow(QDialog):
             if target == 'clean':
                 self._btn_record.setText(hotkey_str)
                 self._mark('general.custom_hotkey.keys', hotkey_str)
-            else:
+            elif target == 'wheel':
                 self._btn_wheel_hotkey.setText(hotkey_str)
                 self._mark('wheel.switch_hotkey', hotkey_str)
+            elif target == 'preview':
+                self._btn_preview_hotkey.setText(hotkey_str)
+                self._mark('preview.hotkey', hotkey_str)
 
         self.releaseKeyboard()
         self._recording_target = None
         if target == 'clean':
             self._btn_record.setChecked(False)
-        else:
+        elif target == 'wheel':
             self._btn_wheel_hotkey.setChecked(False)
+        elif target == 'preview':
+            self._btn_preview_hotkey.setChecked(False)
 
     def _on_interval_changed(self, value: int):
         self._lbl_interval.setText(f'间隔阈值：{value} ms')
@@ -837,6 +886,9 @@ class SettingsWindow(QDialog):
         self._pending[key] = value
 
     def _do_save(self):
+        # 保存预览启用状态
+        if hasattr(self, '_chk_preview'):
+            self._mark('preview.enabled', self._chk_preview.isChecked())
         for key, value in self._pending.items():
             self._config.set(key, value)
         self._pending.clear()

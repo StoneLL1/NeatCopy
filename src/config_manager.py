@@ -51,6 +51,12 @@ DEFAULT_CONFIG = {
         'last_prompt_id': None,
         'locked_prompt_id': None,
     },
+    'preview': {
+        'enabled': True,
+        'hotkey': 'ctrl+q',
+        'window_width': 320,
+        'window_height': 200,
+    },
 }
 
 

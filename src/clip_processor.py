@@ -81,11 +81,14 @@ class _LLMWorker(QThread):
 class ClipProcessor(QObject):
     process_done = pyqtSignal(bool, str)     # (success, message)
     processing_started = pyqtSignal()
+    preview_ready = pyqtSignal(str, str)    # (result, prompt_name) — LLM 成功时发射
+    preview_failed = pyqtSignal(str)        # (error_message) — LLM 失败时发射
 
     def __init__(self, config, parent=None):
         super().__init__(parent)
         self._config = config
         self._current_worker = None
+        self._current_prompt_obj = None  # 当前处理的 prompt 对象，用于预览
 
     def reload_config(self, config):
         self._config = config
@@ -166,19 +169,32 @@ class ClipProcessor(QObject):
 
     def _start_llm_worker(self, text: str, prompt_obj: dict, llm_config: dict):
         self.processing_started.emit()
+        self._current_prompt_obj = prompt_obj  # 保存以便预览信号使用
         worker = _LLMWorker(text, prompt_obj['content'], llm_config)
         worker.succeeded.connect(self._on_llm_success)
         worker.failed.connect(self._on_llm_error)
         worker.finished.connect(lambda: setattr(self, '_current_worker', None))
+        worker.finished.connect(lambda: setattr(self, '_current_prompt_obj', None))
         worker.start()
         self._current_worker = worker
 
     def _on_llm_success(self, result: str):
+        # 写入剪贴板（原有行为：双写模式）
         if _write_clipboard(result):
             self.process_done.emit(True, '大模型处理完成，可直接粘贴')
         else:
             self.process_done.emit(False, '写入剪贴板失败')
 
+        # 发射预览信号（双写模式）
+        prompt_name = self._current_prompt_obj.get('name', '默认') if self._current_prompt_obj else '默认'
+        self.preview_ready.emit(result, prompt_name)
+
     def _on_llm_error(self, message: str):
         # 不写剪贴板，原文保持不变
         self.process_done.emit(False, message)
+        # 发射预览失败信号
+        self.preview_failed.emit(message)
+
+    def write_to_clipboard(self, text: str) -> bool:
+        """公共方法：将文本写入剪贴板（供预览面板应用按钮调用）。"""
+        return _write_clipboard(text)
