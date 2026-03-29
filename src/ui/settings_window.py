@@ -312,17 +312,17 @@ class SettingsWindow(QDialog):
         # 主题切换按钮
         theme_lay = QHBoxLayout()
         theme_lay.addWidget(QLabel('面板主题：'))
-        self._btn_theme_dark = QPushButton('深色')
-        self._btn_theme_dark.setCheckable(True)
-        self._btn_theme_light = QPushButton('浅色')
-        self._btn_theme_light.setCheckable(True)
+        self._btn_preview_theme_dark = QPushButton('深色')
+        self._btn_preview_theme_dark.setCheckable(True)
+        self._btn_preview_theme_light = QPushButton('浅色')
+        self._btn_preview_theme_light.setCheckable(True)
         current_theme = self._config.get('preview.theme', 'dark')
-        self._btn_theme_dark.setChecked(current_theme == 'dark')
-        self._btn_theme_light.setChecked(current_theme == 'light')
-        self._btn_theme_dark.clicked.connect(self._on_theme_dark_clicked)
-        self._btn_theme_light.clicked.connect(self._on_theme_light_clicked)
-        theme_lay.addWidget(self._btn_theme_dark)
-        theme_lay.addWidget(self._btn_theme_light)
+        self._btn_preview_theme_dark.setChecked(current_theme == 'dark')
+        self._btn_preview_theme_light.setChecked(current_theme == 'light')
+        self._btn_preview_theme_dark.clicked.connect(self._on_preview_theme_dark_clicked)
+        self._btn_preview_theme_light.clicked.connect(self._on_preview_theme_light_clicked)
+        theme_lay.addWidget(self._btn_preview_theme_dark)
+        theme_lay.addWidget(self._btn_preview_theme_light)
         theme_lay.addStretch()
         preview_lay.addLayout(theme_lay)
 
@@ -341,16 +341,16 @@ class SettingsWindow(QDialog):
             self.releaseKeyboard()
             self._recording_target = None
 
-    def _on_theme_dark_clicked(self):
-        """深色主题按钮点击。"""
-        self._btn_theme_dark.setChecked(True)
-        self._btn_theme_light.setChecked(False)
+    def _on_preview_theme_dark_clicked(self):
+        """预览面板深色主题按钮点击。"""
+        self._btn_preview_theme_dark.setChecked(True)
+        self._btn_preview_theme_light.setChecked(False)
         self._mark('preview.theme', 'dark')
 
-    def _on_theme_light_clicked(self):
-        """浅色主题按钮点击。"""
-        self._btn_theme_dark.setChecked(False)
-        self._btn_theme_light.setChecked(True)
+    def _on_preview_theme_light_clicked(self):
+        """预览面板浅色主题按钮点击。"""
+        self._btn_preview_theme_dark.setChecked(False)
+        self._btn_preview_theme_light.setChecked(True)
         self._mark('preview.theme', 'light')
 
     def _on_clean_hotkey_btn(self, checked: bool):

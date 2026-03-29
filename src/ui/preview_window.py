@@ -9,6 +9,8 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QRect, QPoint
 from PyQt6.QtGui import QCursor
 
+from ui.styles import ColorPalette
+
 # 边框拖动区域宽度（像素）
 _EDGE_SIZE = 6
 
@@ -57,62 +59,64 @@ class PreviewWindow(QWidget):
     # ================================================================
 
     def _get_theme_styles(self, theme: str) -> dict:
-        """返回指定主题的样式配置字典。"""
+        """返回指定主题的样式配置字典。基于 ColorPalette 基础色 + 预览面板专用透明度色。"""
+        c = ColorPalette.get(theme)
+
         if theme == 'light':
             return {
                 'panel_bg': 'rgba(255, 255, 255, 230)',
-                'panel_border': 'rgba(200, 200, 200, 180)',
-                'edit_bg': 'rgba(250, 250, 250, 220)',
-                'edit_border': 'rgba(180, 180, 180, 120)',
-                'edit_focus_border': 'rgba(100, 149, 237, 150)',
-                'edit_text': '#333',
-                'edit_placeholder': '#999',
-                'edit_selection': 'rgba(100, 149, 237, 80)',
-                'scrollbar_bg': 'transparent',
+                'panel_border': f'rgba(233, 233, 233, 180)',
+                'edit_bg': 'rgba(247, 247, 245, 220)',
+                'edit_border': f'rgba(218, 218, 218, 120)',
+                'edit_focus_border': f'rgba(55, 53, 47, 150)',
+                'edit_text': c['text_primary'],
+                'edit_placeholder': c['text_secondary'],
+                'edit_selection': 'rgba(55, 53, 47, 80)',
+                'scrollbar_bg': c['scrollbar_bg'],
                 'scrollbar_handle': 'rgba(160, 160, 160, 120)',
-                'status_waiting': '#888',
+                'status_waiting': c['text_secondary'],
                 'status_processing': '#f0ad4e',
                 'status_done': '#5cb85c',
                 'status_failed': '#d9534f',
                 'status_applied': '#5bc0de',
-                'prompt_text': '#888',
-                'btn_bg': 'rgba(240, 240, 240, 200)',
-                'btn_border': 'rgba(180, 180, 180, 140)',
-                'btn_text': '#333',
-                'btn_hover_bg': 'rgba(230, 230, 230, 220)',
-                'btn_hover_border': 'rgba(160, 160, 160, 160)',
-                'btn_pressed_bg': 'rgba(210, 210, 210, 240)',
-                'close_text': '#666',
+                'prompt_text': c['text_secondary'],
+                'btn_bg': 'rgba(250, 250, 250, 200)',
+                'btn_border': 'rgba(218, 218, 218, 140)',
+                'btn_text': c['text_primary'],
+                'btn_hover_bg': 'rgba(240, 240, 240, 220)',
+                'btn_hover_border': 'rgba(200, 200, 200, 160)',
+                'btn_pressed_bg': 'rgba(228, 228, 228, 240)',
+                'close_text': c['text_secondary'],
                 'close_hover_bg': 'rgba(0, 0, 0, 15)',
-                'close_hover_text': '#333',
+                'close_hover_text': c['text_primary'],
             }
         else:  # dark
             return {
-                'panel_bg': 'rgba(32, 32, 32, 210)',
-                'panel_border': 'rgba(80, 80, 80, 140)',
-                'edit_bg': 'rgba(18, 18, 18, 200)',
-                'edit_border': 'rgba(70, 70, 70, 100)',
-                'edit_focus_border': 'rgba(100, 149, 237, 150)',
-                'edit_text': '#ddd',
-                'edit_placeholder': '#666',
-                'edit_selection': 'rgba(100, 149, 237, 100)',
-                'scrollbar_bg': 'transparent',
-                'scrollbar_handle': 'rgba(120, 120, 120, 100)',
-                'status_waiting': '#666',
+                'panel_bg': 'rgba(25, 25, 25, 210)',
+                'panel_border': f'rgba(55, 53, 47, 140)',
+                'edit_bg': 'rgba(31, 31, 31, 200)',
+                'edit_border': f'rgba(61, 60, 58, 100)',
+                'edit_focus_border': f'rgba(155, 154, 151, 150)',
+                'edit_text': c['text_primary'],
+                'edit_placeholder': c['text_secondary'],
+                'edit_selection': 'rgba(155, 154, 151, 100)',
+                'scrollbar_bg': c['scrollbar_bg'],
+                'scrollbar_handle': 'rgba(74, 74, 74, 100)',
+                'status_waiting': c['text_secondary'],
                 'status_processing': '#f0ad4e',
                 'status_done': '#5cb85c',
                 'status_failed': '#d9534f',
                 'status_applied': '#5bc0de',
-                'prompt_text': '#666',
-                'btn_bg': 'rgba(80, 80, 80, 160)',
-                'btn_border': 'rgba(100, 100, 100, 100)',
-                'btn_text': '#ccc',
-                'btn_hover_bg': 'rgba(100, 100, 100, 180)',
-                'btn_hover_border': 'rgba(130, 130, 130, 140)',
-                'btn_pressed_bg': 'rgba(60, 60, 60, 200)',
-                'close_text': '#777',
+                'prompt_text': c['text_secondary'],
+                'btn_bg': 'rgba(47, 47, 47, 160)',
+                'btn_border': 'rgba(61, 60, 58, 100)',
+                'btn_text': c['text_primary'],
+                'btn_hover_bg': 'rgba(55, 55, 55, 180)',
+                'btn_hover_border': 'rgba(78, 77, 74, 140)',
+                'btn_pressed_bg': 'rgba(64, 64, 64, 200)',
+                'close_text': c['text_secondary'],
                 'close_hover_bg': 'rgba(255, 255, 255, 25)',
-                'close_hover_text': '#ccc',
+                'close_hover_text': c['text_primary'],
             }
 
     def _apply_theme(self, theme: str):
