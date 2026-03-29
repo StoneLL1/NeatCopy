@@ -39,9 +39,12 @@ LLM处理完成 → 写入剪贴板（原有行为不变）
 
 ### 关键信号
 
-- `ClipProcessor` 新增信号 `preview_ready(str result, str prompt_name)`
-- 仅在 LLM 模式下且预览面板可见时发射
-- `PreviewWindow` 监听此信号，直接覆盖文本框内容
+- `ClipProcessor` 新增信号：
+  - `preview_processing()` — LLM 开始处理时发射，面板显示"处理中..."
+  - `preview_ready(str result, str prompt_name)` — LLM 处理成功时发射
+  - `preview_failed(str error)` — LLM 处理失败时发射
+- 仅在 LLM 模式下且预览面板可见时发射，否则零开销
+- `PreviewWindow` 监听这些信号，更新状态栏和文本框
 
 ## 3. Module Design
 
@@ -61,8 +64,9 @@ LLM处理完成 → 写入剪贴板（原有行为不变）
 
 ```
 PreviewWindow (QWidget, frameless, always-on-top)
-├── 状态栏（顶部）
-│   └── QLabel: 显示 "等待处理" / "处理中..." / "处理完成"
+├── 顶部栏
+│   ├── QLabel: 状态文字 "等待处理" / "处理中..." / "处理完成" / "处理失败"
+│   └── QPushButton: 自定义关闭按钮（X），无边框风格
 ├── 文本编辑区（中央）
 │   └── QTextEdit: 可编辑的结果文本
 ├── Prompt 名称栏（底部上方）
