@@ -29,12 +29,16 @@ class ColorPalette:
         'bg_pressed': '#E4E4E4',        # Pressed states
         'bg_selected': '#E8E8E8',       # Selected items
         'bg_groupbox': '#FFFFFF',       # GroupBox background
+        'sidebar_bg': '#F7F6F3',        # Sidebar background (Notion-style)
+        'sidebar_selected': '#E9E9E9',  # Sidebar selected item bg
 
         # Borders
         'border_primary': '#E9E9E9',    # Primary borders (subtle)
         'border_secondary': '#EBEBEB',  # GroupBox borders
         'border_input': '#DADADA',      # Input borders
         'border_focus': '#37352F',      # Focus ring (Notion "ink" color)
+        'sidebar_border': '#E9E9E9',    # Sidebar right border
+        'section_separator': '#E9E9E9', # Section separator line
 
         # Text
         'text_primary': '#37352F',      # Notion's signature "ink" color
@@ -78,12 +82,16 @@ class ColorPalette:
         'bg_pressed': '#404040',        # Pressed states
         'bg_selected': '#2F2F2F',       # Selected items
         'bg_groupbox': '#1F1F1F',       # GroupBox background
+        'sidebar_bg': '#202020',        # Sidebar background (Notion-style)
+        'sidebar_selected': '#2F2F2F',  # Sidebar selected item bg
 
         # Borders
         'border_primary': '#37352F',    # Primary borders
         'border_secondary': '#2F2F2F',  # GroupBox borders
         'border_input': '#3D3C3A',      # Input borders
         'border_focus': '#9B9A97',      # Focus ring
+        'sidebar_border': '#2F2F2F',    # Sidebar right border
+        'section_separator': '#2F2F2F', # Section separator line
 
         # Text
         'text_primary': '#E9E9E9',      # Primary text
@@ -140,12 +148,106 @@ def get_settings_stylesheet(theme: str) -> str:
 
     return f"""
         QDialog {{
-            background: {colors['bg_secondary']};
+            background: {colors['bg_primary']};
             font-family: {FONT_FAMILY};
             font-size: {FONT_SIZE_BASE};
             color: {colors['text_primary']};
         }}
 
+        /* 侧边栏分隔线 */
+        QFrame#sidebar_separator {{
+            background: {colors['sidebar_border']};
+            max-width: 1px;
+            border: none;
+        }}
+
+        /* 底部操作栏 */
+        QWidget#bottom_bar {{
+            background: {colors['bg_primary']};
+            border-top: 1px solid {colors['border_primary']};
+        }}
+
+        /* 内容滚动区域 */
+        QScrollArea#content_scroll {{
+            background: {colors['bg_primary']};
+            border: none;
+        }}
+
+        /* 内容页面 */
+        QWidget#content_page {{
+            background: {colors['bg_primary']};
+        }}
+
+        /* 页面标题 */
+        QLabel#page_title {{
+            color: {colors['text_primary']};
+            font-family: {FONT_FAMILY};
+            font-size: 18px;
+            font-weight: bold;
+            padding: 0 0 16px 0;
+            margin: 0;
+            background: transparent;
+        }}
+
+        /* 区块分隔线 */
+        QFrame#section_separator {{
+            background: {colors['section_separator']};
+            max-height: 1px;
+            border: none;
+            margin: 8px 0;
+        }}
+
+        /* 热键录制按钮 */
+        QPushButton#hotkey_btn {{
+            background: {colors['bg_tertiary']};
+            border: 1px solid {colors['border_input']};
+            border-radius: {RADIUS_MEDIUM}px;
+            padding: 4px 12px;
+            min-height: 24px;
+            min-width: 120px;
+            color: {colors['text_primary']};
+        }}
+
+        QPushButton#hotkey_btn:hover {{
+            background: {colors['bg_hover']};
+            border-color: {colors['border_focus']};
+        }}
+
+        QPushButton#hotkey_btn:checked {{
+            background: {colors['bg_selected']};
+            border-color: {colors['text_primary']};
+            color: {colors['text_secondary']};
+        }}
+
+        /* 主题切换按钮 */
+        QPushButton#theme_btn {{
+            background: {colors['bg_tertiary']};
+            border: 1px solid {colors['border_input']};
+            border-radius: {RADIUS_MEDIUM}px;
+            padding: 4px 16px;
+            min-height: 24px;
+            color: {colors['text_primary']};
+        }}
+
+        QPushButton#theme_btn:hover {{
+            background: {colors['bg_hover']};
+        }}
+
+        QPushButton#theme_btn:checked {{
+            background: {colors['save_btn_bg']};
+            border: none;
+            color: {colors['save_btn_text']};
+        }}
+
+        /* 次级标签（如滑块说明） */
+        QLabel#sub_label {{
+            color: {colors['text_secondary']};
+            font-size: {FONT_SIZE_SMALL};
+            padding: 4px 0;
+            background: transparent;
+        }}
+
+        /* 传统 TabWidget 样式（保留兼容） */
         QTabWidget::pane {{
             border: 1px solid {colors['border_primary']};
             border-radius: {RADIUS_LARGE}px;
@@ -412,3 +514,100 @@ def get_settings_stylesheet(theme: str) -> str:
             font-size: {FONT_SIZE_SMALL};
         }}
     """
+
+
+def get_sidebar_stylesheet(theme: str) -> str:
+    """Generate stylesheet for SidebarWidget based on theme."""
+    colors = ColorPalette.get(theme)
+    indicator_color = '#2383E2'  # Blue indicator bar (consistent across themes)
+
+    return f"""
+        QWidget#sidebar {{
+            background: {colors['sidebar_bg']};
+            border-right: 1px solid {colors['sidebar_border']};
+        }}
+
+        QLabel#sidebarAppName {{
+            color: {colors['text_secondary']};
+            font-family: {FONT_FAMILY};
+            font-size: 14px;
+            font-weight: bold;
+        }}
+
+        QListWidget#sidebarNav {{
+            background: transparent;
+            border: none;
+            outline: none;
+            padding: 0;
+        }}
+
+        QListWidget#sidebarNav::item {{
+            background: transparent;
+            color: {colors['text_primary']};
+            font-family: {FONT_FAMILY};
+            font-size: 13px;
+            padding: 8px 20px;
+            height: 36px;
+            border: none;
+            border-left: 3px solid transparent;
+        }}
+
+        QListWidget#sidebarNav::item:hover {{
+            background: {colors['bg_hover']};
+        }}
+
+        QListWidget#sidebarNav::item:selected {{
+            background: {colors['sidebar_selected']};
+            font-weight: bold;
+            border-left: 3px solid {indicator_color};
+        }}
+    """
+
+
+def get_content_stylesheet(theme: str) -> str:
+    """Generate stylesheet for content area (QScrollArea) based on theme."""
+    colors = ColorPalette.get(theme)
+
+    return f"""
+        QScrollArea {{
+            background: {colors['bg_primary']};
+            border: none;
+        }}
+
+        QScrollArea > QWidget > QWidget {{
+            background: {colors['bg_primary']};
+        }}
+
+        QLabel#pageTitle {{
+            color: {colors['text_primary']};
+            font-family: {FONT_FAMILY};
+            font-size: 18px;
+            font-weight: bold;
+            padding: 0;
+            margin: 0;
+        }}
+
+        QLabel#sectionTitle {{
+            color: {colors['text_secondary']};
+            font-family: {FONT_FAMILY};
+            font-size: 12px;
+            font-weight: normal;
+            padding: 8px 0 4px 0;
+        }}
+
+        QFrame#sectionSeparator {{
+            background: {colors['section_separator']};
+            max-height: 1px;
+            border: none;
+        }}
+
+        QFrame#bottomBar {{
+            background: {colors['bg_primary']};
+            border-top: 1px solid {colors['border_primary']};
+        }}
+    """
+
+
+def get_full_stylesheet(theme: str) -> str:
+    """Generate combined stylesheet for all UI elements."""
+    return get_settings_stylesheet(theme) + get_sidebar_stylesheet(theme) + get_content_stylesheet(theme)

@@ -7,6 +7,8 @@ from typing import Any
 DEFAULT_CONFIG = {
     'ui': {
         'theme': 'light',
+        'window_width': 700,
+        'window_height': 550,
     },
     'general': {
         'startup_with_windows': False,
