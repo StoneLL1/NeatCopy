@@ -39,6 +39,13 @@ class SidebarWidget(QWidget):
         self._list.setCurrentRow(0)
         for item_text in items:
             item = QListWidgetItem(item_text)
+            # 设置字体加粗
+            font = item.font()
+            font.setBold(True)
+            item.setFont(font)
+            item.setSizeHint(item.sizeHint().expandedTo(
+                item.sizeHint().__class__(0, 36)))
+            item = QListWidgetItem(item_text)
             item.setSizeHint(item.sizeHint().expandedTo(
                 item.sizeHint().__class__(0, 36)))
             self._list.addItem(item)

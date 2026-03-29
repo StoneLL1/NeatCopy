@@ -74,56 +74,56 @@ class ColorPalette:
     }
 
     DARK = {
-        # Backgrounds
-        'bg_primary': '#191919',        # Notion dark bg
-        'bg_secondary': '#1F1F1F',      # Dialog/frame background
-        'bg_tertiary': '#2F2F2F',       # Button backgrounds
-        'bg_hover': '#373737',          # Hover states
-        'bg_pressed': '#404040',        # Pressed states
-        'bg_selected': '#2F2F2F',       # Selected items
-        'bg_groupbox': '#1F1F1F',       # GroupBox background
-        'sidebar_bg': '#202020',        # Sidebar background (Notion-style)
-        'sidebar_selected': '#2F2F2F',  # Sidebar selected item bg
+        # Backgrounds - 更柔和的灰色调，而非纯黑
+        'bg_primary': '#2B2B2B',        # 主背景（深灰而非纯黑）
+        'bg_secondary': '#363636',      # Dialog/frame background
+        'bg_tertiary': '#404040',       # Button backgrounds
+        'bg_hover': '#4A4A4A',          # Hover states
+        'bg_pressed': '#525252',        # Pressed states
+        'bg_selected': '#404040',       # Selected items
+        'bg_groupbox': '#363636',       # GroupBox background
+        'sidebar_bg': '#303030',        # Sidebar background
+        'sidebar_selected': '#404040',  # Sidebar selected item bg
 
-        # Borders
-        'border_primary': '#37352F',    # Primary borders
-        'border_secondary': '#2F2F2F',  # GroupBox borders
-        'border_input': '#3D3C3A',      # Input borders
-        'border_focus': '#9B9A97',      # Focus ring
-        'sidebar_border': '#2F2F2F',    # Sidebar right border
-        'section_separator': '#2F2F2F', # Section separator line
+        # Borders - 提高对比度
+        'border_primary': '#505050',    # Primary borders（更明显）
+        'border_secondary': '#454545',  # GroupBox borders
+        'border_input': '#505050',      # Input borders
+        'border_focus': '#787774',      # Focus ring
+        'sidebar_border': '#454545',    # Sidebar right border
+        'section_separator': '#454545', # Section separator line
 
-        # Text
-        'text_primary': '#E9E9E9',      # Primary text
-        'text_secondary': '#787774',    # Secondary/placeholder text
-        'text_tertiary': '#5A5A5A',     # Disabled/hint text
-        'text_accent': '#E9E9E9',       # Accent text
+        # Text - 提高可读性
+        'text_primary': '#F0F0F0',      # Primary text（更亮）
+        'text_secondary': '#A0A0A0',    # Secondary/placeholder text
+        'text_tertiary': '#707070',     # Disabled/hint text
+        'text_accent': '#F0F0F0',       # Accent text
 
         # Checkbox
-        'checkbox_checked': '#E9E9E9',  # Checkbox checked color
-        'checkbox_border': '#3D3C3A',
-        'checkbox_border_hover': '#787774',
+        'checkbox_checked': '#F0F0F0',  # Checkbox checked color
+        'checkbox_border': '#505050',
+        'checkbox_border_hover': '#A0A0A0',
 
         # Slider
-        'slider_track': '#3D3D3D',      # Slider groove
-        'slider_handle': '#2F2F2F',     # Slider handle bg
-        'slider_handle_border': '#E9E9E9',
-        'slider_active': '#787774',     # Slider filled portion
+        'slider_track': '#505050',      # Slider groove
+        'slider_handle': '#404040',     # Slider handle bg
+        'slider_handle_border': '#F0F0F0',
+        'slider_active': '#A0A0A0',     # Slider filled portion
 
         # Scrollbar
         'scrollbar_bg': 'transparent',
-        'scrollbar_handle': '#4A4A4A',
-        'scrollbar_handle_hover': '#5A5A5A',
+        'scrollbar_handle': '#555555',
+        'scrollbar_handle_hover': '#656565',
 
         # Buttons
-        'save_btn_bg': '#E9E9E9',       # Primary action button (inverted)
-        'save_btn_text': '#191919',
+        'save_btn_bg': '#F0F0F0',       # Primary action button (inverted)
+        'save_btn_text': '#2B2B2B',
         'save_btn_hover': '#FFFFFF',
-        'reset_btn_bg': '#1F1F1F',
-        'reset_btn_border': '#3D3C3A',
+        'reset_btn_bg': '#363636',
+        'reset_btn_border': '#505050',
 
         # Links
-        'link_color': '#E9E9E9',
+        'link_color': '#F0F0F0',
     }
 
     @classmethod
