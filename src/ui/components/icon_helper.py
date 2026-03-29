@@ -70,28 +70,3 @@ def get_nav_icon(item_name: str, theme: str = 'light', size: int = 16) -> QIcon:
 
     svg_data = SVG_ICONS.get(icon_key, '')
     return create_icon_from_svg(svg_data, color, size)
-
-
-def get_nav_icon_pixmap(item_name: str, theme: str = 'light', size: int = 16) -> QPixmap:
-    """Get navigation icon as QPixmap for direct painting."""
-    from ui.styles import ColorPalette
-
-    icon_key = NAV_ICON_MAP.get(item_name)
-    if not icon_key:
-        return QPixmap()
-
-    colors = ColorPalette.get(theme)
-    color = colors['text_primary']
-
-    svg_data = SVG_ICONS.get(icon_key, '')
-
-    colored_svg = svg_data.replace('currentColor', color)
-    renderer = QSvgRenderer(QByteArray(colored_svg.encode('utf-8')))
-    pixmap = QPixmap(size, size)
-    pixmap.fill(Qt.GlobalColor.transparent)
-
-    painter = QPainter(pixmap)
-    renderer.render(painter)
-    painter.end()
-
-    return pixmap

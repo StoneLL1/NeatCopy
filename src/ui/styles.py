@@ -246,35 +246,6 @@ def get_settings_stylesheet(theme: str) -> str:
             background: transparent;
         }}
 
-        /* 传统 TabWidget 样式（保留兼容） */
-        QTabWidget::pane {{
-            border: 1px solid {colors['border_primary']};
-            border-radius: {RADIUS_LARGE}px;
-            background: {colors['bg_primary']};
-            top: -1px;
-        }}
-
-        QTabBar::tab {{
-            background: transparent;
-            color: {colors['text_secondary']};
-            padding: 8px 18px 6px;
-            border: none;
-            border-bottom: 2px solid transparent;
-            font-size: {FONT_SIZE_BASE};
-        }}
-
-        QTabBar::tab:selected {{
-            color: {colors['text_primary']};
-            border-bottom: 2px solid {colors['text_primary']};
-            font-weight: bold;
-        }}
-
-        QTabBar::tab:hover:!selected {{
-            color: {colors['text_secondary']};
-            background: {colors['bg_hover']};
-            border-radius: {RADIUS_SMALL}px {RADIUS_SMALL}px 0 0;
-        }}
-
         QGroupBox {{
             background: {colors['bg_groupbox']};
             border: 1px solid {colors['border_secondary']};
@@ -562,52 +533,3 @@ def get_sidebar_stylesheet(theme: str) -> str:
             border-left: 3px solid {indicator_color};
         }}
     """
-
-
-def get_content_stylesheet(theme: str) -> str:
-    """Generate stylesheet for content area (QScrollArea) based on theme."""
-    colors = ColorPalette.get(theme)
-
-    return f"""
-        QScrollArea {{
-            background: {colors['bg_primary']};
-            border: none;
-        }}
-
-        QScrollArea > QWidget > QWidget {{
-            background: {colors['bg_primary']};
-        }}
-
-        QLabel#pageTitle {{
-            color: {colors['text_primary']};
-            font-family: {FONT_FAMILY};
-            font-size: 18px;
-            font-weight: bold;
-            padding: 0;
-            margin: 0;
-        }}
-
-        QLabel#sectionTitle {{
-            color: {colors['text_secondary']};
-            font-family: {FONT_FAMILY};
-            font-size: 12px;
-            font-weight: normal;
-            padding: 8px 0 4px 0;
-        }}
-
-        QFrame#sectionSeparator {{
-            background: {colors['section_separator']};
-            max-height: 1px;
-            border: none;
-        }}
-
-        QFrame#bottomBar {{
-            background: {colors['bg_primary']};
-            border-top: 1px solid {colors['border_primary']};
-        }}
-    """
-
-
-def get_full_stylesheet(theme: str) -> str:
-    """Generate combined stylesheet for all UI elements."""
-    return get_settings_stylesheet(theme) + get_sidebar_stylesheet(theme) + get_content_stylesheet(theme)
