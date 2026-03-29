@@ -1,4 +1,4 @@
-"""预览面板窗口组件：显示 LLM 处理结果，支持编辑和应用到剪贴板。"""
+"""预览面板窗口组件：显示 LLM 处理结果，支持编辑和应用到剪贴板。支持深色/浅色主题切换。"""
 import ctypes
 import sys
 
@@ -7,14 +7,14 @@ from PyQt6.QtWidgets import (
     QTextEdit, QPushButton, QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QRect, QPoint
-from PyQt6.QtGui import QCursor, QMouseEvent
+from PyQt6.QtGui import QCursor
 
 # 边框拖动区域宽度（像素）
 _EDGE_SIZE = 6
 
 
 class PreviewWindow(QWidget):
-    """LLM 结果预览面板，置顶悬浮窗，毛玻璃效果。"""
+    """LLM 结果预览面板，置顶悬浮窗，毛玻璃效果，支持深色/浅色主题。"""
 
     apply_to_clipboard = pyqtSignal(str)
 
@@ -25,12 +25,14 @@ class PreviewWindow(QWidget):
         self._current_prompt = ""
         self._drag_pos = None
         self._resize_timer = None
-        self._resize_edge = None  # 当前拖动的边框方向
-        self._resize_start_geo = None  # resize 起始几何
-        self._resize_start_pos = None  # resize 起始鼠标位置
+        self._resize_edge = None
+        self._resize_start_geo = None
+        self._resize_start_pos = None
+        self._theme = config.get('preview.theme', 'dark')
 
         self._setup_window_properties()
         self._create_ui()
+        self._apply_theme(self._theme)
         self._apply_acrylic_effect()
 
     # ================================================================
@@ -51,6 +53,187 @@ class PreviewWindow(QWidget):
         self.setMinimumSize(240, 180)
 
     # ================================================================
+    #  主题样式
+    # ================================================================
+
+    def _get_theme_styles(self, theme: str) -> dict:
+        """返回指定主题的样式配置字典。"""
+        if theme == 'light':
+            return {
+                'panel_bg': 'rgba(255, 255, 255, 230)',
+                'panel_border': 'rgba(200, 200, 200, 180)',
+                'edit_bg': 'rgba(250, 250, 250, 220)',
+                'edit_border': 'rgba(180, 180, 180, 120)',
+                'edit_focus_border': 'rgba(100, 149, 237, 150)',
+                'edit_text': '#333',
+                'edit_placeholder': '#999',
+                'edit_selection': 'rgba(100, 149, 237, 80)',
+                'scrollbar_bg': 'transparent',
+                'scrollbar_handle': 'rgba(160, 160, 160, 120)',
+                'status_waiting': '#888',
+                'status_processing': '#f0ad4e',
+                'status_done': '#5cb85c',
+                'status_failed': '#d9534f',
+                'status_applied': '#5bc0de',
+                'prompt_text': '#888',
+                'btn_bg': 'rgba(240, 240, 240, 200)',
+                'btn_border': 'rgba(180, 180, 180, 140)',
+                'btn_text': '#333',
+                'btn_hover_bg': 'rgba(230, 230, 230, 220)',
+                'btn_hover_border': 'rgba(160, 160, 160, 160)',
+                'btn_pressed_bg': 'rgba(210, 210, 210, 240)',
+                'close_text': '#666',
+                'close_hover_bg': 'rgba(0, 0, 0, 15)',
+                'close_hover_text': '#333',
+            }
+        else:  # dark
+            return {
+                'panel_bg': 'rgba(32, 32, 32, 210)',
+                'panel_border': 'rgba(80, 80, 80, 140)',
+                'edit_bg': 'rgba(18, 18, 18, 200)',
+                'edit_border': 'rgba(70, 70, 70, 100)',
+                'edit_focus_border': 'rgba(100, 149, 237, 150)',
+                'edit_text': '#ddd',
+                'edit_placeholder': '#666',
+                'edit_selection': 'rgba(100, 149, 237, 100)',
+                'scrollbar_bg': 'transparent',
+                'scrollbar_handle': 'rgba(120, 120, 120, 100)',
+                'status_waiting': '#666',
+                'status_processing': '#f0ad4e',
+                'status_done': '#5cb85c',
+                'status_failed': '#d9534f',
+                'status_applied': '#5bc0de',
+                'prompt_text': '#666',
+                'btn_bg': 'rgba(80, 80, 80, 160)',
+                'btn_border': 'rgba(100, 100, 100, 100)',
+                'btn_text': '#ccc',
+                'btn_hover_bg': 'rgba(100, 100, 100, 180)',
+                'btn_hover_border': 'rgba(130, 130, 130, 140)',
+                'btn_pressed_bg': 'rgba(60, 60, 60, 200)',
+                'close_text': '#777',
+                'close_hover_bg': 'rgba(255, 255, 255, 25)',
+                'close_hover_text': '#ccc',
+            }
+
+    def _apply_theme(self, theme: str):
+        """应用指定主题的样式到所有组件。"""
+        self._theme = theme
+        styles = self._get_theme_styles(theme)
+
+        # 面板容器
+        self.container.setStyleSheet(f"""
+            #panel {{
+                background: {styles['panel_bg']};
+                border: 1px solid {styles['panel_border']};
+                border-radius: 10px;
+            }}
+        """)
+
+        # 状态点（保持当前状态颜色）
+        self._refresh_status_style()
+
+        # 文本编辑区
+        self.text_edit.setStyleSheet(f"""
+            QTextEdit {{
+                background: {styles['edit_bg']};
+                border: 1px solid {styles['edit_border']};
+                border-radius: 6px;
+                padding: 8px;
+                color: {styles['edit_text']};
+                font-size: 13px;
+                selection-background-color: {styles['edit_selection']};
+            }}
+            QTextEdit:focus {{
+                border: 1px solid {styles['edit_focus_border']};
+            }}
+            QScrollBar:vertical {{
+                background: {styles['scrollbar_bg']};
+                width: 6px;
+                margin: 2px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {styles['scrollbar_handle']};
+                border-radius: 3px;
+                min-height: 20px;
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0;
+            }}
+        """)
+
+        # Prompt 标签
+        self.prompt_label.setStyleSheet(f"""
+            #promptLabel {{
+                color: {styles['prompt_text']};
+                font-size: 10px;
+            }}
+        """)
+
+        # 应用按钮
+        self.apply_btn.setStyleSheet(f"""
+            #applyBtn {{
+                background: {styles['btn_bg']};
+                color: {styles['btn_text']};
+                border: 1px solid {styles['btn_border']};
+                border-radius: 6px;
+                padding: 4px 16px;
+                font-size: 12px;
+                font-weight: 500;
+            }}
+            #applyBtn:hover {{
+                background: {styles['btn_hover_bg']};
+                color: {styles['btn_text']};
+                border: 1px solid {styles['btn_hover_border']};
+            }}
+            #applyBtn:pressed {{
+                background: {styles['btn_pressed_bg']};
+            }}
+        """)
+
+        # 关闭按钮
+        self.close_btn.setStyleSheet(f"""
+            #closeBtn {{
+                background: transparent;
+                border: none;
+                font-size: 12px;
+                color: {styles['close_text']};
+                border-radius: 4px;
+            }}
+            #closeBtn:hover {{
+                background: {styles['close_hover_bg']};
+                color: {styles['close_hover_text']};
+            }}
+        """)
+
+    def _refresh_status_style(self):
+        """根据当前状态刷新状态点样式。"""
+        status = self.status_label.text()
+        styles = self._get_theme_styles(self._theme)
+
+        color_map = {
+            "等待处理": styles['status_waiting'],
+            "处理中…": styles['status_processing'],
+            "处理完成": styles['status_done'],
+            "处理失败": styles['status_failed'],
+            "已应用": styles['status_applied'],
+        }
+        color = color_map.get(status, styles['status_waiting'])
+
+        self.status_dot.setStyleSheet(f"color: {color}; font-size: 10px;")
+        self.status_label.setStyleSheet(f"""
+            #statusLabel {{
+                color: {color};
+                font-size: 11px;
+                font-weight: 500;
+                letter-spacing: 0.3px;
+            }}
+        """)
+
+    def set_theme(self, theme: str):
+        """公共方法：动态切换主题。"""
+        self._apply_theme(theme)
+
+    # ================================================================
     #  UI 构建
     # ================================================================
 
@@ -61,16 +244,9 @@ class PreviewWindow(QWidget):
         outer.setSpacing(0)
 
         # --- 内容容器（带内边距的圆角面板） ---
-        container = QWidget()
-        container.setObjectName("panel")
-        container.setStyleSheet("""
-            #panel {
-                background: rgba(32, 32, 32, 210);
-                border: 1px solid rgba(80, 80, 80, 140);
-                border-radius: 10px;
-            }
-        """)
-        layout = QVBoxLayout(container)
+        self.container = QWidget()
+        self.container.setObjectName("panel")
+        layout = QVBoxLayout(self.container)
         layout.setContentsMargins(14, 10, 14, 12)
         layout.setSpacing(8)
 
@@ -81,20 +257,11 @@ class PreviewWindow(QWidget):
         # 状态指示点
         self.status_dot = QLabel("●")
         self.status_dot.setFixedWidth(12)
-        self.status_dot.setStyleSheet("color: #666; font-size: 10px;")
         top_bar.addWidget(self.status_dot)
 
         # 状态文字
         self.status_label = QLabel("等待处理")
         self.status_label.setObjectName("statusLabel")
-        self.status_label.setStyleSheet("""
-            #statusLabel {
-                color: #999;
-                font-size: 11px;
-                font-weight: 500;
-                letter-spacing: 0.3px;
-            }
-        """)
         top_bar.addWidget(self.status_label)
         top_bar.addStretch()
 
@@ -102,57 +269,15 @@ class PreviewWindow(QWidget):
         self.close_btn = QPushButton("✕")
         self.close_btn.setObjectName("closeBtn")
         self.close_btn.setFixedSize(26, 26)
-        self.close_btn.setStyleSheet("""
-            #closeBtn {
-                background: transparent;
-                border: none;
-                font-size: 12px;
-                color: #777;
-                border-radius: 4px;
-            }
-            #closeBtn:hover {
-                background: rgba(255, 255, 255, 25);
-                color: #ccc;
-            }
-        """)
         self.close_btn.clicked.connect(self.hide)
         top_bar.addWidget(self.close_btn)
 
-        # 整个顶栏可拖动
-        self._top_bar_widget = container  # 备用
         layout.addLayout(top_bar)
 
         # === 文本编辑区 ===
         self.text_edit = QTextEdit()
         self.text_edit.setPlaceholderText("等待 LLM 处理结果…")
         self.text_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.text_edit.setStyleSheet("""
-            QTextEdit {
-                background: rgba(18, 18, 18, 200);
-                border: 1px solid rgba(70, 70, 70, 100);
-                border-radius: 6px;
-                padding: 8px;
-                color: #ddd;
-                font-size: 13px;
-                selection-background-color: rgba(100, 149, 237, 100);
-            }
-            QTextEdit:focus {
-                border: 1px solid rgba(100, 149, 237, 150);
-            }
-            QScrollBar:vertical {
-                background: transparent;
-                width: 6px;
-                margin: 2px;
-            }
-            QScrollBar::handle:vertical {
-                background: rgba(120, 120, 120, 100);
-                border-radius: 3px;
-                min-height: 20px;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0;
-            }
-        """)
         layout.addWidget(self.text_edit, stretch=1)
 
         # === 底部栏：prompt 名称 + 应用按钮 ===
@@ -162,12 +287,6 @@ class PreviewWindow(QWidget):
         # Prompt 名称
         self.prompt_label = QLabel("")
         self.prompt_label.setObjectName("promptLabel")
-        self.prompt_label.setStyleSheet("""
-            #promptLabel {
-                color: #666;
-                font-size: 10px;
-            }
-        """)
         bottom_bar.addWidget(self.prompt_label)
         bottom_bar.addStretch()
 
@@ -176,31 +295,12 @@ class PreviewWindow(QWidget):
         self.apply_btn.setObjectName("applyBtn")
         self.apply_btn.setFixedHeight(30)
         self.apply_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.apply_btn.setStyleSheet("""
-            #applyBtn {
-                background: rgba(80, 80, 80, 160);
-                color: #ccc;
-                border: 1px solid rgba(100, 100, 100, 100);
-                border-radius: 6px;
-                padding: 4px 16px;
-                font-size: 12px;
-                font-weight: 500;
-            }
-            #applyBtn:hover {
-                background: rgba(100, 100, 100, 180);
-                color: #eee;
-                border: 1px solid rgba(130, 130, 130, 140);
-            }
-            #applyBtn:pressed {
-                background: rgba(60, 60, 60, 200);
-            }
-        """)
         self.apply_btn.clicked.connect(self._on_apply_clicked)
         bottom_bar.addWidget(self.apply_btn)
 
         layout.addLayout(bottom_bar)
 
-        outer.addWidget(container)
+        outer.addWidget(self.container)
 
     def _apply_acrylic_effect(self):
         if sys.platform != 'win32':
@@ -208,8 +308,15 @@ class PreviewWindow(QWidget):
 
         version = sys.getwindowsversion()
         if version.major < 10 or (version.major == 10 and version.build < 22000):
-            # Win10 降级：深色半透明背景
-            self.setStyleSheet("#panel { background: rgba(32, 32, 32, 235); }")
+            # Win10 降级：根据主题设置背景
+            styles = self._get_theme_styles(self._theme)
+            self.container.setStyleSheet(f"""
+                #panel {{
+                    background: {styles['panel_bg'].replace('210', '235') if self._theme == 'dark' else styles['panel_bg'].replace('230', '245')};
+                    border: 1px solid {styles['panel_border']};
+                    border-radius: 10px;
+                }}
+            """)
             return
 
         hwnd = int(self.winId())
@@ -224,7 +331,14 @@ class PreviewWindow(QWidget):
                 4
             )
         except Exception:
-            self.setStyleSheet("#panel { background: rgba(32, 32, 32, 235); }")
+            styles = self._get_theme_styles(self._theme)
+            self.container.setStyleSheet(f"""
+                #panel {{
+                    background: {styles['panel_bg'].replace('210', '235') if self._theme == 'dark' else styles['panel_bg'].replace('230', '245')};
+                    border: 1px solid {styles['panel_border']};
+                    border-radius: 10px;
+                }}
+            """)
 
     # ================================================================
     #  公共方法
@@ -245,34 +359,30 @@ class PreviewWindow(QWidget):
 
     def set_status(self, status: str):
         self.status_label.setText(status)
-        color_map = {
-            "等待处理": "#666",
-            "处理中…": "#f0ad4e",
-            "处理完成": "#5cb85c",
-            "处理失败": "#d9534f",
-            "已应用": "#5bc0de",
-        }
-        color = color_map.get(status, "#999")
-        self.status_dot.setStyleSheet(f"color: {color}; font-size: 10px;")
-        self.status_label.setStyleSheet(f"""
-            #statusLabel {{
-                color: {color};
-                font-size: 11px;
-                font-weight: 500;
-                letter-spacing: 0.3px;
-            }}
-        """)
+        self._refresh_status_style()
 
     def toggle_visibility(self):
+        """切换可见性，显示时刷新主题。"""
         if self.isVisible():
             self.hide()
         else:
+            # 显示前刷新主题（用户可能在设置中切换了）
+            new_theme = self._config.get('preview.theme', 'dark')
+            if new_theme != self._theme:
+                self._apply_theme(new_theme)
             self.show()
             self.activateWindow()
             self.raise_()
 
+    def showEvent(self, event):
+        """每次显示时刷新主题配置。"""
+        super().showEvent(event)
+        new_theme = self._config.get('preview.theme', 'dark')
+        if new_theme != self._theme:
+            self._apply_theme(new_theme)
+
     # ================================================================
-    #  拖动 + Resize（通过鼠标事件）
+    #  拖动 + Resize
     # ================================================================
 
     def _edge_at(self, pos: QPoint) -> str | None:
@@ -324,13 +434,11 @@ class PreviewWindow(QWidget):
             pos = event.position().toPoint()
             edge = self._edge_at(pos)
             if edge:
-                # 开始 resize
                 self._resize_edge = edge
                 self._resize_start_geo = self.geometry()
                 self._resize_start_pos = event.globalPosition().toPoint()
                 return
             else:
-                # 开始拖动（整个窗口区域都可拖，除了文本编辑区）
                 child = self.childAt(pos)
                 if child is not self.text_edit and not self.text_edit.isAncestorOf(child):
                     self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
@@ -339,7 +447,6 @@ class PreviewWindow(QWidget):
 
     def mouseMoveEvent(self, event):
         if self._resize_edge and self._resize_start_geo and self._resize_start_pos:
-            # --- Resize 逻辑 ---
             delta = event.globalPosition().toPoint() - self._resize_start_pos
             geo = QRect(self._resize_start_geo)
             edge = self._resize_edge
@@ -353,7 +460,6 @@ class PreviewWindow(QWidget):
             if "bottom" in edge:
                 geo.setBottom(geo.bottom() + delta.y())
 
-            # 强制最小尺寸
             if geo.width() < self.minimumWidth():
                 if "left" in edge:
                     geo.setLeft(geo.right() - self.minimumWidth())
@@ -372,7 +478,6 @@ class PreviewWindow(QWidget):
             self.move(event.globalPosition().toPoint() - self._drag_pos)
             return
 
-        # 更新光标形状
         edge = self._edge_at(event.position().toPoint())
         if edge:
             self.setCursor(QCursor(self._cursor_for_edge(edge)))

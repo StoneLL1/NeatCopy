@@ -56,6 +56,7 @@ DEFAULT_CONFIG = {
         'hotkey': 'ctrl+q',
         'window_width': 320,
         'window_height': 200,
+        'theme': 'dark',
     },
 }
 
