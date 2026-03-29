@@ -261,7 +261,7 @@ class SettingsWindow(QDialog):
         # 可见 Prompt 配置
         wheel_lay.addWidget(QLabel('轮盘显示的 Prompt（最多5个）：'))
         self._wheel_prompt_list = QListWidget()
-        self._wheel_prompt_list.setMaximumHeight(100)
+        self._wheel_prompt_list.setMaximumHeight(180)
         self._wheel_prompt_list.itemChanged.connect(self._on_wheel_prompt_item_changed)
         self._refresh_wheel_prompts()
         wheel_lay.addWidget(self._wheel_prompt_list)

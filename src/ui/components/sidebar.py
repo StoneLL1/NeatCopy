@@ -16,7 +16,7 @@ class SidebarWidget(QWidget):
         super().__init__(parent)
         self._theme = theme
         self._items = items
-        self.setFixedWidth(180)
+        self.setFixedWidth(150)  # 缩窄侧边栏
         self.setObjectName('sidebar')
 
         layout = QVBoxLayout(self)
@@ -30,7 +30,7 @@ class SidebarWidget(QWidget):
         font.setPointSize(14)
         font.setBold(True)
         app_name.setFont(font)
-        app_name.setContentsMargins(20, 0, 0, 16)
+        app_name.setContentsMargins(16, 0, 0, 16)  # 缩小左边距
         layout.addWidget(app_name)
 
         # Navigation list
@@ -39,15 +39,13 @@ class SidebarWidget(QWidget):
         self._list.setCurrentRow(0)
         for item_text in items:
             item = QListWidgetItem(item_text)
-            # 设置字体加粗
+            # 设置字体加大加粗
             font = item.font()
+            font.setPointSize(11)  # 加大字体
             font.setBold(True)
             item.setFont(font)
             item.setSizeHint(item.sizeHint().expandedTo(
-                item.sizeHint().__class__(0, 36)))
-            item = QListWidgetItem(item_text)
-            item.setSizeHint(item.sizeHint().expandedTo(
-                item.sizeHint().__class__(0, 36)))
+                item.sizeHint().__class__(0, 40)))  # 稍微增高
             self._list.addItem(item)
         self._list.currentRowChanged.connect(self._on_row_changed)
         layout.addWidget(self._list)

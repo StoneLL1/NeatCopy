@@ -99,8 +99,8 @@ class ColorPalette:
         'text_tertiary': '#707070',     # Disabled/hint text
         'text_accent': '#F0F0F0',       # Accent text
 
-        # Checkbox
-        'checkbox_checked': '#F0F0F0',  # Checkbox checked color
+        # Checkbox - 深色模式用深色背景+白色勾
+        'checkbox_checked': '#404040',  # 勾选框背景保持深色
         'checkbox_border': '#505050',
         'checkbox_border_hover': '#A0A0A0',
 
@@ -133,11 +133,10 @@ class ColorPalette:
 
 
 def get_checkbox_image_path(theme: str) -> str:
-    """Return path to check.png for checkbox indicator."""
-    # Import here to avoid circular dependency
+    """Return path to check image for checkbox indicator."""
     from assets import asset
-    # For dark theme, we could create a dark_check.png in future
-    # For now, use the existing check.png (works reasonably in both themes)
+    if theme == 'dark':
+        return asset('check_white.png').replace('\\', '/')
     return asset('check.png').replace('\\', '/')
 
 
@@ -280,8 +279,8 @@ def get_settings_stylesheet(theme: str) -> str:
             background: {colors['bg_groupbox']};
             border: 1px solid {colors['border_secondary']};
             border-radius: {RADIUS_LARGE}px;
-            margin-top: 12px;
-            padding: 14px 12px 10px;
+            margin-top: 14px;
+            padding: 16px 12px 12px;
             font-weight: normal;
         }}
 
@@ -292,7 +291,8 @@ def get_settings_stylesheet(theme: str) -> str:
             padding: 0 4px;
             background: {colors['bg_groupbox']};
             color: {colors['text_secondary']};
-            font-size: {FONT_SIZE_SMALL};
+            font-size: 13px;
+            font-weight: bold;
         }}
 
         QCheckBox {{
@@ -545,9 +545,10 @@ def get_sidebar_stylesheet(theme: str) -> str:
             background: transparent;
             color: {colors['text_primary']};
             font-family: {FONT_FAMILY};
-            font-size: 13px;
-            padding: 8px 20px;
-            height: 36px;
+            font-size: 14px;
+            font-weight: bold;
+            padding: 8px 16px;
+            height: 40px;
             border: none;
             border-left: 3px solid transparent;
         }}
@@ -558,7 +559,6 @@ def get_sidebar_stylesheet(theme: str) -> str:
 
         QListWidget#sidebarNav::item:selected {{
             background: {colors['sidebar_selected']};
-            font-weight: bold;
             border-left: 3px solid {indicator_color};
         }}
     """
