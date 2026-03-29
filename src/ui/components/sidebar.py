@@ -4,14 +4,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QListWidget, QListWidg
 from PyQt6.QtCore import pyqtSignal, Qt
 
 from ui.styles import get_sidebar_stylesheet
-
-# Notion-style icons using Unicode characters
-NAV_ICONS = {
-    '通用': '⚙',      # Gear/settings
-    '清洗规则': '✓',   # Checkmark
-    '大模型': '◈',    # Diamond/bullet
-    '关于': 'ⓘ',      # Info
-}
+from ui.components.icon_helper import get_nav_icon
 
 
 class SidebarWidget(QWidget):
@@ -23,7 +16,7 @@ class SidebarWidget(QWidget):
         super().__init__(parent)
         self._theme = theme
         self._items = items
-        self.setFixedWidth(150)  # 缩窄侧边栏
+        self.setFixedWidth(150)
         self.setObjectName('sidebar')
 
         layout = QVBoxLayout(self)
@@ -41,11 +34,8 @@ class SidebarWidget(QWidget):
         self._list.setObjectName('sidebarNav')
         self._list.setCurrentRow(0)
         for item_text in items:
-            # 添加图标前缀
-            icon = NAV_ICONS.get(item_text, '•')
-            display_text = f'  {icon}  {item_text}'
-            item = QListWidgetItem(display_text)
-            # 字体样式由 QSS 控制，这里只设置高度
+            item = QListWidgetItem(item_text)
+            item.setIcon(get_nav_icon(item_text, self._theme, 16))
             item.setSizeHint(item.sizeHint().expandedTo(
                 item.sizeHint().__class__(0, 32)))
             self._list.addItem(item)
@@ -60,6 +50,10 @@ class SidebarWidget(QWidget):
 
     def set_theme(self, theme: str):
         self._theme = theme
+        # 更新所有图标颜色
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            item.setIcon(get_nav_icon(item.text(), self._theme, 16))
         self._apply_theme()
 
     def _apply_theme(self):
