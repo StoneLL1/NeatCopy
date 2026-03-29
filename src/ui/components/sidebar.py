@@ -2,7 +2,6 @@
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QListWidget, QListWidgetItem
 from PyQt6.QtCore import pyqtSignal, Qt
-from PyQt6.QtGui import QFont
 
 from ui.styles import get_sidebar_stylesheet
 
@@ -23,14 +22,10 @@ class SidebarWidget(QWidget):
         layout.setContentsMargins(0, 16, 0, 16)
         layout.setSpacing(0)
 
-        # App name label
+        # App name label - 字体由 QSS 控制
         app_name = QLabel('NeatCopy')
         app_name.setObjectName('sidebarAppName')
-        font = QFont()
-        font.setPointSize(14)
-        font.setBold(True)
-        app_name.setFont(font)
-        app_name.setContentsMargins(16, 0, 0, 16)  # 缩小左边距
+        app_name.setContentsMargins(16, 0, 0, 16)
         layout.addWidget(app_name)
 
         # Navigation list
@@ -39,13 +34,9 @@ class SidebarWidget(QWidget):
         self._list.setCurrentRow(0)
         for item_text in items:
             item = QListWidgetItem(item_text)
-            # 设置字体加大加粗
-            font = item.font()
-            font.setPointSize(11)  # 加大字体
-            font.setBold(True)
-            item.setFont(font)
+            # 字体样式由 QSS 控制，这里只设置高度
             item.setSizeHint(item.sizeHint().expandedTo(
-                item.sizeHint().__class__(0, 40)))  # 稍微增高
+                item.sizeHint().__class__(0, 36)))
             self._list.addItem(item)
         self._list.currentRowChanged.connect(self._on_row_changed)
         layout.addWidget(self._list)

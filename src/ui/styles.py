@@ -279,19 +279,19 @@ def get_settings_stylesheet(theme: str) -> str:
             background: {colors['bg_groupbox']};
             border: 1px solid {colors['border_secondary']};
             border-radius: {RADIUS_LARGE}px;
-            margin-top: 14px;
-            padding: 16px 12px 12px;
+            margin-top: 16px;
+            padding: 18px 12px 12px;
             font-weight: normal;
         }}
 
         QGroupBox::title {{
             subcontrol-origin: margin;
             left: 10px;
-            top: 2px;
-            padding: 0 4px;
+            top: 0px;
+            padding: 0 6px;
             background: {colors['bg_groupbox']};
-            color: {colors['text_secondary']};
-            font-size: 13px;
+            color: {colors['text_primary']};
+            font-size: 15px;
             font-weight: bold;
         }}
 
@@ -530,7 +530,7 @@ def get_sidebar_stylesheet(theme: str) -> str:
         QLabel#sidebarAppName {{
             color: {colors['text_secondary']};
             font-family: {FONT_FAMILY};
-            font-size: 14px;
+            font-size: 16px;
             font-weight: bold;
         }}
 
@@ -545,10 +545,10 @@ def get_sidebar_stylesheet(theme: str) -> str:
             background: transparent;
             color: {colors['text_primary']};
             font-family: {FONT_FAMILY};
-            font-size: 14px;
-            font-weight: bold;
-            padding: 8px 16px;
-            height: 40px;
+            font-size: 13px;
+            font-weight: normal;
+            padding: 8px 14px;
+            height: 32px;
             border: none;
             border-left: 3px solid transparent;
         }}

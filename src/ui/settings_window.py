@@ -74,7 +74,6 @@ class SettingsWindow(QDialog):
             items=self.NAV_ITEMS,
             theme=self._theme,
         )
-        self._sidebar.setFixedWidth(180)
         self._sidebar.currentChanged.connect(self._on_nav_select)
         top_layout.addWidget(self._sidebar)
 
