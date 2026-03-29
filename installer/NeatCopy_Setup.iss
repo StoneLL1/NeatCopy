@@ -2,7 +2,7 @@
 ; 用于生成 Windows 安装向导程序
 
 #define AppName "NeatCopy"
-#define AppVersion "1.1.0"
+#define AppVersion "1.5.0"
 #define AppPublisher "NeatCopy"
 #define AppURL "https://github.com/StoneLL1/NeatCopy"
 #define AppExeName "NeatCopy.exe"
