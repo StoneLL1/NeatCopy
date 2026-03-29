@@ -14,6 +14,7 @@ from PyQt6.QtGui import QDesktopServices
 
 from version import VERSION
 from assets import asset as _asset
+from ui.styles import get_settings_stylesheet, ColorPalette
 
 
 RULE_LABELS = {
@@ -34,60 +35,15 @@ class SettingsWindow(QDialog):
         self._config = config
         self._hotkey_manager = hotkey_manager
         self._pending: dict = {}
+        self._theme = config.get('ui.theme', 'light')
 
         self.setWindowTitle('NeatCopy 设置')
         self.setFixedWidth(520)
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, False)
         self.setWindowIcon(QIcon(_asset('idle.ico')))
-        check_path = _asset('check.png').replace('\\', '/')
-        self.setStyleSheet(f"""
-            QDialog {{ background:#F5F5F5; font-family:"Microsoft YaHei UI","Segoe UI",sans-serif; font-size:13px; color:#202020; }}
-            QTabWidget::pane {{ border:1px solid #E8E8E8; border-radius:8px; background:#FFFFFF; top:-1px; }}
-            QTabBar::tab {{ background:transparent; color:#888; padding:8px 18px 6px; border:none; border-bottom:2px solid transparent; font-size:13px; }}
-            QTabBar::tab:selected {{ color:#111; border-bottom:2px solid #222222; font-weight:bold; }}
-            QTabBar::tab:hover:!selected {{ color:#555; background:#ECECEC; border-radius:4px 4px 0 0; }}
-            QGroupBox {{ background:#FFFFFF; border:1px solid #EBEBEB; border-radius:8px; margin-top:12px; padding:14px 12px 10px; font-weight:normal; }}
-            QGroupBox::title {{ subcontrol-origin:margin; left:10px; top:2px; padding:0 4px; background:#FFFFFF; color:#888; font-size:12px; }}
-            QCheckBox {{ spacing:6px; font-weight:normal; padding:3px 0; color:#333; }}
-            QCheckBox::indicator {{ width:16px; height:16px; border:1.5px solid #BEBEBE; border-radius:3px; background:#FFF; }}
-            QCheckBox::indicator:hover {{ border-color:#555555; }}
-            QCheckBox::indicator:checked {{ background:#222222; border-color:#222222; image:url({check_path}); }}
-            QCheckBox::indicator:checked:hover {{ background:#111111; border-color:#111111; }}
-            QPushButton {{ background:#FAFAFA; border:1px solid #DADADA; border-radius:6px; padding:5px 14px; min-height:28px; color:#333; }}
-            QPushButton:hover {{ background:#F0F0F0; border-color:#C0C0C0; }}
-            QPushButton:pressed {{ background:#E4E4E4; }}
-            QPushButton:checked {{ background:#EBEBEB; border-color:#333333; color:#333333; }}
-            QPushButton#btn_save {{ background:#222222; border:none; color:#FFF; font-weight:bold; padding:6px 28px; border-radius:6px; }}
-            QPushButton#btn_save:hover {{ background:#111111; }}
-            QPushButton#btn_save:pressed {{ background:#000000; }}
-            QPushButton#btn_reset {{ background:#F5F5F5; border:1px solid #DADADA; border-radius:6px; padding:5px 14px; min-height:28px; color:#333333; }}
-            QPushButton#btn_reset:hover {{ background:#EBEBEB; border-color:#C0C0C0; }}
-            QPushButton#btn_reset:pressed {{ background:#E0E0E0; }}
-            QLineEdit {{ border:1px solid #DADADA; border-radius:5px; padding:5px 8px; background:#FFF; selection-background-color:#444444; color:#333; }}
-            QLineEdit:focus {{ border:1.5px solid #444444; padding:4px 7px; }}
-            QTextEdit {{ border:1px solid #DADADA; border-radius:5px; padding:5px; background:#FFF; color:#333; }}
-            QTextEdit:focus {{ border:1.5px solid #444444; padding:4px; }}
-            QListWidget {{ border:1px solid #DADADA; border-radius:6px; background:#FFF; padding:3px; outline:none; }}
-            QListWidget::item {{ padding:5px 8px; border-radius:4px; color:#333; }}
-            QListWidget::item:hover {{ background:#F0F0F0; }}
-            QListWidget::item:selected {{ background:#E0E0E0; color:#111111; }}
-            QSlider::groove:horizontal {{ height:3px; background:#E0E0E0; border-radius:1px; }}
-            QSlider::handle:horizontal {{ width:14px; height:14px; margin:-5px 0; background:#FFF; border:1.5px solid #444444; border-radius:7px; }}
-            QSlider::handle:horizontal:hover {{ background:#EBEBEB; }}
-            QSlider::handle:horizontal:pressed {{ background:#222222; border-color:#111111; }}
-            QSlider::sub-page:horizontal {{ background:#444444; border-radius:1px; }}
-            QLabel {{ background:transparent; color:#444; }}
-            QLabel#status_label {{ color:#222222; font-weight:bold; }}
-            QScrollBar:vertical {{ width:5px; background:transparent; }}
-            QScrollBar::handle:vertical {{ background:#CCC; border-radius:2px; min-height:24px; }}
-            QScrollBar::handle:vertical:hover {{ background:#AAA; }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height:0; background:none; }}
-            QMenu {{ background:#FFF; border:1px solid #E0E0E0; border-radius:8px; padding:4px; }}
-            QMenu::item {{ padding:5px 20px 5px 10px; border-radius:4px; }}
-            QMenu::item:selected {{ background:#EBEBEB; }}
-            QMenu::item:disabled {{ color:#B0B0B0; }}
-            QToolTip {{ background:#FFF; border:1px solid #DDD; border-radius:4px; padding:4px 8px; color:#333; font-size:12px; }}
-        """)
+
+        # Apply Notion-style theme-based stylesheet
+        self._apply_theme()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -129,6 +85,24 @@ class SettingsWindow(QDialog):
         self._chk_startup.stateChanged.connect(
             lambda v: self._mark('general.startup_with_windows', bool(v)))
         layout.addWidget(self._chk_startup)
+
+        # 界面主题
+        theme_box = QGroupBox('界面主题')
+        theme_lay = QHBoxLayout(theme_box)
+        theme_lay.setSpacing(8)
+        self._btn_theme_light = QPushButton('浅色')
+        self._btn_theme_light.setCheckable(True)
+        self._btn_theme_dark = QPushButton('深色')
+        self._btn_theme_dark.setCheckable(True)
+        self._btn_theme_light.setChecked(self._theme == 'light')
+        self._btn_theme_dark.setChecked(self._theme == 'dark')
+        self._btn_theme_light.clicked.connect(self._on_theme_light_clicked)
+        self._btn_theme_dark.clicked.connect(self._on_theme_dark_clicked)
+        theme_lay.addWidget(QLabel('主题：'))
+        theme_lay.addWidget(self._btn_theme_light)
+        theme_lay.addWidget(self._btn_theme_dark)
+        theme_lay.addStretch()
+        layout.addWidget(theme_box)
 
         # 独立热键
         hk_box = QGroupBox('独立热键')
@@ -910,6 +884,24 @@ class SettingsWindow(QDialog):
         QDesktopServices.openUrl(QUrl(url))
 
     # ── 保存 ─────────────────────────────────────────────────
+
+    def _apply_theme(self):
+        """Apply the current theme's stylesheet."""
+        self.setStyleSheet(get_settings_stylesheet(self._theme))
+
+    def _on_theme_light_clicked(self):
+        self._btn_theme_dark.setChecked(False)
+        self._btn_theme_light.setChecked(True)
+        self._theme = 'light'
+        self._mark('ui.theme', 'light')
+        self._apply_theme()
+
+    def _on_theme_dark_clicked(self):
+        self._btn_theme_light.setChecked(False)
+        self._btn_theme_dark.setChecked(True)
+        self._theme = 'dark'
+        self._mark('ui.theme', 'dark')
+        self._apply_theme()
 
     def _mark(self, key: str, value):
         self._pending[key] = value

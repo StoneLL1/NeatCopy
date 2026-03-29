@@ -5,6 +5,9 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_CONFIG = {
+    'ui': {
+        'theme': 'light',
+    },
     'general': {
         'startup_with_windows': False,
         'toast_notification': True,
