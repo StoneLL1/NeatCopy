@@ -32,6 +32,7 @@ RULE_LABELS = {
 class SettingsWindow(QDialog):
     # 导航项定义
     NAV_ITEMS = ['通用', '清洗规则', '大模型', '关于']
+    MAX_WHEEL_PROMPTS = 5
 
     def __init__(self, config, hotkey_manager=None, parent=None):
         super().__init__(parent)
@@ -810,7 +811,7 @@ class SettingsWindow(QDialog):
 
         # 右栏：轮盘模板
         right_lay = QVBoxLayout()
-        right_title = QLabel('轮盘模板（最多5个）')
+        right_title = QLabel(f'轮盘模板（最多{self.MAX_WHEEL_PROMPTS}个）')
         right_title.setStyleSheet('font-weight: bold;')
         right_lay.addWidget(right_title)
         self._wheel_selected_list = QListWidget()
@@ -849,7 +850,7 @@ class SettingsWindow(QDialog):
         self._wheel_selected_list.clear()
         prompts = self._config.get('llm.prompts') or []
         selected = [p for p in prompts if p.get('visible_in_wheel', True)]
-        for i, p in enumerate(selected[:5], start=1):
+        for i, p in enumerate(selected[:self.MAX_WHEEL_PROMPTS], start=1):
             item = QListWidgetItem(f'{i}. {p["name"]}')
             item.setData(Qt.ItemDataRole.UserRole, p['id'])
             self._wheel_selected_list.addItem(item)
@@ -861,11 +862,11 @@ class SettingsWindow(QDialog):
             1 for i in range(self._wheel_all_list.count())
             if self._wheel_all_list.item(i).checkState() == Qt.CheckState.Checked
         )
-        if checked_count > 5:
+        if checked_count > self.MAX_WHEEL_PROMPTS:
             self._wheel_all_list.blockSignals(True)
             item.setCheckState(Qt.CheckState.Unchecked)
             self._wheel_all_list.blockSignals(False)
-            self._status_lbl.setText('轮盘最多显示5个 Prompt')
+            self._status_lbl.setText(f'轮盘最多显示{self.MAX_WHEEL_PROMPTS}个 Prompt')
             QTimer.singleShot(2000, lambda: self._status_lbl.setText(''))
             return
 
@@ -1034,7 +1035,8 @@ class SettingsWindow(QDialog):
                         ],
                     }
                     base_url = self._cfg.get('base_url', 'https://api.openai.com/v1').rstrip('/')
-                    with httpx.Client(timeout=30.0) as client:
+                    timeout = float(self._cfg.get('timeout', 30))
+                    with httpx.Client(timeout=timeout) as client:
                         resp = client.post(f'{base_url}/chat/completions',
                                            json=payload, headers=headers)
                         resp.raise_for_status()
@@ -1042,7 +1044,7 @@ class SettingsWindow(QDialog):
                         self.success.emit(content)
                 except Exception as e:
                     from llm_client import classify_error
-                    self.error.emit(classify_error(e))
+                    self.error.emit(classify_error(e, timeout=int(self._cfg.get('timeout', 30))))
 
         worker = _TestWorker(llm_cfg)
         worker.success.connect(lambda r: (

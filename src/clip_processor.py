@@ -68,14 +68,15 @@ class _LLMWorker(QThread):
                 ],
             }
             base_url = cfg.get('base_url', 'https://api.openai.com/v1').rstrip('/')
-            with httpx.Client(timeout=30.0) as client:
+            timeout = float(cfg.get('timeout', 30))
+            with httpx.Client(timeout=timeout) as client:
                 resp = client.post(f'{base_url}/chat/completions',
                                    json=payload, headers=headers)
                 resp.raise_for_status()
                 content = resp.json()['choices'][0]['message']['content']
                 self.succeeded.emit(content)
         except Exception as e:
-            self.failed.emit(classify_error(e))
+            self.failed.emit(classify_error(e, timeout=int(cfg.get('timeout', 30))))
 
 
 class ClipProcessor(QObject):
