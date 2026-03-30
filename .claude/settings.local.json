@@ -71,7 +71,14 @@
       "Bash(python -c \"from ui.settings_window import SettingsWindow; print\\(''OK''\\)\")",
       "Bash(python -c \"from ui.settings_window import SettingsWindow; print\\(''settings_window.py OK''\\)\")",
       "Bash(timeout 5 python main.py)",
-      "Bash(python -m pytest tests/ -q)"
+      "Bash(python -m pytest tests/ -q)",
+      "Bash(python src/main.py)",
+      "Bash(python -c \"from src.ui.settings_window import *; print\\(''import ok''\\)\")",
+      "Bash(python -c \"import sys; sys.path.insert\\(0,''src''\\); from ui.settings_window import *; print\\(''import ok''\\)\")",
+      "Bash(python -c \"import sys; sys.path.insert\\(0,''src''\\); from ui.settings_window import SettingsWindow; print\\(''OK''\\)\")",
+      "Skill(git-commit)",
+      "Skill(git-commit:*)",
+      "Bash(python -c \"import sys; sys.path.insert\\(0,''''\\); from ui.settings_window import SettingsWindow; from clip_processor import _LLMWorker; print\\(''OK''\\)\")"
     ]
   }
 }
