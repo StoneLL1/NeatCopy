@@ -11,7 +11,7 @@ ERROR_MESSAGES = {
 
 def classify_error(exc: Exception) -> str:
     if isinstance(exc, httpx.TimeoutException):
-        return '请求超时（30s），请检查网络连接'
+        return '请求超时（60s），请检查网络连接'
     if isinstance(exc, httpx.HTTPStatusError):
         code = exc.response.status_code
         return ERROR_MESSAGES.get(code, f'请求失败（HTTP {code}）')
@@ -33,7 +33,7 @@ class LLMClient:
             ],
         }
         base_url = config.get('base_url', 'https://api.openai.com/v1').rstrip('/')
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 f'{base_url}/chat/completions',
                 json=payload,
