@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QLabel, QCheckBox, QSlider, QPushButton, QGroupBox,
     QLineEdit, QListWidget, QListWidgetItem,
     QTextEdit, QInputDialog, QMessageBox, QMenu,
-    QStackedWidget, QFrame, QScrollArea,
+    QStackedWidget, QFrame, QScrollArea, QSpinBox,
 )
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import Qt, QTimer, QUrl
@@ -207,7 +207,7 @@ class SettingsWindow(QDialog):
         layout.addWidget(dbl_box)
 
         # ── 轮盘 Prompt 选择器 GroupBox ──
-        layout.addWidget(self._build_wheel_group())
+        layout.addWidget(self._build_wheel_basic_group())
 
         # ── 预览面板 GroupBox ──
         layout.addWidget(self._build_preview_group())
@@ -221,8 +221,8 @@ class SettingsWindow(QDialog):
         scroll.setWidget(page)
         return scroll
 
-    def _build_wheel_group(self) -> QGroupBox:
-        """构建轮盘 Prompt 选择器设置分组。"""
+    def _build_wheel_basic_group(self) -> QGroupBox:
+        """构建轮盘基本设置分组（开关与热键）。"""
         wheel_box = QGroupBox('轮盘 Prompt 选择器')
         wheel_lay = QVBoxLayout(wheel_box)
         wheel_lay.setSpacing(6)
@@ -252,15 +252,6 @@ class SettingsWindow(QDialog):
         sw_hk_lay.addStretch()
         wheel_lay.addLayout(sw_hk_lay)
 
-        # 可见 Prompt 配置
-        wheel_lay.addWidget(QLabel('轮盘显示的 Prompt（最多5个）：'))
-        self._wheel_prompt_list = QListWidget()
-        self._wheel_prompt_list.setMaximumHeight(180)
-        self._wheel_prompt_list.itemChanged.connect(self._on_wheel_prompt_item_changed)
-        self._refresh_wheel_prompts()
-        wheel_lay.addWidget(self._wheel_prompt_list)
-
-        # 根据启用状态更新子控件可用性
         self._update_wheel_subwidgets()
         return wheel_box
 
@@ -470,24 +461,38 @@ class SettingsWindow(QDialog):
         self._le_apikey.textChanged.connect(lambda t: self._mark('llm.api_key', t))
         btn_show = QPushButton('显示')
         btn_show.setCheckable(True)
-        btn_show.setFixedWidth(50)
+        btn_show.setStyleSheet('padding: 0 10px;')
         btn_show.toggled.connect(
             lambda on: self._le_apikey.setEchoMode(
                 QLineEdit.EchoMode.Normal if on else QLineEdit.EchoMode.Password))
-        key_row.addWidget(self._le_apikey)
+        key_row.addWidget(self._le_apikey, stretch=1)  # 输入框占剩余空间
         key_row.addWidget(btn_show)
         api_lay.addLayout(key_row)
 
         temp_row = QHBoxLayout()
         temp_val = self._config.get('llm.temperature', 0.2)
-        self._lbl_temp = QLabel(f'Temperature：{temp_val:.1f}')
+        self._lbl_temp = QLabel('Temperature：')
+        self._lbl_temp_val = QLabel(f'{temp_val:.1f}')
         self._sld_temp = QSlider(Qt.Orientation.Horizontal)
         self._sld_temp.setRange(0, 20)
         self._sld_temp.setValue(int(temp_val * 10))
         self._sld_temp.valueChanged.connect(self._on_temp_changed)
+        # 左侧：Temperature label + slider + 数值
         temp_row.addWidget(self._lbl_temp)
-        temp_row.addWidget(self._sld_temp)
+        temp_row.addWidget(self._sld_temp, stretch=1)
+        temp_row.addWidget(self._lbl_temp_val)
+        # 右侧：超时时长靠右对齐
+        temp_row.addStretch()
+        temp_row.addWidget(QLabel('超时时长：'))
+        self._spin_timeout = QSpinBox()
+        self._spin_timeout.setRange(10, 300)
+        self._spin_timeout.setValue(int(self._config.get('llm.timeout', 30)))
+        self._spin_timeout.setToolTip('LLM 请求最大等待时间（10-300 秒）')
+        self._spin_timeout.valueChanged.connect(lambda v: self._mark('llm.timeout', v))
+        temp_row.addWidget(self._spin_timeout)
+        temp_row.addWidget(QLabel('秒'))
         api_lay.addLayout(temp_row)
+
         layout.addWidget(api_box)
 
         # ── 测试连接按钮 ──
@@ -505,6 +510,7 @@ class SettingsWindow(QDialog):
         prompt_box = QGroupBox('Prompt 模板')
         prompt_lay = QVBoxLayout(prompt_box)
         self._prompt_list = QListWidget()
+        self._prompt_list.setMinimumHeight(150)  # 显示约5个模板
         self._prompt_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._prompt_list.customContextMenuRequested.connect(self._show_prompt_menu)
         self._prompt_list.itemDoubleClicked.connect(
@@ -517,6 +523,9 @@ class SettingsWindow(QDialog):
         prompt_lay.addWidget(btn_add)
         layout.addWidget(prompt_box)
 
+        # ── 轮盘 Prompt 选择 GroupBox ──
+        layout.addWidget(self._build_wheel_prompt_selector_group())
+
         layout.addStretch()
         scroll.setWidget(page)
         return scroll
@@ -524,7 +533,7 @@ class SettingsWindow(QDialog):
     def _confirm_and_reset_llm_api(self):
         reply = QMessageBox.question(
             self, '确认恢复默认',
-            '确定要将 API 配置（Base URL、Model ID、API Key、Temperature）恢复为默认值吗？\n'
+            '确定要将 API 配置（Base URL、Model ID、API Key、Temperature、超时时长）恢复为默认值吗？\n'
             'API Key 将被清空，Prompt 模板不受影响。此操作不可撤销。',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
@@ -537,6 +546,7 @@ class SettingsWindow(QDialog):
         self._mark('llm.model_id',    llm['model_id'])
         self._mark('llm.api_key',     llm['api_key'])
         self._mark('llm.temperature', llm['temperature'])
+        self._mark('llm.timeout',     llm['timeout'])
         # 刷新 UI
         if self._le_base_url:
             self._le_base_url.blockSignals(True)
@@ -552,7 +562,10 @@ class SettingsWindow(QDialog):
         self._sld_temp.blockSignals(True)
         self._sld_temp.setValue(int(llm['temperature'] * 10))
         self._sld_temp.blockSignals(False)
-        self._lbl_temp.setText(f'Temperature：{llm["temperature"]:.1f}')
+        self._lbl_temp_val.setText(f'{llm["temperature"]:.1f}')
+        self._spin_timeout.blockSignals(True)
+        self._spin_timeout.setValue(llm['timeout'])
+        self._spin_timeout.blockSignals(False)
         self._do_save()
 
     def _on_llm_checkbox_toggled(self, checked):
@@ -769,15 +782,56 @@ class SettingsWindow(QDialog):
 
     def _on_temp_changed(self, value: int):
         temp = value / 10.0
-        self._lbl_temp.setText(f'Temperature：{temp:.1f}')
+        self._lbl_temp_val.setText(f'{temp:.1f}')
         self._mark('llm.temperature', temp)
 
     # ── 轮盘相关 ──────────────────────────────────────────────
 
-    def _refresh_wheel_prompts(self):
-        """刷新轮盘可见 Prompt 列表。"""
-        self._wheel_prompt_list.blockSignals(True)
-        self._wheel_prompt_list.clear()
+    def _build_wheel_prompt_selector_group(self) -> QGroupBox:
+        """构建轮盘 Prompt 选择器（左右两栏设计）。"""
+        box = QGroupBox('轮盘 Prompt 选择')
+        lay = QVBoxLayout(box)
+        lay.setSpacing(6)
+
+        # 左右两栏
+        columns = QHBoxLayout()
+
+        # 左栏：可用模板
+        left_lay = QVBoxLayout()
+        left_title = QLabel('可用模板')
+        left_title.setStyleSheet('font-weight: bold;')
+        left_lay.addWidget(left_title)
+        self._wheel_all_list = QListWidget()
+        self._wheel_all_list.setMinimumHeight(150)  # 显示约5个模板
+        self._wheel_all_list.itemChanged.connect(self._on_wheel_all_item_changed)
+        self._refresh_wheel_all_list()
+        left_lay.addWidget(self._wheel_all_list)
+        columns.addLayout(left_lay, stretch=1)
+
+        # 右栏：轮盘模板
+        right_lay = QVBoxLayout()
+        right_title = QLabel('轮盘模板（最多5个）')
+        right_title.setStyleSheet('font-weight: bold;')
+        right_lay.addWidget(right_title)
+        self._wheel_selected_list = QListWidget()
+        self._wheel_selected_list.setMinimumHeight(150)  # 显示约5个模板
+        self._refresh_wheel_selected_list()
+        right_lay.addWidget(self._wheel_selected_list)
+        columns.addLayout(right_lay, stretch=1)
+
+        lay.addLayout(columns)
+
+        # 提示文字
+        tip = QLabel('提示：勾选左侧模板添加到轮盘')
+        tip.setStyleSheet('color: #666; font-size: 11px;')
+        lay.addWidget(tip)
+
+        return box
+
+    def _refresh_wheel_all_list(self):
+        """刷新左栏：所有prompt带勾选框。"""
+        self._wheel_all_list.blockSignals(True)
+        self._wheel_all_list.clear()
         prompts = self._config.get('llm.prompts') or []
         for p in prompts:
             item = QListWidgetItem(p['name'])
@@ -787,32 +841,47 @@ class SettingsWindow(QDialog):
                 Qt.CheckState.Checked if p.get('visible_in_wheel', True)
                 else Qt.CheckState.Unchecked
             )
-            self._wheel_prompt_list.addItem(item)
-        self._wheel_prompt_list.blockSignals(False)
+            self._wheel_all_list.addItem(item)
+        self._wheel_all_list.blockSignals(False)
 
-    def _on_wheel_prompt_item_changed(self, item: QListWidgetItem):
-        """处理轮盘可见 Prompt 勾选变化，最多5个。"""
+    def _refresh_wheel_selected_list(self):
+        """刷新右栏：已勾选的prompt带序号。"""
+        self._wheel_selected_list.clear()
+        prompts = self._config.get('llm.prompts') or []
+        selected = [p for p in prompts if p.get('visible_in_wheel', True)]
+        for i, p in enumerate(selected[:5], start=1):
+            item = QListWidgetItem(f'{i}. {p["name"]}')
+            item.setData(Qt.ItemDataRole.UserRole, p['id'])
+            self._wheel_selected_list.addItem(item)
+
+    def _on_wheel_all_item_changed(self, item: QListWidgetItem):
+        """处理勾选变化：同步两栏并保存配置。"""
+        # 检查勾选数量
         checked_count = sum(
-            1 for i in range(self._wheel_prompt_list.count())
-            if self._wheel_prompt_list.item(i).checkState() == Qt.CheckState.Checked
+            1 for i in range(self._wheel_all_list.count())
+            if self._wheel_all_list.item(i).checkState() == Qt.CheckState.Checked
         )
         if checked_count > 5:
-            self._wheel_prompt_list.blockSignals(True)
+            self._wheel_all_list.blockSignals(True)
             item.setCheckState(Qt.CheckState.Unchecked)
-            self._wheel_prompt_list.blockSignals(False)
+            self._wheel_all_list.blockSignals(False)
             self._status_lbl.setText('轮盘最多显示5个 Prompt')
             QTimer.singleShot(2000, lambda: self._status_lbl.setText(''))
             return
 
+        # 更新配置
         prompts = list(self._config.get('llm.prompts') or [])
-        for i in range(self._wheel_prompt_list.count()):
-            list_item = self._wheel_prompt_list.item(i)
+        for i in range(self._wheel_all_list.count()):
+            list_item = self._wheel_all_list.item(i)
             pid = list_item.data(Qt.ItemDataRole.UserRole)
             visible = list_item.checkState() == Qt.CheckState.Checked
             for p in prompts:
                 if p['id'] == pid:
                     p['visible_in_wheel'] = visible
         self._mark('llm.prompts', prompts)
+
+        # 同步刷新右栏
+        self._refresh_wheel_selected_list()
 
     def _on_wheel_enabled_changed(self, state):
         enabled = bool(state)
@@ -823,7 +892,8 @@ class SettingsWindow(QDialog):
         enabled = self._chk_wheel.isChecked()
         self._chk_wheel_trigger.setEnabled(enabled)
         self._btn_wheel_hotkey.setEnabled(enabled)
-        self._wheel_prompt_list.setEnabled(enabled)
+        if hasattr(self, '_wheel_all_list'):
+            self._wheel_all_list.setEnabled(enabled)
 
     # ── 预览面板主题 ──────────────────────────────────────────────
 
@@ -849,8 +919,9 @@ class SettingsWindow(QDialog):
             item = QListWidgetItem(f"{tag}{p['name']}{lock}")
             item.setData(Qt.ItemDataRole.UserRole, p['id'])
             self._prompt_list.addItem(item)
-        if hasattr(self, '_wheel_prompt_list'):
-            self._refresh_wheel_prompts()
+        if hasattr(self, '_wheel_all_list'):
+            self._refresh_wheel_all_list()
+            self._refresh_wheel_selected_list()
 
     def _show_prompt_menu(self, pos):
         item = self._prompt_list.itemAt(pos)

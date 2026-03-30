@@ -33,6 +33,7 @@ DEFAULT_CONFIG = {
         'api_key': '',
         'model_id': 'gpt-4o-mini',
         'temperature': 0.2,
+        'timeout': 30,
         'active_prompt_id': 'default',
         'prompts': [
             {
