@@ -29,6 +29,8 @@ from clip_processor import ClipProcessor
 from wheel_window import WheelWindow
 from ui.settings_window import SettingsWindow
 from ui.preview_window import PreviewWindow
+from ui.history_window import HistoryWindow
+from history_manager import HistoryManager
 
 
 def main():
@@ -38,13 +40,18 @@ def main():
     app.setWindowIcon(QIcon(_asset('idle.ico')))  # 应用级别图标
 
     config = ConfigManager()
+    # 初始化历史管理器
+    history = HistoryManager(
+        max_count=config.get('history.max_count', 500)
+    )
     # 同步开机自启动注册表状态
     sync_from_config(config.get('general.startup_with_windows', False))
     tray = TrayManager(config)
     hotkey = HotkeyManager(config)
-    processor = ClipProcessor(config)
+    processor = ClipProcessor(config, history_manager=history)
     wheel = WheelWindow()
     preview = PreviewWindow(config)
+    history_win = HistoryWindow(config, history)
 
     tray.quit_requested.connect(app.quit)
     tray.pause_toggled.connect(hotkey.set_paused)
@@ -129,6 +136,12 @@ def main():
     processor.preview_failed.connect(
         lambda error: preview.set_status(f"处理失败: {error}"))
     preview.apply_to_clipboard.connect(
+        lambda text: processor.write_to_clipboard(text))
+
+    # ── 历史记录信号连接 ─────────────────────────────────────────
+    hotkey.history_hotkey_triggered.connect(history_win.toggle_visibility)
+    tray.open_history_requested.connect(history_win.toggle_visibility)
+    history_win.copy_to_clipboard.connect(
         lambda text: processor.write_to_clipboard(text))
 
     # ── 初始化托盘锁定状态显示 ───────────────────────────────
