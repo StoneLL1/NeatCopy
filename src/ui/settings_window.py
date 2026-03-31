@@ -13,6 +13,7 @@ from PyQt6.QtGui import QDesktopServices
 
 from version import VERSION
 from assets import asset as _asset
+from autostart_manager import enable as _autostart_enable, disable as _autostart_disable
 from ui.styles import get_settings_stylesheet, get_sidebar_stylesheet, ColorPalette
 from ui.components.sidebar import Sidebar
 
@@ -146,8 +147,7 @@ class SettingsWindow(QDialog):
         startup_lay = QVBoxLayout(startup_box)
         self._chk_startup = QCheckBox('开机自动启动')
         self._chk_startup.setChecked(self._config.get('general.startup_with_windows', False))
-        self._chk_startup.stateChanged.connect(
-            lambda v: self._mark('general.startup_with_windows', bool(v)))
+        self._chk_startup.stateChanged.connect(self._on_startup_changed)
         startup_lay.addWidget(self._chk_startup)
         layout.addWidget(startup_box)
 
@@ -1085,6 +1085,15 @@ class SettingsWindow(QDialog):
         self._theme = 'dark'
         self._mark('ui.theme', 'dark')
         self._apply_theme()
+
+    def _on_startup_changed(self, state: int):
+        enabled = bool(state)
+        self._mark('general.startup_with_windows', enabled)
+        # 实时更新注册表
+        if enabled:
+            _autostart_enable()
+        else:
+            _autostart_disable()
 
     # ── 保存 ─────────────────────────────────────────────────
 

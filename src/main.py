@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QCursor, QIcon
 from assets import asset as _asset
 from config_manager import ConfigManager
+from autostart_manager import sync_from_config
 from tray_manager import TrayManager
 from hotkey_manager import HotkeyManager
 from clip_processor import ClipProcessor
@@ -37,6 +38,8 @@ def main():
     app.setWindowIcon(QIcon(_asset('idle.ico')))  # 应用级别图标
 
     config = ConfigManager()
+    # 同步开机自启动注册表状态
+    sync_from_config(config.get('general.startup_with_windows', False))
     tray = TrayManager(config)
     hotkey = HotkeyManager(config)
     processor = ClipProcessor(config)
