@@ -22,13 +22,7 @@
 
 ---
 
-## 📸 截图预览
 
-| 主界面 | 轮盘选择器 | 预览面板 | 历史记录 |
-|:---:|:---:|:---:|:---:|
-| ![托盘菜单](https://via.placeholder.com/200x120?text=Tray+Menu) | ![轮盘](https://via.placeholder.com/200x120?text=Wheel+Selector) | ![预览](https://via.placeholder.com/200x120?text=Preview+Panel) | ![历史](https://via.placeholder.com/200x120?text=History) |
-
----
 
 ## 💡 它能解决什么问题？
 
