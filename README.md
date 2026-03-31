@@ -1,17 +1,20 @@
+
 <div align="center">
 
-<img width="250" height="120" src="https://github.com/user-attachments/assets/a09faa5b-7990-47b4-827e-f8574c9ae083" alt="NeatCopy Logo"/>
+<img width="275" height="130" src="https://github.com/user-attachments/assets/a09faa5b-7990-47b4-827e-f8574c9ae083" alt="NeatCopy Logo"/>
 
-# NeatCopy
 
-**让复制粘贴更轻松**
+
+**让复制粘贴更智能**
+**AI 剪贴板 让大模型无处不在**
 
 [![Version](https://img.shields.io/badge/version-v1.9.0-blue.svg)](https://github.com/StoneLL1/NeatCopy/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-yellow.svg)]()
 
-一款常驻 Windows 系统托盘的剪贴板文本清洗工具，支持规则引擎与大模型两种模式。
+一款常驻 Windows 系统托盘的剪贴板文本处理工具
+支持规则引擎与大模型两种模式
 
 [功能特性](#-功能特性) • [快速开始](#-快速开始) • [使用指南](#-使用指南) • [安装](#-安装) • [开发](#-从源码运行)
 
@@ -43,11 +46,11 @@
 随着人工智能技术的不断发展，大语言模型在自然语言处理领域取得了重大突破。但是，模型依然存在幻觉问题，需要进一步优化。
 ```
 
-或者中英文混排，间距一团糟：
+或者中英文混排，间距，全半角一团糟：
 
 ```
 ❌ 复制后：NeatCopy是一款Windows工具,支持LLM模式
-✅ 之后：    NeatCopy 是一款 Windows 工具，支持 LLM 模式
+✅ 之后：  NeatCopy 是一款 Windows 工具，支持 LLM 模式
 ```
 
 ---
@@ -71,7 +74,10 @@
 
 ### 🤖 大模型模式（需要 API Key）
 
-接入任意 OpenAI 兼容接口，把复制→粘贴变成一个微型 AI 工作流：
+接入任意 OpenAI 兼容接口，
+**致力于最大限度减小你与AI交互的摩擦成本**
+把**复制→粘贴**变成一个**微型 AI工作流**：
+
 
 - 支持 OpenAI、DeepSeek、月之暗面、本地 Ollama 等
 - 自定义 Prompt 模板，一键翻译、润色、摘要
@@ -152,14 +158,14 @@
 | Model | 模型 ID | `gpt-4o-mini` / `deepseek-chat` |
 | API Key | 密钥 | `sk-...` |
 
-**兼容服务商：**
+**兼容服务商（仅举例部分辅助说明）：**
 
-| 服务商 | Base URL | Model ID |
+| 服务商 | Base URL | Model ID  |
 |--------|----------|----------|
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
 | DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
 | Moonshot | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
-| Qwen | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-turbo` |
+| Qwen | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-flash` |
 
 ---
 
