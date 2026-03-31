@@ -1,6 +1,6 @@
 # NeatCopy 技术架构文档
 
-> 版本：v1.0 | 日期：2026-03-23
+> 版本：v1.9.0 | 日期：2026-03-31
 
 ---
 
@@ -15,15 +15,17 @@ NeatCopy 采用单进程、事件驱动架构。所有模块在同一 Python 进
 │   主线程（Qt Event Loop）          后台线程                   │
 │   ┌─────────────────────┐         ┌──────────────────────┐  │
 │   │    QApplication     │         │   HotkeyManager      │  │
-│   │    TrayManager      │◄───────►│   keyboard 监听线程   │  │
+│   │    TrayManager      │◄───────►│   Win32 RegisterHotKey│  │
 │   │    SettingsWindow   │  信号    └──────────────────────┘  │
+│   │    PreviewWindow    │                                    │
 │   └────────┬────────────┘                                    │
 │            │ Qt Signal                                        │
 │            ▼                                                  │
 │   ┌─────────────────────┐         ┌──────────────────────┐  │
 │   │   ClipProcessor     │────────►│    LLMClient         │  │
 │   │   (调度 + 写剪贴板)  │  asyncio│   (httpx 异步请求)   │  │
-│   └────────┬────────────┘         └──────────────────────┘  │
+│   │   + 预览信号发射     │         └──────────────────────┘  │
+│   └────────┬────────────┘                                    │
 │            │                                                  │
 │            ▼                                                  │
 │   ┌─────────────────────┐   ┌──────────────────────────────┐ │
@@ -39,7 +41,7 @@ NeatCopy 采用单进程、事件驱动架构。所有模块在同一 Python 进
 | 线程 | 内容 | 通信方式 |
 |------|------|---------|
 | 主线程 | Qt 事件循环，UI 渲染，剪贴板读写 | — |
-| HotkeyManager 线程 | `keyboard` 库阻塞监听全局按键 | `pyqtSignal` 发射到主线程 |
+| HotkeyManager | Win32 `RegisterHotKey` API + `WM_HOTKEY` 消息过滤 | `pyqtSignal` 发射到主线程 |
 | LLM 异步任务 | `asyncio` + `httpx` 网络请求 | `QThread` 包装，完成后 signal 回调 |
 
 > **约束**：剪贴板读写（`win32clipboard`）必须在主线程执行，否则 Windows API 会报错。
@@ -97,22 +99,32 @@ process_done = pyqtSignal(bool, str)  # (success, message)
 
 ```
 职责：
-- 在独立线程中用 keyboard 库监听全局按键事件
-- 双击 Ctrl+C 检测（基于时间戳差值）
-- 独立热键（默认 Ctrl+Shift+C）检测
+- 使用 Win32 RegisterHotKey API 注册全局热键
+- 支持三种热键：清洗热键、轮盘热键、预览热键
+- 通过 QWidget.nativeEvent 过滤 WM_HOTKEY 消息
 - 热键变更时动态注销/注册
 
-双击 Ctrl+C 实现逻辑：
-  记录上次 Ctrl+C 时间戳 last_ctrl_c_time
-  当前按下 Ctrl+C：
-    if now - last_ctrl_c_time <= interval_ms:
-        emit hotkey_triggered  # 触发清洗
-    else:
-        last_ctrl_c_time = now  # 记录为第一次
-        正常透传（不拦截）
+热键 ID 定义：
+  HOTKEY_ID_CLEAN = 1      # 清洗热键（Ctrl+Shift+C）
+  HOTKEY_ID_WHEEL = 2      # 轮盘热键（Ctrl+Shift+P）
+  HOTKEY_ID_PREVIEW = 3    # 预览热键（Ctrl+Q）
 
-注意：keyboard 库 suppress=True 会拦截按键，双击方案中
-第一次 Ctrl+C 不能拦截（需正常复制），仅第二次触发时拦截。
+实现逻辑：
+  nativeEvent(eventType, message):
+    if eventType == "windows_generic_MSG":
+      msg = message.cast(MSG)
+      if msg.message == WM_HOTKEY:
+        if msg.wParam == HOTKEY_ID_CLEAN:
+          emit hotkey_triggered
+        elif msg.wParam == HOTKEY_ID_WHEEL:
+          emit wheel_hotkey_triggered
+        elif msg.wParam == HOTKEY_ID_PREVIEW:
+          emit preview_hotkey_triggered
+        return True  # 消息已处理
+    return False
+
+注意：RegisterHotKey 只支持 Modifier+Key 组合（Ctrl/Shift/Alt + 普通键）。
+双击 Ctrl+C 功能已弃用，统一使用独立热键。
 ```
 
 ### 2.4 clip_processor.py — 剪贴板处理调度
@@ -123,24 +135,68 @@ process_done = pyqtSignal(bool, str)  # (success, message)
 - 根据 config.rules.mode 分派到 RuleEngine 或 LLMClient
 - 将结果写回剪贴板（主线程）
 - 向 TrayManager 发射结果信号
+- [LLM模式] 向 PreviewWindow 发射预览信号
+
+信号定义：
+  succeeded = pyqtSignal(str)         # 处理成功，携带结果文本
+  failed = pyqtSignal(str)            # 处理失败，携带错误信息
+  processing_started = pyqtSignal()   # 开始处理（用于图标变色）
+  preview_ready = pyqtSignal(str, str) # LLM结果 + prompt名称
+  preview_failed = pyqtSignal(str)    # LLM失败信息
 
 process() 流程：
   1. 读剪贴板 → text（为空则直接返回）
   2. if mode == "rules":
        result = RuleEngine.clean(text, config)   # 同步，< 100ms
        写回剪贴板
-       emit success
+       emit succeeded(result)
   3. if mode == "llm":
        emit processing_started
        启动 LLMWorker(QThread)
        LLMWorker 完成后回调：
-         if success: 写回剪贴板，emit success
-         if failed:  不写剪贴板，emit error(message)
+         if success:
+           写回剪贴板
+           emit succeeded(result)
+           emit preview_ready(result, prompt_name)  # 发送到预览面板
+         if failed:
+           不写剪贴板（保持原文）
+           emit failed(error_msg)
+           emit preview_failed(error_msg)
 
 剪贴板读写（win32clipboard 优先）：
   read:  OpenClipboard → GetClipboardData(CF_UNICODETEXT) → CloseClipboard
   write: OpenClipboard → EmptyClipboard → SetClipboardData → CloseClipboard
   备用:  pyperclip.copy() / pyperclip.paste()
+```
+
+### 2.5 ui/preview_window.py — LLM 预览面板（新增）
+
+```
+职责：
+- 显示 LLM 处理结果，支持用户编辑
+- 提供"应用到剪贴板"按钮手动确认写入
+- 置顶悬浮窗，毛玻璃背景，可拖动可调整大小
+- 支持深色/浅色主题切换
+
+窗口属性：
+  WindowFlags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+  背景毛玻璃：Windows 11 DWM API (DwmExtendFrameIntoClientArea)
+
+交互实现：
+  拖动：整个窗口区域（除文本编辑框）可拖动
+  Resize：6px 边框区域检测，支持8方向调整
+  关闭：右上角关闭按钮 / 再次按快捷键 toggle
+
+状态指示（顶部状态栏）：
+  等待处理：蓝色圆点 ● + "等待处理"
+  处理中...：黄色圆点 ● + "处理中..."
+  处理完成：绿色圆点 ● + "处理完成"
+  处理失败：红色圆点 ● + "处理失败"
+
+信号连接：
+  ClipProcessor.preview_ready → _on_preview_ready(text, prompt_name)
+  ClipProcessor.preview_failed → _on_preview_failed(error_msg)
+  HotkeyManager.preview_hotkey_triggered → toggle 显示/隐藏
 ```
 
 ### 2.5 rule_engine.py — 规则引擎
@@ -396,9 +452,13 @@ NeatCopy/
 │   ├── clip_processor.py
 │   ├── rule_engine.py
 │   ├── llm_client.py
+│   ├── wheel_window.py        # Prompt 轮盘选择器
+│   ├── autostart_manager.py   # 开机自启动管理
+│   ├── assets.py              # 共享资源路径
 │   ├── config_manager.py
 │   └── ui/
-│       └── settings_window.py
+│       ├── settings_window.py
+│       └── preview_window.py  # LLM 预览面板（新增）
 ├── assets/
 │   ├── icon_idle.png / .ico
 │   ├── icon_processing.png
