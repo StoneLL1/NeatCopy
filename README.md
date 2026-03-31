@@ -1,15 +1,33 @@
+<div align="center">
 
-<img width="556" height="244" alt="image" src="https://github.com/user-attachments/assets/a09faa5b-7990-47b4-827e-f8574c9ae083" />
+<img width="250" height="120" src="https://github.com/user-attachments/assets/a09faa5b-7990-47b4-827e-f8574c9ae083" alt="NeatCopy Logo"/>
 
-# NeatCopy | 让复制粘贴更轻松
+# NeatCopy
 
-**复制文本，按下快捷键，粘贴干净的内容。**
+**让复制粘贴更轻松**
 
-NeatCopy 常驻 Windows 系统托盘，按 `Ctrl+Shift+C` 或者快速点击 `Ctrl+C+C` 即可一键清洗剪贴板里的文字——合并 PDF 乱行、修正标点、整理间距，或者直接让大模型帮你翻译、摘要、润色。
+[![Version](https://img.shields.io/badge/version-v1.9.0-blue.svg)](https://github.com/StoneLL1/NeatCopy/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)]()
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10+-yellow.svg)]()
+
+一款常驻 Windows 系统托盘的剪贴板文本清洗工具，支持规则引擎与大模型两种模式。
+
+[功能特性](#-功能特性) • [快速开始](#-快速开始) • [使用指南](#-使用指南) • [安装](#-安装) • [开发](#-从源码运行)
+
+</div>
 
 ---
 
-## 它能解决什么问题？
+## 📸 截图预览
+
+| 主界面 | 轮盘选择器 | 预览面板 | 历史记录 |
+|:---:|:---:|:---:|:---:|
+| ![托盘菜单](https://via.placeholder.com/200x120?text=Tray+Menu) | ![轮盘](https://via.placeholder.com/200x120?text=Wheel+Selector) | ![预览](https://via.placeholder.com/200x120?text=Preview+Panel) | ![历史](https://via.placeholder.com/200x120?text=History) |
+
+---
+
+## 💡 它能解决什么问题？
 
 从 PDF、论文、网页复制的文字，总是带着奇怪的换行和格式：
 
@@ -28,20 +46,17 @@ NeatCopy 常驻 Windows 系统托盘，按 `Ctrl+Shift+C` 或者快速点击 `Ct
 或者中英文混排，间距一团糟：
 
 ```
-❌ 复制后：
-NeatCopy是一款Windows工具,支持LLM模式
-
-✅ Ctrl+Shift+C 之后：
-NeatCopy 是一款 Windows 工具，支持 LLM 模式
+❌ 复制后：NeatCopy是一款Windows工具,支持LLM模式
+✅ 之后：    NeatCopy 是一款 Windows 工具，支持 LLM 模式
 ```
 
 ---
 
-## 两种工作模式
+## ✨ 功能特性
 
 ### 🔧 规则模式（离线，无需网络）
 
-内置 8 条清洗规则，按顺序执行：
+内置 8 条清洗规则，按顺序执行，处理延迟 < 100ms：
 
 | 规则 | 效果 |
 |------|------|
@@ -56,168 +71,78 @@ NeatCopy 是一款 Windows 工具，支持 LLM 模式
 
 ### 🤖 大模型模式（需要 API Key）
 
-接入任意 OpenAI 兼容接口（OpenAI、DeepSeek、本地 Ollama……），配合自定义 Prompt，**把复制→粘贴变成一个微型 AI 工作流**。
+接入任意 OpenAI 兼容接口，把复制→粘贴变成一个微型 AI 工作流：
 
----
+- 支持 OpenAI、DeepSeek、月之暗面、本地 Ollama 等
+- 自定义 Prompt 模板，一键翻译、润色、摘要
+- 扇形轮盘快速切换 Prompt
+- 预览面板先看结果再应用
 
-## ✨ v1.8.0 新功能：LLM 预览面板
+### 🎯 核心功能
 
-大模型模式下，新增一个**预览面板**，让你先看结果再决定是否应用。
-
-### 使用方式
-
-按 `Ctrl+Q`（可自定义）打开预览面板，面板会保持打开状态。每次 LLM 处理完成后，结果会自动显示在面板中，你可以：
-
-- **查看处理结果** — 上方状态栏显示处理状态（等待/处理中/完成/失败），下方显示使用的 Prompt 名称
-- **编辑结果** — 直接在文本框中修改内容
-- **应用到剪贴板** — 点击"应用到剪贴板"按钮，将编辑后的内容写入剪贴板
-
-### 面板特性
-
-| 特性 | 说明 |
+| 功能 | 描述 |
 |------|------|
-| 置顶悬浮 | 始终在最前面，不影响主工作区 |
-| 毛玻璃背景 | Windows 11 风格半透明效果 |
-| 可拖动 | 拖动面板任意位置 |
-| 可调整大小 | 拖动边缘调整窗口尺寸，下次打开记住大小 |
-| 主题切换 | 深色/浅色两种主题，在设置中配置 |
-| Toggle 关闭 | 再次按 `Ctrl+Q` 或点击右上角 X 关闭 |
-
-> **注意**：预览面板仅 LLM 模式生效，规则模式忽略。
-
-### 配置位置
-
-在 **设置 → 通用 → 预览面板** 中可配置：
-
-| 配置项 | 说明 |
-|--------|------|
-| 启用预览 | 整体开关 |
-| 打开快捷键 | 默认 `Ctrl+Q`，可自定义 |
-| 主题 | 深色/浅色 |
+| **全局热键** | `Ctrl+Shift+C` 一键清洗，支持自定义 |
+| **Prompt 轮盘** | 扇形 UI 快速切换 Prompt，支持数字键 1-5 |
+| **LLM 预览面板** | 查看结果、编辑后再应用，毛玻璃悬浮窗 |
+| **历史记录** | 自动保存清洗记录，支持搜索、复制、删除 |
+| **双击触发** | 快速双击 `Ctrl+C` 触发清洗 |
+| **托盘常驻** | 后台运行，不占用任务栏 |
+| **主题切换** | 深色/浅色两种主题 |
 
 ---
 
-## ✨ v1.1.0 新功能：Prompt 轮盘选择器
+## 🚀 快速开始
 
-大模型模式下，现在可以用一个**扇形轮盘**快速切换 Prompt，不再需要打开设置界面手动切换。
+### 安装
 
-### 两种使用方式
-
-#### 方式一：随清洗触发（临时选择）
-
-开启「随清洗触发」后，每次按 `Ctrl+Shift+C`，轮盘会先弹出让你选择 Prompt，选完后立即执行清洗。
-
-```
-按 Ctrl+Shift+C
-       ↓
-  弹出 Prompt 轮盘
-       ↓
-  鼠标点击 / 按数字键 1-5 选择
-       ↓
-  AI 按选定的 Prompt 处理剪贴板
-       ↓
-  直接粘贴
-```
-
-#### 方式二：独立切换热键（锁定模式）
-
-按 `Ctrl+Shift+P`（可自定义）弹出轮盘，选择后**锁定**该 Prompt。之后每次 `Ctrl+Shift+C` 都自动使用锁定的 Prompt，无需每次选择。
-
-- **托盘菜单**会标记当前锁定的 Prompt（带 ✓）
-- 再次按 `Ctrl+Shift+P` 可随时切换
-
-### 轮盘交互说明
-
-| 操作 | 效果 |
-|------|------|
-| 鼠标悬停 | 扇区高亮（白色边框） |
-| 鼠标点击 | 选中并执行 |
-| 数字键 1–5 | 按编号直接选中 |
-| `ESC` | 关闭轮盘，不做任何操作 |
-| 点击轮盘外部 | 关闭轮盘，不做任何操作 |
-
-> **边缘情况处理：**
-> - 轮盘中只有 1 个 Prompt 时，跳过轮盘直接执行
-> - 没有可见 Prompt 时，静默不处理
-
-### 轮盘配置
-
-在 **设置 → 通用 → Prompt 轮盘** 中可配置：
-
-| 配置项 | 说明 |
-|--------|------|
-| 启用/禁用 | 整体开关 |
-| 随清洗触发 | 每次 `Ctrl+Shift+C` 是否先弹轮盘 |
-| 切换热键 | 锁定模式的快捷键（默认 `Ctrl+Shift+P`） |
-| 可见 Prompt | 选择哪些 Prompt 出现在轮盘（最多 5 个） |
-
----
-
-## 大模型模式创意玩法 🎨
-
-> 在 **设置 → 大模型 → Prompt 模板** 中写好提示词，之后每次复制文字按快捷键，粘贴出来的就是 AI 处理后的结果。配合轮盘，多个 Prompt 一键切换。
-
-### 📖 一键翻译
-**Prompt：** `将以下中文翻译成流畅自然的英文，保持原文语气。`
-
-```
-复制：深度学习模型在图像识别任务上取得了突破性进展。
-粘贴：Deep learning models have achieved breakthrough progress in image recognition tasks.
-```
-
-### 📝 论文摘要
-**Prompt：** `用 3 句话提炼以下内容的核心观点，语言简洁。`
-
-```
-复制：[一大段论文引言]
-粘贴：本文研究了 XXX 问题。提出了 YYY 方法。实验证明比基线提升 ZZZ%。
-```
-
-### ✍️ 文字润色
-**Prompt：** `将以下文字改写得更正式、专业，适合正式场合使用。`
-
-```
-复制：这个方法挺好用的，比以前快多了
-粘贴：该方法显著提升了处理效率，相较于原有方案具有明显优势。
-```
-
-### 💻 代码注释翻译
-**Prompt：** `将以下代码中的英文注释全部翻译为中文，保持代码不变。`
-
-### 🧠 专业术语解释
-**Prompt：** `用通俗易懂的语言解释以下专业术语或段落，面向非专业读者。`
-
-### 📋 会议笔记整理
-**Prompt：** `将以下杂乱的会议记录整理为结构化的条目列表，突出行动项。`
-
-### 🌐 Markdown 格式化
-**Prompt：** `将以下纯文本转换为格式规范的 Markdown，合理使用标题、列表和加粗。`
-
-> 💡 **提示**：可以保存多个 Prompt 模板，在设置界面配置哪些显示在轮盘中，最多 5 个。
-
----
-
-## 安装
-
-1. 前往 [Releases](https://github.com/StoneLL1/NeatCopy/releases) 下载最新版 `NeatCopy_Setup_v1.8.0.exe`
+1. 前往 [Releases](https://github.com/StoneLL1/NeatCopy/releases) 下载最新版
 2. 双击直接运行（绿色软件，无需安装）
 3. 程序自动启动，系统托盘出现图标
 
 > 首次运行可能弹出 Windows Defender SmartScreen 提示，点击「更多信息」→「仍要运行」即可。
-> 全局快捷键监听需要在**以管理员身份运行**时才能在所有场景下稳定工作。
+
+### 基础使用
+
+```
+1. 选中文字 → Ctrl+C 复制
+2. 按 Ctrl+Shift+C 清洗
+3. Ctrl+V 粘贴干净的内容
+```
+
+### 选择工作模式
+
+双击托盘图标打开设置：
+
+| 模式 | 适用场景 |
+|------|---------|
+| **规则模式** | 不需要 AI、追求纯本地处理、快速响应 |
+| **大模型模式** | 需要翻译、润色、摘要等 AI 能力 |
 
 ---
 
-## 快速上手
+## 📖 使用指南
 
-### 第一步：选择工作模式
+### 快捷键一览
 
-双击托盘图标 → **设置 → 通用** → 选择「规则模式」或「大模型模式」。
+| 快捷键 | 功能 |
+|--------|------|
+| `Ctrl+Shift+C` | 清洗剪贴板（核心功能） |
+| `Ctrl+C+C` | 双击 Ctrl+C 触发清洗（需在设置开启） |
+| `Ctrl+Shift+P` | 弹出 Prompt 轮盘（大模型模式） |
+| `Ctrl+Q` | 打开/关闭预览面板（大模型模式） |
+| `Ctrl+H` | 打开历史记录窗口 |
 
-- 不需要 AI、追求纯本地处理 → **规则模式**（开箱即用）
-- 需要翻译、润色、摘要等 AI 能力 → **大模型模式**（需配置 API）
+### 托盘图标状态
 
-### 第二步（仅大模型模式）：配置 API
+| 颜色 | 状态 |
+|------|------|
+| ⚪ 白色 | 空闲，等待触发 |
+| 🟡 黄色 | 处理中 |
+| 🟢 绿色 | 处理成功 |
+| 🔴 红色 | 处理失败（查看 Toast 提示） |
+
+### 大模型配置
 
 **设置 → 大模型** 中填入：
 
@@ -227,68 +152,82 @@ NeatCopy 是一款 Windows 工具，支持 LLM 模式
 | Model | 模型 ID | `gpt-4o-mini` / `deepseek-chat` |
 | API Key | 密钥 | `sk-...` |
 
-支持所有 OpenAI 兼容接口，包括 DeepSeek、月之暗面、本地 Ollama 等。
+**兼容服务商：**
 
-### 第三步：开始使用
-
-1. 选中需要处理的文字
-2. 按 `Ctrl+C` 复制
-3. 按 `Ctrl+Shift+C` 清洗
-4. 直接 `Ctrl+V` 粘贴
-
----
-
-## 使用方法一览
-
-| 操作 | 说明 |
-|------|------|
-| `Ctrl+Shift+C` | 清洗剪贴板（核心功能） |
-| `Ctrl+C+C` | 双击 Ctrl+C 触发清洗（需在设置中开启） |
-| `Ctrl+Shift+P` | 弹出 Prompt 轮盘（大模型模式，可自定义） |
-| `Ctrl+Q` | 打开/关闭 LLM 预览面板（大模型模式，可自定义） |
-| 双击托盘图标 | 打开设置界面 |
-| 托盘右键菜单 | 暂停/恢复、查看锁定 Prompt、退出 |
-
-### 托盘图标颜色含义
-
-| 颜色 | 状态 |
-|------|------|
-| 白色 | 空闲，等待触发 |
-| 黄色 | 处理中 |
-| 绿色 | 处理成功 |
-| 红色 | 处理失败（查看 Toast 提示） |
+| 服务商 | Base URL | Model ID |
+|--------|----------|----------|
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
+| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
+| Moonshot | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
+| Qwen | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-turbo` |
 
 ---
 
-## 配置说明
+## 🎨 创意玩法
 
-配置文件保存在 `%APPDATA%\NeatCopy\config.json`，**仅存在本地，不会上传**。
+> 在 **设置 → 大模型 → Prompt 模板** 中写好提示词，配合轮盘一键切换。
+
+### 📖 一键翻译
+```
+Prompt: 将以下中文翻译成流畅自然的英文，保持原文语气。
+
+复制：深度学习模型在图像识别任务上取得了突破性进展。
+粘贴：Deep learning models have achieved breakthrough progress in image recognition tasks.
+```
+
+### 📝 论文摘要
+```
+Prompt: 用 3 句话提炼以下内容的核心观点，语言简洁。
+
+复制：[一大段论文引言]
+粘贴：本文研究了 XXX 问题。提出了 YYY 方法。实验证明比基线提升 ZZZ%。
+```
+
+### ✍️ 文字润色
+```
+Prompt: 将以下文字改写得更正式、专业。
+
+复制：这个方法挺好用的，比以前快多了
+粘贴：该方法显著提升了处理效率，相较于原有方案具有明显优势。
+```
+
+### 💡 更多玩法
+
+| 场景 | Prompt 示例 |
+|------|------------|
+| 代码注释翻译 | `将代码中的英文注释翻译为中文，保持代码不变` |
+| 术语解释 | `用通俗易懂的语言解释以下专业术语` |
+| 会议笔记整理 | `将杂乱的会议记录整理为结构化条目列表` |
+| Markdown 格式化 | `将纯文本转换为格式规范的 Markdown` |
+
+---
+
+## ⚙️ 配置说明
+
+配置文件保存在 `%APPDATA%\NeatCopy\config.json`，仅存在本地。
 
 ### 通用设置
 
 | 配置项 | 说明 |
 |--------|------|
-| 工作模式 | 规则模式 / 大模型模式（二选一） |
-| 独立热键 | 触发清洗的快捷键（默认 `Ctrl+Shift+C`） |
-| 双击 Ctrl+C | 双击 Ctrl+C 触发清洗（默认关闭，避免干扰复制） |
-| Toast 通知 | 处理完成后弹出通知（默认开启） |
-| Prompt 轮盘 | 启用/禁用轮盘，配置热键和可见 Prompt |
-| 预览面板 | 启用/禁用预览，配置热键和主题（深色/浅色） |
+| 工作模式 | 规则模式 / 大模型模式 |
+| 独立热键 | 触发清洗的快捷键 |
+| 双击 Ctrl+C | 双击触发清洗（默认关闭） |
+| Toast 通知 | 处理完成后弹出通知 |
+| Prompt 轮盘 | 启用/禁用、热键配置 |
+| 预览面板 | 启用/禁用、主题切换 |
+| 历史记录 | 启用/禁用、最大条数 |
 
-### 规则设置
+### 历史记录
 
-可以单独开启/关闭每条清洗规则，适配不同场景（如纯英文文本可关闭中英文间距规则）。
-
-### 大模型设置
-
-- 支持保存多个 Prompt 模板，随时切换
-- 默认 Prompt「格式清洗」不可删除但可编辑
-- 调用失败时剪贴板内容**保持原样**，不会覆盖原文
-- 请求超时 30 秒
+- 自动保存每次清洗的原文和结果
+- 支持全文搜索（匹配原文或结果）
+- 默认保留最近 500 条
+- 快捷键 `Ctrl+H` 快速打开
 
 ---
 
-## 从源码运行
+## 🔧 从源码运行
 
 ```bash
 # 克隆仓库
@@ -296,64 +235,96 @@ git clone https://github.com/StoneLL1/NeatCopy.git
 cd NeatCopy
 
 # 安装依赖
-pip install PyQt6 keyboard pywin32 httpx langdetect pyperclip pyinstaller
+pip install PyQt6 pywin32 httpx langdetect pyperclip pyinstaller
 
 # 运行
 python src/main.py
 
-# 打包为单 exe
+# 打包
 pyinstaller --onefile --windowed --name NeatCopy --add-data "assets;assets" src/main.py
+```
+
+### 项目结构
+
+```
+NeatCopy/
+├── src/
+│   ├── main.py              # 入口
+│   ├── tray_manager.py      # 托盘管理
+│   ├── hotkey_manager.py    # 全局热键
+│   ├── clip_processor.py    # 剪贴板处理
+│   ├── rule_engine.py       # 规则引擎
+│   ├── llm_client.py        # LLM 客户端
+│   ├── wheel_window.py      # Prompt 轮盘
+│   ├── history_manager.py   # 历史记录
+│   └── ui/
+│       ├── settings_window.py
+│       ├── preview_window.py
+│       └── history_window.py
+├── assets/                  # 图标资源
+├── tests/                   # 单元测试
+└── docs/                    # 文档
 ```
 
 ---
 
-## 系统要求
+## 📋 更新日志
 
-- Windows 10 / 11（x64）
-- 无需 Python 环境，开箱即用
-
----
-
-## 更新日志
+### v1.9.0
+- **新增历史记录功能**：
+  - 自动保存每次清洗的原文和结果
+  - 双栏布局，左侧列表右侧详情
+  - 全文搜索，快速复制
+  - 快捷键 `Ctrl+H` 打开
+- **代码优化**：
+  - 修复历史窗口重复刷新问题
+  - 优化容量控制算法（O(n²) → O(n)）
+  - UI 简化与对齐优化
 
 ### v1.8.0
 - **新增 LLM 预览面板**：
-  - 独立快捷键 `Ctrl+Q` 打开/关闭预览面板
-  - 预览面板显示 LLM 处理结果，支持用户编辑后再应用到剪贴板
-  - 状态信息显示：上方显示处理状态，下方显示 Prompt 名称
-  - 置顶悬浮窗，可拖动，可调整大小，毛玻璃背景
-  - 支持深色/浅色主题切换
-- **超时时长可配置**：在设置 → 大模型中可自定义 LLM 请求超时时长（10-300 秒），默认 30 秒
-- **轮盘 Prompt 选择器重构**：
-  - 移至「大模型」Tab，采用左右两栏设计
-  - 左栏「可用模板」显示所有 Prompt，勾选即加入轮盘
-  - 右栏「轮盘模板」显示已勾选项，带序号（最多 5 个）
-  - 列表高度增加，一次可显示多个模板
-- **新增三个内置预设模板**（开箱即用）：
-  - PromptMaster（文字润色与优化）
-  - 翻译（中英互译）
-  - 随时提问（通用问答）
-- **UI 优化**：
-  - 预览面板黑白灰配色，简洁美观
-  - Temperature 与超时时长两端对齐
-  - API Key「显示」按钮样式修复
-  - Prompt 模板与轮盘选择列表高度统一
+  - 独立快捷键 `Ctrl+Q` 打开/关闭
+  - 预览、编辑后再应用
+  - 毛玻璃背景，可拖动调整大小
+- **超时时长可配置**
+- **轮盘 Prompt 选择器重构**
+- **新增三个内置预设模板**
 
 ### v1.1.0
-- 新增 **Prompt 轮盘选择器**：扇形轮盘快速切换 Prompt，支持鼠标点击和数字键 1–5
-- 新增**锁定模式**：通过独立热键（`Ctrl+Shift+P`）锁定 Prompt，托盘菜单显示当前锁定项
-- 新增轮盘可见 Prompt 配置（最多 5 个，可在设置中自定义）
-- 修复设置窗口任务栏图标显示为 Python 默认图标的问题
-- 优化内部代码结构，提取公共 assets 路径模块
+- 新增 Prompt 轮盘选择器
+- 新增锁定模式
+- 托盘菜单显示当前锁定项
 
 ### v1.0.0
 - 初始版本
 - 规则引擎（8 条清洗规则）
-- 大模型模式（OpenAI 兼容接口）
-- 系统托盘常驻，全局热键触发
+- 大模型模式
+- 系统托盘常驻
 
 ---
 
-## License
+## 🤝 贡献
 
-MIT
+欢迎提交 Issue 和 Pull Request！
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建 Pull Request
+
+---
+
+## 📄 许可证
+
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
+
+---
+
+<div align="center">
+
+**如果觉得有用，请给个 ⭐ Star 支持一下！**
+
+Made with ❤️ by [StoneLL1](https://github.com/StoneLL1)
+
+</div>
