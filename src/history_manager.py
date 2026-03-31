@@ -72,3 +72,38 @@ class HistoryManager:
     def set_max_count(self, max_count: int):
         """更新最大条数上限。"""
         self._max_count = max_count
+
+    def delete(self, entry_id: str) -> bool:
+        """根据 ID 删除指定条目。"""
+        entries = self._data.get('entries', [])
+        for i, entry in enumerate(entries):
+            if entry.get('id') == entry_id:
+                entries.pop(i)
+                return self._write()
+        return False
+
+    def clear(self) -> bool:
+        """清空所有历史记录。"""
+        self._data['entries'] = []
+        return self._write()
+
+    def search(self, keyword: str) -> list[dict]:
+        """全文搜索，匹配原文或结果内容（不区分大小写）。"""
+        if not keyword:
+            return self.get_all()
+        keyword_lower = keyword.lower()
+        entries = self._data.get('entries', [])
+        matched = [
+            e for e in entries
+            if keyword_lower in e.get('original', '').lower()
+            or keyword_lower in e.get('result', '').lower()
+        ]
+        return list(reversed(matched))
+
+    def get_by_id(self, entry_id: str) -> dict | None:
+        """根据 ID 获取单个条目。"""
+        entries = self._data.get('entries', [])
+        for entry in entries:
+            if entry.get('id') == entry_id:
+                return entry
+        return None
