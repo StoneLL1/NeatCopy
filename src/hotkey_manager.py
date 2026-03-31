@@ -26,6 +26,7 @@ _VK_MAP = {
 HOTKEY_ID_CUSTOM = 1
 HOTKEY_ID_WHEEL = 2
 HOTKEY_ID_PREVIEW = 3
+HOTKEY_ID_HISTORY = 4
 
 # WH_KEYBOARD_LL 回调签名
 _HOOKPROC = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int,
@@ -58,11 +59,12 @@ def _parse_hotkey(keys_str: str):
 class _HotkeyFilter(QAbstractNativeEventFilter):
     """拦截 Qt 主线程消息循环中的 WM_HOTKEY。"""
 
-    def __init__(self, callback, wheel_callback=None, preview_callback=None):
+    def __init__(self, callback, wheel_callback=None, preview_callback=None, history_callback=None):
         super().__init__()
         self._callback = callback
         self._wheel_callback = wheel_callback
         self._preview_callback = preview_callback
+        self._history_callback = history_callback
 
     def nativeEventFilter(self, eventType, message):
         if eventType == QByteArray(b'windows_generic_MSG'):
@@ -77,6 +79,9 @@ class _HotkeyFilter(QAbstractNativeEventFilter):
                 elif msg.wParam == HOTKEY_ID_PREVIEW and self._preview_callback:
                     self._preview_callback()
                     return True, 0
+                elif msg.wParam == HOTKEY_ID_HISTORY and self._history_callback:
+                    self._history_callback()
+                    return True, 0
         return False, 0
 
 
@@ -84,6 +89,7 @@ class HotkeyManager(QObject):
     hotkey_triggered = pyqtSignal()
     wheel_hotkey_triggered = pyqtSignal()   # 独立轮盘切换热键
     preview_hotkey_triggered = pyqtSignal()  # 预览面板热键
+    history_hotkey_triggered = pyqtSignal()  # 历史记录热键
 
     def __init__(self, config, parent=None):
         super().__init__(parent)
@@ -92,6 +98,7 @@ class HotkeyManager(QObject):
         self._registered = False
         self._wheel_registered = False
         self._preview_registered = False
+        self._history_registered = False
         self._filter = None
         self._ll_hook = None
         self._ll_proc = None  # prevent GC of ctypes callback
@@ -140,8 +147,17 @@ class HotkeyManager(QObject):
                 ok3 = user32.RegisterHotKey(None, HOTKEY_ID_PREVIEW, p_mods, p_vk)
                 self._preview_registered = bool(ok3)
 
-        if (self._registered or self._wheel_registered or self._preview_registered) and app:
-            self._filter = _HotkeyFilter(self._on_hotkey, self._on_wheel_hotkey, self._on_preview_hotkey)
+        # 历史记录热键
+        cfg_history = self._config.get('history') or {}
+        if cfg_history.get('enabled', True):
+            history_keys = cfg_history.get('hotkey', 'ctrl+h')
+            h_mods, h_vk = _parse_hotkey(history_keys)
+            if h_vk:
+                ok4 = user32.RegisterHotKey(None, HOTKEY_ID_HISTORY, h_mods, h_vk)
+                self._history_registered = bool(ok4)
+
+        if (self._registered or self._wheel_registered or self._preview_registered or self._history_registered) and app:
+            self._filter = _HotkeyFilter(self._on_hotkey, self._on_wheel_hotkey, self._on_preview_hotkey, self._on_history_hotkey)
             app.installNativeEventFilter(self._filter)
 
         # 双击 Ctrl+C（WH_KEYBOARD_LL 低级键盘钩子，主线程消息泵驱动）
@@ -181,6 +197,9 @@ class HotkeyManager(QObject):
         if self._preview_registered:
             user32.UnregisterHotKey(None, HOTKEY_ID_PREVIEW)
             self._preview_registered = False
+        if self._history_registered:
+            user32.UnregisterHotKey(None, HOTKEY_ID_HISTORY)
+            self._history_registered = False
         if self._ll_hook:
             user32.UnhookWindowsHookEx(self._ll_hook)
             self._ll_hook = None
@@ -218,6 +237,12 @@ class HotkeyManager(QObject):
     def _on_preview_hotkey(self):
         """预览面板热键回调（toggle 行为）。"""
         self.preview_hotkey_triggered.emit()
+
+    def _on_history_hotkey(self):
+        """历史记录快捷键回调。"""
+        if self._paused:
+            return
+        self.history_hotkey_triggered.emit()
 
     def _on_ctrl_c(self):
         """检测双击 Ctrl+C：两次 Ctrl+C 间隔在阈值内触发清洗。"""
