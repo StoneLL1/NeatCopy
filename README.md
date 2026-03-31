@@ -60,7 +60,7 @@ NeatCopy 是一款 Windows 工具，支持 LLM 模式
 
 ---
 
-## ✨ v1.9.0 新功能：LLM 预览面板
+## ✨ v1.8.0 新功能：LLM 预览面板
 
 大模型模式下，新增一个**预览面板**，让你先看结果再决定是否应用。
 
@@ -199,7 +199,7 @@ NeatCopy 是一款 Windows 工具，支持 LLM 模式
 
 ## 安装
 
-1. 前往 [Releases](https://github.com/StoneLL1/NeatCopy/releases) 下载最新版 `NeatCopy_Setup_v1.9.0.exe`
+1. 前往 [Releases](https://github.com/StoneLL1/NeatCopy/releases) 下载最新版 `NeatCopy_Setup_v1.8.0.exe`
 2. 双击直接运行（绿色软件，无需安装）
 3. 程序自动启动，系统托盘出现图标
 
@@ -316,16 +316,13 @@ pyinstaller --onefile --windowed --name NeatCopy --add-data "assets;assets" src/
 
 ## 更新日志
 
-### v1.9.0
+### v1.8.0
 - **新增 LLM 预览面板**：
   - 独立快捷键 `Ctrl+Q` 打开/关闭预览面板
   - 预览面板显示 LLM 处理结果，支持用户编辑后再应用到剪贴板
   - 状态信息显示：上方显示处理状态，下方显示 Prompt 名称
   - 置顶悬浮窗，可拖动，可调整大小，毛玻璃背景
   - 支持深色/浅色主题切换
-- **UI 优化**：预览面板黑白灰配色，简洁美观
-
-### v1.8.0
 - **超时时长可配置**：在设置 → 大模型中可自定义 LLM 请求超时时长（10-300 秒），默认 30 秒
 - **轮盘 Prompt 选择器重构**：
   - 移至「大模型」Tab，采用左右两栏设计
@@ -337,6 +334,7 @@ pyinstaller --onefile --windowed --name NeatCopy --add-data "assets;assets" src/
   - 翻译（中英互译）
   - 随时提问（通用问答）
 - **UI 优化**：
+  - 预览面板黑白灰配色，简洁美观
   - Temperature 与超时时长两端对齐
   - API Key「显示」按钮样式修复
   - Prompt 模板与轮盘选择列表高度统一
