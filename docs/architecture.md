@@ -1,6 +1,6 @@
 # NeatCopy 技术架构文档
 
-> 版本：v1.8.0 | 日期：2026-03-31
+> 版本：v1.9.0 | 日期：2026-03-31
 
 ---
 
@@ -536,6 +536,7 @@ NeatCopy/
 │   ├── rule_engine.py
 │   ├── llm_client.py
 │   ├── wheel_window.py        # Prompt 轮盘选择器
+│   ├── history_manager.py     # 历史记录数据管理
 │   ├── autostart_manager.py   # 开机自启动管理
 │   ├── assets.py              # 共享资源路径
 │   ├── version.py             # 版本号定义
@@ -543,6 +544,7 @@ NeatCopy/
 │   └── ui/
 │       ├── settings_window.py
 │       ├── preview_window.py  # LLM 预览面板
+│       ├── history_window.py  # 历史记录窗口
 │       ├── styles.py          # 主题样式定义
 │       └── components/
 │           ├── sidebar.py     # 侧边栏导航组件
@@ -554,11 +556,105 @@ NeatCopy/
 │   └── icon_error.png
 ├── tests/
 │   ├── test_rule_engine.py
-│   └── test_config_manager.py
+│   ├── test_config_manager.py
+│   └── test_history_manager.py
 ├── docs/
 │   ├── architecture.md     # 本文档
 │   └── dev-standards.md
 ├── PRD.md
 ├── CLAUDE.md
 └── requirements.txt
+```
+
+---
+
+## 7. 历史记录模块
+
+### 7.1 history_manager.py — 数据管理
+
+```
+职责：
+- 管理历史记录的增删查操作
+- 读写 history.json 文件
+- 容量控制（超出上限时保留最新条目）
+
+数据结构：
+  history.json:
+    { "entries": [
+      {
+        "id": "uuid",
+        "timestamp": "2026-03-31T12:30:45",
+        "mode": "rules" | "llm",
+        "prompt_name": "格式清洗" | null,
+        "original": "原文内容",
+        "result": "清洗结果"
+      }, ...
+    ] }
+
+关键方法：
+  add(original, result, mode, prompt_name) -> bool
+    # 添加记录，超出容量时切片保留最新条目
+
+  get_all() -> list[dict]
+    # 返回所有记录（按时间倒序）
+
+  delete(entry_id) -> bool
+    # 根据 ID 删除指定条目
+
+  clear() -> bool
+    # 清空所有历史
+
+  search(keyword) -> list[dict]
+    # 全文搜索（匹配原文或结果）
+
+  get_by_id(entry_id) -> dict | None
+    # 根据 ID 获取单条记录
+
+性能优化：
+  - 容量控制使用切片赋值 O(n) 而非循环 pop(0) O(n²)
+```
+
+### 7.2 ui/history_window.py — 历史记录窗口
+
+```
+职责：
+- 显示历史记录列表和详情（双栏布局）
+- 支持搜索、复制原文/结果、删除、清空
+- 支持深色/浅色主题切换
+
+窗口属性：
+  WindowFlags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+  背景毛玻璃：Windows 11 DWM API (DwmSetWindowAttribute)
+  最小尺寸：400x300
+
+UI 结构：
+  ┌─────────────────────────────────────────┐
+  │ 历史记录                          关闭 │
+  ├─────────────────────────────────────────┤
+  │ [搜索...]                      [清空] │
+  ├──────────────┬──────────────────────────┤
+  │ 12:30 [规则] │ 03-31 12:30    规则      │
+  │ 原文摘要...  │                          │
+  │              │ 原文                      │
+  │ 12:25 [LLM]  │ ┌──────────────────────┐ │
+  │ 原文摘要...  │ │ 原文内容...          │ │
+  │              │ └──────────────────────┘ │
+  │              │ 结果                      │
+  │              │ ┌──────────────────────┐ │
+  │              │ │ 清洗结果...          │ │
+  │              │ └──────────────────────┘ │
+  │              │ [复制原文] [复制结果] 删除│
+  └──────────────┴──────────────────────────┘
+
+关键信号：
+  copy_to_clipboard = pyqtSignal(str)  # 请求写入剪贴板
+
+事件处理：
+  showEvent(): 刷新主题和列表
+  resizeEvent(): 延迟保存窗口尺寸到配置
+  mousePressEvent/MoveEvent/ReleaseEvent: 窗口拖动
+
+性能优化：
+  - toggle_visibility() 不调用 _refresh_list()，避免与 showEvent 重复刷新
+  - datetime 导入放在模块顶部，避免函数内重复导入
 ```
