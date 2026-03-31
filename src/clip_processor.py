@@ -85,14 +85,18 @@ class ClipProcessor(QObject):
     preview_ready = pyqtSignal(str, str)    # (result, prompt_name) — LLM 成功时发射
     preview_failed = pyqtSignal(str)        # (error_message) — LLM 失败时发射
 
-    def __init__(self, config, parent=None):
+    def __init__(self, config, history_manager=None, parent=None):
         super().__init__(parent)
         self._config = config
+        self._history = history_manager
         self._current_worker = None
         self._current_prompt_obj = None  # 当前处理的 prompt 对象，用于预览
+        self._current_original = None  # 保存原文用于历史记录
 
-    def reload_config(self, config):
+    def reload_config(self, config, history_manager=None):
         self._config = config
+        if history_manager is not None:
+            self._history = history_manager
 
     def get_visible_prompts(self) -> list[dict]:
         """返回轮盘可见的 prompt 列表（visible_in_wheel=True，最多5个）。"""
@@ -137,6 +141,9 @@ class ClipProcessor(QObject):
             rule_config = self._config.get('rules') or {}
             cleaned = RuleEngine.clean(text, rule_config)
             if _write_clipboard(cleaned):
+                # 记录历史（仅在启用时）
+                if self._history and self._config.get('history.enabled', True):
+                    self._history.add(text, cleaned, 'rules', None)
                 self.process_done.emit(True, '已清洗，可直接粘贴')
             else:
                 self.process_done.emit(False, '写入剪贴板失败')
@@ -171,17 +178,23 @@ class ClipProcessor(QObject):
     def _start_llm_worker(self, text: str, prompt_obj: dict, llm_config: dict):
         self.processing_started.emit()
         self._current_prompt_obj = prompt_obj  # 保存以便预览信号使用
+        self._current_original = text  # 保存原文用于历史记录
         worker = _LLMWorker(text, prompt_obj['content'], llm_config)
         worker.succeeded.connect(self._on_llm_success)
         worker.failed.connect(self._on_llm_error)
         worker.finished.connect(lambda: setattr(self, '_current_worker', None))
         worker.finished.connect(lambda: setattr(self, '_current_prompt_obj', None))
+        worker.finished.connect(lambda: setattr(self, '_current_original', None))
         worker.start()
         self._current_worker = worker
 
     def _on_llm_success(self, result: str):
         # 写入剪贴板（原有行为：双写模式）
         if _write_clipboard(result):
+            # 记录历史（仅在启用时）
+            if self._history and self._config.get('history.enabled', True):
+                prompt_name = self._current_prompt_obj.get('name', '默认') if self._current_prompt_obj else '默认'
+                self._history.add(self._current_original, result, 'llm', prompt_name)
             self.process_done.emit(True, '大模型处理完成，可直接粘贴')
         else:
             self.process_done.emit(False, '写入剪贴板失败')
