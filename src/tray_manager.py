@@ -8,6 +8,7 @@ from assets import asset as _asset
 
 class TrayManager(QObject):
     open_settings_requested = pyqtSignal()
+    open_history_requested = pyqtSignal()  # 新增
     pause_toggled = pyqtSignal(bool)
     quit_requested = pyqtSignal()
     locked_prompt_changed = pyqtSignal(str)   # 从菜单切换锁定时发射 prompt id（空字符串=解除）
@@ -35,6 +36,8 @@ class TrayManager(QObject):
         self._menu = QMenu()
         self._act_settings = QAction('打开设置', self._menu)
         self._act_settings.triggered.connect(self.open_settings_requested)
+        self._act_history = QAction('历史记录', self._menu)
+        self._act_history.triggered.connect(self.open_history_requested)
 
         # 锁定 Prompt 状态显示与子菜单
         self._act_locked = QAction('当前锁定：无', self._menu)
@@ -48,6 +51,7 @@ class TrayManager(QObject):
         self._act_quit.triggered.connect(self.quit_requested)
 
         self._menu.addAction(self._act_settings)
+        self._menu.addAction(self._act_history)
         self._menu.addSeparator()
         self._menu.addAction(self._act_locked)
         self._menu.addMenu(self._menu_lock)
