@@ -199,7 +199,7 @@ NeatCopy 是一款 Windows 工具，支持 LLM 模式
 
 ## 安装
 
-1. 前往 [Releases](https://github.com/StoneLL1/NeatCopy/releases) 下载最新版 `NeatCopy_Setup_v1.1.0.exe`
+1. 前往 [Releases](https://github.com/StoneLL1/NeatCopy/releases) 下载最新版 `NeatCopy_Setup_v1.9.0.exe`
 2. 双击直接运行（绿色软件，无需安装）
 3. 程序自动启动，系统托盘出现图标
 

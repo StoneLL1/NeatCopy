@@ -55,15 +55,27 @@ NeatCopy 采用单进程、事件驱动架构。所有模块在同一 Python 进
 ```
 职责：
 - 创建 QApplication（设置 setQuitOnLastWindowClosed(False) 防止窗口关闭退出）
-- 初始化 ConfigManager → TrayManager → HotkeyManager
+- 初始化 ConfigManager → TrayManager → HotkeyManager → ClipProcessor → WheelWindow → PreviewWindow
+- 连接信号/槽
 - 启动 Qt 事件循环
 
 启动流程：
 main()
   ├── ConfigManager.load()
-  ├── TrayManager.__init__()   # 创建托盘图标
-  ├── HotkeyManager.__init__() # 注册全局热键
-  └── app.exec()               # 进入事件循环
+  ├── sync_from_config()           # 同步开机自启动注册表状态
+  ├── TrayManager.__init__()       # 创建托盘图标
+  ├── HotkeyManager.__init__()     # 注册全局热键
+  ├── ClipProcessor.__init__()     # 剪贴板处理调度器
+  ├── WheelWindow.__init__()       # 轮盘选择器
+  ├── PreviewWindow.__init__()     # 预览面板
+  ├── 连接信号/槽
+  │     ├── hotkey.hotkey_triggered → on_hotkey_triggered (轮盘逻辑)
+  │     ├── hotkey.wheel_hotkey_triggered → on_wheel_hotkey_triggered
+  │     ├── hotkey.preview_hotkey_triggered → preview.toggle_visibility
+  │     ├── processor.process_done → on_process_done
+  │     ├── processor.preview_ready → preview.update_result
+  │     └── ...
+  └── app.exec()                   # 进入事件循环
 ```
 
 ### 2.2 tray_manager.py — 托盘管理
@@ -101,30 +113,36 @@ process_done = pyqtSignal(bool, str)  # (success, message)
 职责：
 - 使用 Win32 RegisterHotKey API 注册全局热键
 - 支持三种热键：清洗热键、轮盘热键、预览热键
-- 通过 QWidget.nativeEvent 过滤 WM_HOTKEY 消息
+- 通过 QAbstractNativeEventFilter 过滤 WM_HOTKEY 消息
+- 双击 Ctrl+C 检测通过 WH_KEYBOARD_LL 低级键盘钩子实现
 - 热键变更时动态注销/注册
 
 热键 ID 定义：
-  HOTKEY_ID_CLEAN = 1      # 清洗热键（Ctrl+Shift+C）
+  HOTKEY_ID_CUSTOM = 1     # 清洗热键（Ctrl+Shift+C）
   HOTKEY_ID_WHEEL = 2      # 轮盘热键（Ctrl+Shift+P）
   HOTKEY_ID_PREVIEW = 3    # 预览热键（Ctrl+Q）
 
 实现逻辑：
-  nativeEvent(eventType, message):
-    if eventType == "windows_generic_MSG":
-      msg = message.cast(MSG)
-      if msg.message == WM_HOTKEY:
-        if msg.wParam == HOTKEY_ID_CLEAN:
-          emit hotkey_triggered
-        elif msg.wParam == HOTKEY_ID_WHEEL:
-          emit wheel_hotkey_triggered
-        elif msg.wParam == HOTKEY_ID_PREVIEW:
-          emit preview_hotkey_triggered
-        return True  # 消息已处理
-    return False
+  _HotkeyFilter(QAbstractNativeEventFilter):
+    nativeEventFilter(eventType, message):
+      if eventType == "windows_generic_MSG":
+        msg = MSG.from_address(int(message))
+        if msg.message == WM_HOTKEY:
+          if msg.wParam == HOTKEY_ID_CUSTOM:
+            _on_hotkey()  # 注入 Ctrl+C 模拟复制 + 延迟触发
+          elif msg.wParam == HOTKEY_ID_WHEEL:
+            emit wheel_hotkey_triggered
+          elif msg.wParam == HOTKEY_ID_PREVIEW:
+            emit preview_hotkey_triggered
+          return True, 0
+      return False, 0
+
+双击 Ctrl+C（WH_KEYBOARD_LL）：
+  - 默认关闭，可在设置中启用
+  - 检测两次 Ctrl+C 间隔 ≤ 300ms 触发清洗
+  - 跳过注入事件（LLKHF_INJECTED 标志），避免自触发
 
 注意：RegisterHotKey 只支持 Modifier+Key 组合（Ctrl/Shift/Alt + 普通键）。
-双击 Ctrl+C 功能已弃用，统一使用独立热键。
 ```
 
 ### 2.4 clip_processor.py — 剪贴板处理调度
@@ -199,66 +217,110 @@ process() 流程：
   HotkeyManager.preview_hotkey_triggered → toggle 显示/隐藏
 ```
 
-### 2.5 rule_engine.py — 规则引擎
+### 2.6 wheel_window.py — Prompt 轮盘选择器
+
+```
+职责：
+- 扇形轮盘 UI，围绕鼠标位置弹出
+- 支持鼠标点击 + 数字键 1-5 选中
+- ESC / 点击外部关闭
+- 淡入淡出动画
+
+窗口属性：
+  WindowFlags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+  WA_TranslucentBackground: 透明背景
+  固定尺寸: 268x268
+
+外部点击检测：
+  使用 WH_MOUSE_LL 低级鼠标钩子（不依赖 Qt 焦点）
+  点击在轮盘外部 → QTimer.singleShot(0) 延迟关闭
+
+关键实现：
+  show_at(pos, prompts, callback, last_prompt_id):
+    将轮盘中心放在鼠标位置，确保不超出屏幕
+    安装 WH_MOUSE_LL 钩子检测外部点击
+    启动淡入动画
+
+  _index_at(x, y) -> int:
+    计算鼠标位置落在哪个扇区（角度计算）
+
+  paintEvent():
+    绘制扇形区域、悬停高亮、上次使用标记、数字标签、中心圆
+```
+
+### 2.7 rule_engine.py — 规则引擎
 
 规则严格按以下顺序执行，顺序不可变：
 
 ```python
 def clean(text: str, config: dict) -> str:
-    # Step 0: 分割为行列表
+    # Step 1: 提取代码块（规则7）→ 用占位符替换
+    code_blocks = {}
+    if config.get('protect_code_blocks', True):
+        text = _extract_code_blocks(text, code_blocks)
+
     lines = text.split('\n')
 
-    # Step 1: 标记代码块行（规则7）
-    code_block_lines = _mark_code_blocks(lines)
-
     # Step 2: 标记列表行（规则8）
-    list_lines = _mark_list_lines(lines)
-
-    protected = code_block_lines | list_lines
+    protected = set()
+    if config.get('protect_lists', True):
+        protected |= _find_list_lines(lines)
 
     # Step 3: 合并软换行（规则1）—— 跳过 protected 行
-    if config['merge_soft_newline']:
+    if config.get('merge_soft_newline', True):
         lines = _merge_soft_newlines(lines, protected)
 
-    # Step 4: 段落重组后在段落级处理
-    paragraphs = _split_paragraphs(lines)  # 按空行分段
+    text = '\n'.join(lines)
 
+    # Step 4: 多余空行折叠为双换行（规则2）
+    if config.get('keep_hard_newline', True):
+        text = re.sub(r'\n{3,}', '\n\n', text)
+
+    # 按段落分隔后逐段处理
+    paragraphs = text.split('\n\n')
     for para in paragraphs:
+        # 含占位符的段落跳过所有清洗
+        if _PLACEHOLDER_PREFIX in para:
+            continue
         # Step 5: 合并多余空格（规则3）
-        if config['merge_spaces']:
+        if config.get('merge_spaces', True):
             para = _merge_spaces(para)
-
         # Step 6: 智能全/半角标点（规则4）
-        if config['smart_punctuation']:
-            para = _smart_punctuation(para)  # 依赖 langdetect
-
+        if config.get('smart_punctuation', True):
+            para = _smart_punctuation(para)
         # Step 7: 中英文间距（规则5）
-        if config['pangu_spacing']:
+        if config.get('pangu_spacing', True):
             para = _pangu_spacing(para)
-
         # Step 8: 去除行首尾空白（规则6）
-        if config['trim_lines']:
+        if config.get('trim_lines', True):
             para = _trim_lines(para)
 
-    return _join_paragraphs(paragraphs)  # 用 \n\n 重连段落
+    text = '\n\n'.join(paragraphs)
+
+    # 还原代码块
+    for placeholder, original in code_blocks.items():
+        text = text.replace(placeholder, original)
+
+    return text
 ```
 
 **规则4 智能全/半角实现：**
 ```
-对每个标点符号，检查其前后各 N 个非空字符：
-  - 若周围字符以中文为主（langdetect 或 Unicode range 判断）→ 保留/转为全角
+对每个标点符号，检查其前后各 5 个字符：
+  - 若周围字符以中文为主（Unicode range 判断）→ 保留/转为全角
   - 若周围字符以 ASCII 字母/数字为主 → 转为半角
   中文 Unicode 范围：\u4e00-\u9fff，\u3400-\u4dbf 等
+  注意：跳过列表编号中的点（如 "1. " 不转换）
 ```
 
-### 2.6 llm_client.py — 大模型客户端
+### 2.8 llm_client.py — 大模型客户端
 
 ```python
 class LLMClient:
     async def format(self, text: str, prompt: str, config: dict) -> str:
         """
-        发送请求到 OpenAI 兼容接口。
-        失败时抛出异常（由 ClipProcessor 捕获，不覆盖剪贴板）。
+        异步发送请求到 OpenAI 兼容接口（供 test_connection 使用）。
+        实际清洗任务由 ClipProcessor._LLMWorker 在 QThread 中同步调用。
         """
         headers = {"Authorization": f"Bearer {config['api_key']}"}
         payload = {
@@ -269,7 +331,8 @@ class LLMClient:
                 {"role": "user", "content": text}
             ]
         }
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        timeout = float(config.get('timeout', 30))
+        async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(
                 f"{config['base_url']}/chat/completions",
                 json=payload, headers=headers
@@ -277,15 +340,24 @@ class LLMClient:
             resp.raise_for_status()
             return resp.json()["choices"][0]["message"]["content"]
 
+# ClipProcessor._LLMWorker 在 QThread 中使用同步 httpx.Client：
+class _LLMWorker(QThread):
+    def run(self):
+        with httpx.Client(timeout=timeout) as client:
+            resp = client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
+            self.succeeded.emit(content)
+
 错误分类映射：
   httpx.TimeoutException     → "请求超时，请检查网络"
   httpx.HTTPStatusError 401  → "API Key 无效"
   httpx.HTTPStatusError 429  → "请求频率超限或余额不足"
   httpx.HTTPStatusError 404  → "模型 ID 不存在"
+  httpx.ConnectError         → "网络连接失败"
   其他                       → "请求失败：{status_code}"
 ```
 
-### 2.7 config_manager.py — 配置管理
+### 2.9 config_manager.py — 配置管理
 
 ```
 配置文件路径：%APPDATA%\NeatCopy\config.json
@@ -302,36 +374,40 @@ Prompt 模板管理：
 - 新增模板自动生成 UUID 作为 id
 ```
 
-### 2.8 ui/settings_window.py — 设置界面
+### 2.10 ui/settings_window.py — 设置界面
 
 ```
 窗口类型：QDialog（非模态，可与托盘共存）
-布局：QTabWidget，三个 Tab
+布局：侧边栏导航 + QStackedWidget 内容区 + 底部操作栏
 
 Tab 1 —— 通用：
+  ├── 通知：Toast 通知开关
+  ├── 启动：开机自启开关
+  ├── 界面主题：浅色/深色切换
+  ├── 独立热键：QCheckBox + 按键录制 QPushButton
   ├── 双击 Ctrl+C：QCheckBox + QSlider（间隔 100~500ms）
-  ├── 独立热键：QCheckBox + 按键录制 QPushButton（捕获 keyPressEvent）
-  ├── 开机自启：QCheckBox（写 HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run）
-  └── Toast 通知：QCheckBox
+  ├── 轮盘 Prompt 选择器：启用/随清洗触发/切换热键
+  └── 预览面板：启用/快捷键/主题切换
 
 Tab 2 —— 清洗规则：
-  ├── 模式选择：QRadioButton（规则模式 / 大模型模式）
+  ├── 模式选择：QCheckBox（规则模式 / 大模型模式，互斥）
   └── 8条规则：QCheckBox × 8（含 QToolTip 说明）
 
 Tab 3 —— 大模型：
   ├── 总开关：QCheckBox
-  ├── Base URL：QLineEdit
-  ├── API Key：QLineEdit（echoMode=Password）+ 显示切换按钮
-  ├── Model ID：QLineEdit
-  ├── Temperature：QSlider（0~20，显示除以10的值）
-  ├── Prompt 模板列表：QListWidget
-  │     右键菜单：新增 / 编辑 / 删除 / 设为默认
-  │     双击编辑：QDialog + QTextEdit
-  └── Test Connection：QPushButton → 异步发送测试请求 → QMessageBox 结果
+  ├── API 配置：Base URL、Model ID、API Key（密码框）、Temperature 滑块、超时时长 SpinBox
+  ├── 测试连接 + 恢复默认按钮
+  ├── Prompt 模板列表：QListWidget（右键菜单：新增/编辑/删除/设为默认）
+  └── 轮盘 Prompt 选择：左右两栏设计（左栏可用模板勾选，右栏轮盘模板带序号，最多5个）
+
+Tab 4 —— 关于：
+  ├── 版本信息 + 检查更新按钮
+  ├── 作者
+  └── 项目地址（GitHub 链接）
 
 保存逻辑：
-  每个控件 valueChanged/stateChanged/textChanged 信号连接到 _on_change()
-  _on_change() 调用 ConfigManager.set() 实时写入
+  每个控件变化时调用 _mark(key, value) 存入 _pending 字典
+  点击"保存"按钮时调用 _do_save() 批量写入 ConfigManager
   底部显示"已保存 ✓"状态标签（1.5s 后消失）
 ```
 
@@ -398,11 +474,18 @@ ClipProcessor.process()（主线程）
 
 ## 4. 关键技术决策
 
-### 4.1 为什么用 keyboard 库而不是 Windows RegisterHotKey
+### 4.1 为什么用 Win32 API 而不是 keyboard 库
 
-`RegisterHotKey` 只支持 Modifier+Key 组合，无法实现双击 Ctrl+C 检测（需要时间戳逻辑）。`keyboard` 库基于底层钩子，可监听任意按键序列，更灵活。
+`RegisterHotKey` 通过 Windows 消息机制在 Qt 主线程接收热键事件，与 PyQt6 事件循环无缝集成，无需额外线程。
 
-**已知限制**：部分安全软件可能阻止 `keyboard` 库安装全局钩子，需要在文档中说明。
+**双击 Ctrl+C 检测**：通过 `WH_KEYBOARD_LL` 低级键盘钩子实现时间戳逻辑，默认关闭（可能与部分应用冲突）。
+
+**优势**：
+- 不依赖第三方 Python 库
+- 与 Qt 事件循环无缝集成
+- 热键触发时自动注入 Ctrl+C 模拟复制（解决部分应用复制延迟问题）
+
+**已知限制**：部分安全软件可能阻止低级钩子，需要以管理员身份运行。
 
 ### 4.2 为什么 LLM 请求用 QThread 包装而不是直接 asyncio
 
@@ -455,10 +538,15 @@ NeatCopy/
 │   ├── wheel_window.py        # Prompt 轮盘选择器
 │   ├── autostart_manager.py   # 开机自启动管理
 │   ├── assets.py              # 共享资源路径
+│   ├── version.py             # 版本号定义
 │   ├── config_manager.py
 │   └── ui/
 │       ├── settings_window.py
-│       └── preview_window.py  # LLM 预览面板（新增）
+│       ├── preview_window.py  # LLM 预览面板
+│       ├── styles.py          # 主题样式定义
+│       └── components/
+│           ├── sidebar.py     # 侧边栏导航组件
+│           └── icon_helper.py # 图标辅助工具
 ├── assets/
 │   ├── icon_idle.png / .ico
 │   ├── icon_processing.png
