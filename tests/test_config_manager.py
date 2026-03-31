@@ -100,3 +100,28 @@ class TestConfigManagerPrompts:
         cm = ConfigManager(config_dir=str(tmp_config_dir / 'NeatCopy'))
         prompts = cm.get('llm.prompts')
         assert prompts[0]['readonly'] is True
+
+
+class TestHistoryConfig:
+    def test_default_history_config_exists(self, tmp_config_dir):
+        """默认配置包含 history 组"""
+        from config_manager import ConfigManager
+        config = ConfigManager(config_dir=str(tmp_config_dir))
+        assert config.get('history.enabled') is True
+        assert config.get('history.max_count') == 500
+        assert config.get('history.hotkey') == 'ctrl+h'
+        assert config.get('history.window_width') == 600
+        assert config.get('history.window_height') == 400
+
+    def test_history_config_merge(self, tmp_config_dir):
+        """旧配置文件自动补 history 默认值"""
+        from config_manager import ConfigManager
+        import json
+        config_path = tmp_config_dir / 'NeatCopy' / 'config.json'
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        old_config = {'general': {'toast_notification': True}}
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(old_config, f)
+        config = ConfigManager(config_dir=str(tmp_config_dir))
+        assert config.get('history.enabled') is True
+        assert config.get('history.max_count') == 500

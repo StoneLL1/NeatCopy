@@ -141,6 +141,13 @@ DEFAULT_CONFIG = {
         'window_height': 200,
         'theme': 'dark',
     },
+    'history': {
+        'enabled': True,
+        'max_count': 500,
+        'hotkey': 'ctrl+h',
+        'window_width': 600,
+        'window_height': 400,
+    },
 }
 
 
