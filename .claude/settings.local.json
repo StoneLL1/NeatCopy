@@ -80,7 +80,8 @@
       "Skill(git-commit:*)",
       "Bash(python -c \"import sys; sys.path.insert\\(0,''''\\); from ui.settings_window import SettingsWindow; from clip_processor import _LLMWorker; print\\(''OK''\\)\")",
       "Bash(python -c \"from src.config_manager import DEFAULT_CONFIG; prompts = DEFAULT_CONFIG[''llm''][''prompts'']; [print\\(p[''id''], p[''name'']\\) for p in prompts]\")",
-      "Bash(\"C:\\\\Users\\\\Aletta\\\\AppData\\\\Local\\\\Programs\\\\Inno Setup 6\\\\ISCC.exe\" \"D:\\\\Users\\\\Aletta\\\\Desktop\\\\Works\\\\NeatCopy\\\\installer\\\\NeatCopy_Setup.iss\")"
+      "Bash(\"C:\\\\Users\\\\Aletta\\\\AppData\\\\Local\\\\Programs\\\\Inno Setup 6\\\\ISCC.exe\" \"D:\\\\Users\\\\Aletta\\\\Desktop\\\\Works\\\\NeatCopy\\\\installer\\\\NeatCopy_Setup.iss\")",
+      "Bash(python -m pytest tests/test_history_manager.py -v)"
     ]
   }
 }

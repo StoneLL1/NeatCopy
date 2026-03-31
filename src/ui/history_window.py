@@ -1,6 +1,7 @@
 """历史记录窗口组件：双栏布局，左侧列表右侧详情，支持搜索、复制、删除。"""
 import ctypes
 import sys
+from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -58,96 +59,39 @@ class HistoryWindow(QWidget):
         """返回指定主题的样式配置字典。基于 ColorPalette 基础色。"""
         c = ColorPalette.get(theme)
 
-        if theme == 'light':
-            return {
-                'panel_bg': 'rgba(255, 255, 255, 230)',
-                'panel_border': 'rgba(233, 233, 233, 180)',
-                'header_bg': 'rgba(247, 247, 245, 200)',
-                'list_bg': 'rgba(255, 255, 255, 220)',
-                'list_border': 'rgba(218, 218, 218, 120)',
-                'list_item_bg': 'transparent',
-                'list_item_hover': 'rgba(240, 240, 240, 200)',
-                'list_item_selected': 'rgba(228, 228, 228, 240)',
-                'detail_bg': 'rgba(255, 255, 255, 220)',
-                'detail_section_bg': 'rgba(247, 247, 245, 180)',
-                'detail_section_border': 'rgba(218, 218, 218, 100)',
-                'text_primary': c['text_primary'],
-                'text_secondary': c['text_secondary'],
-                'text_time': '#787774',
-                'text_mode': '#37352F',
-                'mode_rules': '#5cb85c',
-                'mode_llm': '#0275d8',
-                'edit_bg': 'rgba(247, 247, 245, 200)',
-                'edit_text': c['text_primary'],
-                'edit_selection': 'rgba(55, 53, 47, 80)',
-                'scrollbar_bg': c['scrollbar_bg'],
-                'scrollbar_handle': 'rgba(160, 160, 160, 120)',
-                'search_bg': 'rgba(255, 255, 255, 240)',
-                'search_border': 'rgba(218, 218, 218, 120)',
-                'search_focus_border': 'rgba(55, 53, 47, 150)',
-                'btn_bg': 'rgba(250, 250, 250, 200)',
-                'btn_border': 'rgba(218, 218, 218, 140)',
-                'btn_text': c['text_primary'],
-                'btn_hover_bg': 'rgba(240, 240, 240, 220)',
-                'btn_hover_border': 'rgba(200, 200, 200, 160)',
-                'btn_pressed_bg': 'rgba(228, 228, 228, 240)',
-                'btn_danger_bg': 'rgba(255, 255, 255, 200)',
-                'btn_danger_border': 'rgba(217, 83, 79, 150)',
-                'btn_danger_text': '#d9534f',
-                'btn_danger_hover_bg': 'rgba(217, 83, 79, 200)',
-                'btn_danger_hover_text': '#FFFFFF',
-                'close_text': c['text_secondary'],
-                'close_hover_bg': 'rgba(0, 0, 0, 15)',
-                'close_hover_text': c['text_primary'],
-                'title_text': c['text_primary'],
-                'empty_text': c['text_secondary'],
-                'meta_text': c['text_secondary'],
-            }
-        else:  # dark
-            return {
-                'panel_bg': 'rgba(25, 25, 25, 210)',
-                'panel_border': 'rgba(55, 53, 47, 140)',
-                'header_bg': 'rgba(31, 31, 31, 180)',
-                'list_bg': 'rgba(31, 31, 31, 200)',
-                'list_border': 'rgba(61, 60, 58, 100)',
-                'list_item_bg': 'transparent',
-                'list_item_hover': 'rgba(47, 47, 47, 200)',
-                'list_item_selected': 'rgba(55, 55, 55, 240)',
-                'detail_bg': 'rgba(31, 31, 31, 200)',
-                'detail_section_bg': 'rgba(36, 36, 36, 180)',
-                'detail_section_border': 'rgba(61, 60, 58, 100)',
-                'text_primary': c['text_primary'],
-                'text_secondary': c['text_secondary'],
-                'text_time': '#A0A0A0',
-                'text_mode': '#F0F0F0',
-                'mode_rules': '#5cb85c',
-                'mode_llm': '#0275d8',
-                'edit_bg': 'rgba(36, 36, 36, 200)',
-                'edit_text': c['text_primary'],
-                'edit_selection': 'rgba(155, 154, 151, 100)',
-                'scrollbar_bg': c['scrollbar_bg'],
-                'scrollbar_handle': 'rgba(74, 74, 74, 100)',
-                'search_bg': 'rgba(36, 36, 36, 220)',
-                'search_border': 'rgba(61, 60, 58, 100)',
-                'search_focus_border': 'rgba(155, 154, 151, 150)',
-                'btn_bg': 'rgba(47, 47, 47, 160)',
-                'btn_border': 'rgba(61, 60, 58, 100)',
-                'btn_text': c['text_primary'],
-                'btn_hover_bg': 'rgba(55, 55, 55, 180)',
-                'btn_hover_border': 'rgba(78, 77, 74, 140)',
-                'btn_pressed_bg': 'rgba(64, 64, 64, 200)',
-                'btn_danger_bg': 'rgba(47, 47, 47, 160)',
-                'btn_danger_border': 'rgba(217, 83, 79, 100)',
-                'btn_danger_text': '#d9534f',
-                'btn_danger_hover_bg': 'rgba(217, 83, 79, 180)',
-                'btn_danger_hover_text': '#FFFFFF',
-                'close_text': c['text_secondary'],
-                'close_hover_bg': 'rgba(255, 255, 255, 25)',
-                'close_hover_text': c['text_primary'],
-                'title_text': c['text_primary'],
-                'empty_text': c['text_secondary'],
-                'meta_text': c['text_secondary'],
-            }
+        # 基础变量：简洁统一
+        panel_bg = 'rgba(255, 255, 255, 230)' if theme == 'light' else 'rgba(25, 25, 25, 210)'
+        panel_border = 'rgba(220, 220, 220, 180)' if theme == 'light' else 'rgba(55, 53, 47, 140)'
+        surface_bg = 'rgba(248, 248, 248, 200)' if theme == 'light' else 'rgba(32, 32, 32, 200)'
+        input_bg = 'rgba(255, 255, 255, 240)' if theme == 'light' else 'rgba(36, 36, 36, 220)'
+        scrollbar = 'rgba(160, 160, 160, 100)' if theme == 'light' else 'rgba(74, 74, 74, 100)'
+
+        return {
+            'panel_bg': panel_bg,
+            'panel_border': panel_border,
+            'header_bg': surface_bg,
+            'list_bg': surface_bg,
+            'list_item_hover': 'rgba(240, 240, 240, 200)' if theme == 'light' else 'rgba(47, 47, 47, 200)',
+            'list_item_selected': 'rgba(230, 230, 230, 240)' if theme == 'light' else 'rgba(55, 55, 55, 240)',
+            'detail_bg': surface_bg,
+            'text_primary': c['text_primary'],
+            'text_secondary': c['text_secondary'],
+            'text_meta': '#888888' if theme == 'light' else '#A0A0A0',
+            'mode_rules': '#5cb85c',
+            'mode_llm': '#0275d8',
+            'edit_bg': input_bg,
+            'scrollbar_bg': c['scrollbar_bg'],
+            'scrollbar_handle': scrollbar,
+            'search_bg': input_bg,
+            'search_border': 'rgba(200, 200, 200, 140)' if theme == 'light' else 'rgba(61, 60, 58, 100)',
+            'btn_bg': 'rgba(250, 250, 250, 200)' if theme == 'light' else 'rgba(47, 47, 47, 160)',
+            'btn_border': 'rgba(200, 200, 200, 140)' if theme == 'light' else 'rgba(61, 60, 58, 100)',
+            'btn_hover': 'rgba(240, 240, 240, 220)' if theme == 'light' else 'rgba(55, 55, 55, 180)',
+            'btn_danger_text': '#d9534f',
+            'btn_danger_hover': 'rgba(217, 83, 79, 180)',
+            'close_hover': 'rgba(0, 0, 0, 15)' if theme == 'light' else 'rgba(255, 255, 255, 25)',
+            'empty_text': c['text_secondary'],
+        }
 
     def _apply_theme(self, theme: str):
         """应用指定主题的样式到所有组件。"""
@@ -159,17 +103,17 @@ class HistoryWindow(QWidget):
             #panel {{
                 background: {styles['panel_bg']};
                 border: 1px solid {styles['panel_border']};
-                border-radius: 10px;
+                border-radius: 8px;
             }}
         """)
 
         # 标题栏
         self.title_label.setStyleSheet(f"""
-            #titleLabel {{
-                color: {styles['title_text']};
-                font-size: 14px;
-                font-weight: bold;
-                padding-left: 8px;
+            QLabel {{
+                color: {styles['text_primary']};
+                font-size: 13px;
+                font-weight: 600;
+                padding: 0 4px;
             }}
         """)
 
@@ -178,49 +122,60 @@ class HistoryWindow(QWidget):
             QLineEdit {{
                 background: {styles['search_bg']};
                 border: 1px solid {styles['search_border']};
-                border-radius: 6px;
-                padding: 6px 10px;
+                border-radius: 4px;
+                padding: 4px 8px;
                 color: {styles['text_primary']};
                 font-size: 13px;
-            }}
-            QLineEdit:focus {{
-                border: 1px solid {styles['search_focus_border']};
             }}
             QLineEdit::placeholder {{
                 color: {styles['text_secondary']};
             }}
         """)
 
-        # 清空全部按钮
+        # 清空按钮
         self.clear_all_btn.setStyleSheet(f"""
-            #clearAllBtn {{
-                background: {styles['btn_danger_bg']};
+            QPushButton {{
+                background: {styles['btn_bg']};
                 color: {styles['btn_danger_text']};
-                border: 1px solid {styles['btn_danger_border']};
-                border-radius: 6px;
-                padding: 6px 12px;
+                border: 1px solid {styles['btn_border']};
+                border-radius: 4px;
+                padding: 4px 10px;
                 font-size: 12px;
             }}
-            #clearAllBtn:hover {{
-                background: {styles['btn_danger_hover_bg']};
-                color: {styles['btn_danger_hover_text']};
+            QPushButton:hover {{
+                background: {styles['btn_danger_hover']};
+                color: #fff;
             }}
         """)
 
         # 列表区域
+        scrollbar_style = f"""
+            QScrollBar:vertical {{
+                background: {styles['scrollbar_bg']};
+                width: 5px;
+                margin: 1px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {styles['scrollbar_handle']};
+                border-radius: 2px;
+                min-height: 16px;
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0;
+            }}
+        """
         self.list_widget.setStyleSheet(f"""
             QListWidget {{
                 background: {styles['list_bg']};
-                border: 1px solid {styles['list_border']};
-                border-radius: 6px;
-                padding: 4px;
+                border: none;
+                border-radius: 4px;
+                padding: 2px;
                 outline: none;
             }}
             QListWidget::item {{
-                background: {styles['list_item_bg']};
-                border-radius: 4px;
-                padding: 8px;
-                margin: 2px 0;
+                padding: 6px 8px;
+                margin: 1px 0;
+                border-radius: 3px;
             }}
             QListWidget::item:hover {{
                 background: {styles['list_item_hover']};
@@ -228,123 +183,46 @@ class HistoryWindow(QWidget):
             QListWidget::item:selected {{
                 background: {styles['list_item_selected']};
             }}
-            QScrollBar:vertical {{
-                background: {styles['scrollbar_bg']};
-                width: 6px;
-                margin: 2px;
-            }}
-            QScrollBar::handle:vertical {{
-                background: {styles['scrollbar_handle']};
-                border-radius: 3px;
-                min-height: 20px;
-            }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-                height: 0;
-            }}
+            {scrollbar_style}
         """)
 
-        # 详情区标签
-        self.time_label.setStyleSheet(f"""
-            QLabel {{
-                color: {styles['meta_text']};
-                font-size: 12px;
-            }}
-        """)
-        self.mode_label.setStyleSheet(f"""
-            QLabel {{
-                color: {styles['meta_text']};
-                font-size: 12px;
-            }}
-        """)
+        # 元信息
+        meta_style = f"QLabel {{ color: {styles['text_meta']}; font-size: 12px; }}"
+        self.time_label.setStyleSheet(meta_style)
+        self.mode_label.setStyleSheet(meta_style)
 
-        # 原文区标签
-        self.original_section.setStyleSheet(f"""
-            QLabel {{
-                color: {styles['text_secondary']};
-                font-size: 11px;
-                padding: 4px 8px;
-                background: {styles['detail_section_bg']};
-                border: 1px solid {styles['detail_section_border']};
-                border-radius: 4px 4px 0 0;
-            }}
-        """)
-        self.original_edit.setStyleSheet(f"""
+        # 文本编辑区（统一样式）
+        edit_style = f"""
             QTextEdit {{
                 background: {styles['edit_bg']};
-                border: 1px solid {styles['detail_section_border']};
-                border-radius: 0 0 4px 4px;
-                padding: 8px;
-                color: {styles['edit_text']};
+                border: none;
+                border-radius: 4px;
+                padding: 6px 8px;
+                color: {styles['text_primary']};
                 font-size: 13px;
-                selection-background-color: {styles['edit_selection']};
             }}
-            QScrollBar:vertical {{
-                background: {styles['scrollbar_bg']};
-                width: 6px;
-                margin: 2px;
-            }}
-            QScrollBar::handle:vertical {{
-                background: {styles['scrollbar_handle']};
-                border-radius: 3px;
-                min-height: 20px;
-            }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-                height: 0;
-            }}
-        """)
+            {scrollbar_style}
+        """
+        self.original_edit.setStyleSheet(edit_style)
+        self.result_edit.setStyleSheet(edit_style)
 
-        # 结果区标签
-        self.result_section.setStyleSheet(f"""
-            QLabel {{
-                color: {styles['text_secondary']};
-                font-size: 11px;
-                padding: 4px 8px;
-                background: {styles['detail_section_bg']};
-                border: 1px solid {styles['detail_section_border']};
-                border-radius: 4px 4px 0 0;
-            }}
-        """)
-        self.result_edit.setStyleSheet(f"""
-            QTextEdit {{
-                background: {styles['edit_bg']};
-                border: 1px solid {styles['detail_section_border']};
-                border-radius: 0 0 4px 4px;
-                padding: 8px;
-                color: {styles['edit_text']};
-                font-size: 13px;
-                selection-background-color: {styles['edit_selection']};
-            }}
-            QScrollBar:vertical {{
-                background: {styles['scrollbar_bg']};
-                width: 6px;
-                margin: 2px;
-            }}
-            QScrollBar::handle:vertical {{
-                background: {styles['scrollbar_handle']};
-                border-radius: 3px;
-                min-height: 20px;
-            }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-                height: 0;
-            }}
-        """)
+        # 区标签（简洁）
+        section_style = f"QLabel {{ color: {styles['text_secondary']}; font-size: 11px; padding: 2px 0; }}"
+        self.original_section.setStyleSheet(section_style)
+        self.result_section.setStyleSheet(section_style)
 
         # 操作按钮
         btn_style = f"""
             QPushButton {{
                 background: {styles['btn_bg']};
-                color: {styles['btn_text']};
+                color: {styles['text_primary']};
                 border: 1px solid {styles['btn_border']};
-                border-radius: 6px;
-                padding: 6px 14px;
+                border-radius: 4px;
+                padding: 4px 12px;
                 font-size: 12px;
             }}
             QPushButton:hover {{
-                background: {styles['btn_hover_bg']};
-                border: 1px solid {styles['btn_hover_border']};
-            }}
-            QPushButton:pressed {{
-                background: {styles['btn_pressed_bg']};
+                background: {styles['btn_hover']};
             }}
         """
         self.copy_original_btn.setStyleSheet(btn_style)
@@ -352,40 +230,38 @@ class HistoryWindow(QWidget):
 
         self.delete_btn.setStyleSheet(f"""
             QPushButton {{
-                background: {styles['btn_danger_bg']};
+                background: {styles['btn_bg']};
                 color: {styles['btn_danger_text']};
-                border: 1px solid {styles['btn_danger_border']};
-                border-radius: 6px;
-                padding: 6px 14px;
+                border: 1px solid {styles['btn_border']};
+                border-radius: 4px;
+                padding: 4px 12px;
                 font-size: 12px;
             }}
             QPushButton:hover {{
-                background: {styles['btn_danger_hover_bg']};
-                color: {styles['btn_danger_hover_text']};
+                background: {styles['btn_danger_hover']};
+                color: #fff;
             }}
         """)
 
         # 关闭按钮
         self.close_btn.setStyleSheet(f"""
-            #closeBtn {{
+            QPushButton {{
                 background: transparent;
+                color: {styles['text_secondary']};
                 border: none;
+                border-radius: 3px;
                 font-size: 12px;
-                color: {styles['close_text']};
-                border-radius: 4px;
             }}
-            #closeBtn:hover {{
-                background: {styles['close_hover_bg']};
-                color: {styles['close_hover_text']};
+            QPushButton:hover {{
+                background: {styles['close_hover']};
             }}
         """)
 
-        # 空状态提示
+        # 空状态
         self.empty_label.setStyleSheet(f"""
             QLabel {{
                 color: {styles['empty_text']};
                 font-size: 13px;
-                padding: 20px;
             }}
         """)
 
@@ -398,159 +274,125 @@ class HistoryWindow(QWidget):
     # ================================================================
 
     def _create_ui(self):
-        """构建完整的 UI 布局。"""
-        # --- 外层容器 ---
+        """构建完整的 UI 布局：简洁、对齐。"""
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # --- 内容容器 ---
         self.container = QWidget()
         self.container.setObjectName("panel")
         layout = QVBoxLayout(self.container)
-        layout.setContentsMargins(14, 10, 14, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(12, 8, 12, 10)
+        layout.setSpacing(8)
 
-        # === 顶部栏：标题 + 关闭按钮 ===
+        # === 顶部栏：标题 + 关闭 ===
         top_bar = QHBoxLayout()
         top_bar.setSpacing(8)
-
         self.title_label = QLabel("历史记录")
-        self.title_label.setObjectName("titleLabel")
         top_bar.addWidget(self.title_label)
         top_bar.addStretch()
-
         self.close_btn = QPushButton("关闭")
-        self.close_btn.setObjectName("closeBtn")
-        self.close_btn.setFixedSize(50, 26)
+        self.close_btn.setFixedSize(48, 26)
         self.close_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.close_btn.clicked.connect(self.hide)
         top_bar.addWidget(self.close_btn)
-
         layout.addLayout(top_bar)
 
-        # === 工具栏：搜索框 + 清空按钮 ===
+        # === 工具栏：搜索 + 清空 ===
         toolbar = QHBoxLayout()
-        toolbar.setSpacing(10)
-
+        toolbar.setSpacing(8)
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("搜索历史记录...")
-        self.search_input.setFixedHeight(30)
+        self.search_input.setPlaceholderText("搜索...")
+        self.search_input.setFixedHeight(28)
         self.search_input.textChanged.connect(self._on_search_changed)
         toolbar.addWidget(self.search_input, stretch=1)
-
-        self.clear_all_btn = QPushButton("清空全部")
-        self.clear_all_btn.setObjectName("clearAllBtn")
-        self.clear_all_btn.setFixedSize(80, 30)
+        self.clear_all_btn = QPushButton("清空")
+        self.clear_all_btn.setFixedSize(56, 28)
         self.clear_all_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.clear_all_btn.clicked.connect(self._on_clear_all)
         toolbar.addWidget(self.clear_all_btn)
-
         layout.addLayout(toolbar)
 
-        # === 双栏主体：列表 + 详情 ===
+        # === 双栏主体 ===
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # 左栏：列表区
+        # 左栏：列表
         list_container = QWidget()
         list_layout = QVBoxLayout(list_container)
         list_layout.setContentsMargins(0, 0, 0, 0)
         list_layout.setSpacing(0)
-
         self.list_widget = QListWidget()
-        self.list_widget.setMinimumWidth(180)
+        self.list_widget.setMinimumWidth(160)
         self.list_widget.itemClicked.connect(self._on_item_clicked)
         list_layout.addWidget(self.list_widget)
-
         splitter.addWidget(list_container)
 
-        # 右栏：详情区
+        # 右栏：详情
         detail_container = QWidget()
         detail_layout = QVBoxLayout(detail_container)
         detail_layout.setContentsMargins(0, 0, 0, 0)
         detail_layout.setSpacing(8)
 
-        # 元信息行：时间 + 模式
+        # 元信息行
         meta_row = QHBoxLayout()
-        meta_row.setSpacing(16)
-
-        self.time_label = QLabel("时间：--")
-        self.time_label.setWordWrap(True)
+        meta_row.setSpacing(12)
+        self.time_label = QLabel("--")
+        self.mode_label = QLabel("--")
         meta_row.addWidget(self.time_label)
-
-        self.mode_label = QLabel("模式：--")
-        self.mode_label.setWordWrap(True)
         meta_row.addWidget(self.mode_label)
-
         meta_row.addStretch()
         detail_layout.addLayout(meta_row)
 
         # 原文区
         self.original_section = QLabel("原文")
-        detail_layout.addWidget(self.original_section)
-
         self.original_edit = QTextEdit()
         self.original_edit.setReadOnly(True)
-        self.original_edit.setPlaceholderText("点击左侧条目查看详情")
-        self.original_edit.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
+        self.original_edit.setPlaceholderText("选择条目查看")
+        self.original_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        detail_layout.addWidget(self.original_section)
         detail_layout.addWidget(self.original_edit, stretch=1)
 
         # 结果区
         self.result_section = QLabel("结果")
-        detail_layout.addWidget(self.result_section)
-
         self.result_edit = QTextEdit()
         self.result_edit.setReadOnly(True)
-        self.result_edit.setPlaceholderText("点击左侧条目查看详情")
-        self.result_edit.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
+        self.result_edit.setPlaceholderText("选择条目查看")
+        self.result_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        detail_layout.addWidget(self.result_section)
         detail_layout.addWidget(self.result_edit, stretch=1)
 
         # 操作按钮行
         action_row = QHBoxLayout()
         action_row.setSpacing(8)
-
         self.copy_original_btn = QPushButton("复制原文")
-        self.copy_original_btn.setFixedHeight(28)
+        self.copy_original_btn.setFixedSize(72, 28)
         self.copy_original_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.copy_original_btn.clicked.connect(self._on_copy_original)
-        action_row.addWidget(self.copy_original_btn)
-
         self.copy_result_btn = QPushButton("复制结果")
-        self.copy_result_btn.setFixedHeight(28)
+        self.copy_result_btn.setFixedSize(72, 28)
         self.copy_result_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.copy_result_btn.clicked.connect(self._on_copy_result)
-        action_row.addWidget(self.copy_result_btn)
-
-        action_row.addStretch()
-
         self.delete_btn = QPushButton("删除")
-        self.delete_btn.setFixedHeight(28)
+        self.delete_btn.setFixedSize(56, 28)
         self.delete_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.delete_btn.clicked.connect(self._on_delete_entry)
+        action_row.addWidget(self.copy_original_btn)
+        action_row.addWidget(self.copy_result_btn)
+        action_row.addStretch()
         action_row.addWidget(self.delete_btn)
-
         detail_layout.addLayout(action_row)
 
         splitter.addWidget(detail_container)
-
-        # 设置初始分割比例
-        splitter.setSizes([200, 400])
-
+        splitter.setSizes([180, 380])
         layout.addWidget(splitter, stretch=1)
 
-        # === 空状态提示（初始隐藏） ===
-        self.empty_label = QLabel("暂无历史记录")
+        # 空状态
+        self.empty_label = QLabel("暂无记录")
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_label.hide()
         layout.addWidget(self.empty_label)
 
         outer.addWidget(self.container)
-
-        # 初始化列表
         self._refresh_list()
 
     def _apply_acrylic_effect(self):
@@ -566,7 +408,7 @@ class HistoryWindow(QWidget):
                 #panel {{
                     background: {styles['panel_bg'].replace('210', '235') if self._theme == 'dark' else styles['panel_bg'].replace('230', '245')};
                     border: 1px solid {styles['panel_border']};
-                    border-radius: 10px;
+                    border-radius: 8px;
                 }}
             """)
             return
@@ -588,7 +430,7 @@ class HistoryWindow(QWidget):
                 #panel {{
                     background: {styles['panel_bg'].replace('210', '235') if self._theme == 'dark' else styles['panel_bg'].replace('230', '245')};
                     border: 1px solid {styles['panel_border']};
-                    border-radius: 10px;
+                    border-radius: 8px;
                 }}
             """)
 
@@ -619,7 +461,6 @@ class HistoryWindow(QWidget):
             timestamp = entry.get('timestamp', '')
             try:
                 # 解析 ISO 格式时间，只显示 HH:MM
-                from datetime import datetime
                 dt = datetime.fromisoformat(timestamp)
                 time_str = dt.strftime('%H:%M')
             except Exception:
@@ -658,20 +499,19 @@ class HistoryWindow(QWidget):
         # 显示时间
         timestamp = entry.get('timestamp', '')
         try:
-            from datetime import datetime
             dt = datetime.fromisoformat(timestamp)
-            time_str = dt.strftime('%Y-%m-%d %H:%M:%S')
+            time_str = dt.strftime('%m-%d %H:%M')
         except Exception:
             time_str = timestamp
-        self.time_label.setText(f"时间：{time_str}")
+        self.time_label.setText(time_str)
 
         # 显示模式
         mode = entry.get('mode', 'rules')
         if mode == 'rules':
-            self.mode_label.setText("模式：规则清洗")
+            self.mode_label.setText("规则")
         else:
             prompt_name = entry.get('prompt_name', '')
-            self.mode_label.setText(f"模式：LLM - {prompt_name}" if prompt_name else "模式：LLM")
+            self.mode_label.setText(f"LLM: {prompt_name}" if prompt_name else "LLM")
 
         # 显示原文
         self.original_edit.setPlainText(entry.get('original', ''))
@@ -682,8 +522,8 @@ class HistoryWindow(QWidget):
     def _clear_detail(self):
         """清空详情面板。"""
         self._current_entry_id = None
-        self.time_label.setText("时间：--")
-        self.mode_label.setText("模式：--")
+        self.time_label.setText("--")
+        self.mode_label.setText("--")
         self.original_edit.clear()
         self.result_edit.clear()
 
@@ -751,11 +591,10 @@ class HistoryWindow(QWidget):
         if self.isVisible():
             self.hide()
         else:
-            # 显示前刷新主题和列表
+            # 显示前刷新主题（列表刷新由 showEvent 处理，避免重复）
             new_theme = self._config.get('ui.theme', 'light')
             if new_theme != self._theme:
                 self._apply_theme(new_theme)
-            self._refresh_list()
             self.show()
             self.activateWindow()
             self.raise_()

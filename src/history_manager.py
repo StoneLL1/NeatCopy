@@ -58,9 +58,9 @@ class HistoryManager:
             'result': result,
         }
         self._data['entries'].append(entry)
-        # 容量控制：超出时删除最旧的
-        while len(self._data['entries']) > self._max_count:
-            self._data['entries'].pop(0)
+        # 容量控制：超出时保留最新的 max_count 条
+        if len(self._data['entries']) > self._max_count:
+            self._data['entries'] = self._data['entries'][-self._max_count:]
         return self._write()
 
     def get_all(self) -> list[dict]:
