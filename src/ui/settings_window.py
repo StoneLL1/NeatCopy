@@ -213,6 +213,9 @@ class SettingsWindow(QDialog):
         # ── 预览面板 GroupBox ──
         layout.addWidget(self._build_preview_group())
 
+        # ── 历史记录 GroupBox ──
+        layout.addWidget(self._build_history_group())
+
         layout.addStretch()
         btn_reset_general = QPushButton('恢复通用默认设置')
         btn_reset_general.setObjectName('btn_reset')
@@ -301,6 +304,47 @@ class SettingsWindow(QDialog):
         preview_lay.addLayout(theme_lay)
 
         return preview_box
+
+    def _build_history_group(self) -> QGroupBox:
+        """构建历史记录设置分组。"""
+        history_box = QGroupBox('历史记录')
+        history_lay = QVBoxLayout(history_box)
+        history_lay.setSpacing(6)
+
+        # 启用开关
+        self._chk_history = QCheckBox('启用历史记录（记录清洗前后文本）')
+        self._chk_history.setChecked(self._config.get('history.enabled', True))
+        self._chk_history.stateChanged.connect(
+            lambda v: self._mark('history.enabled', bool(v)))
+        history_lay.addWidget(self._chk_history)
+
+        # 条数上限
+        count_row = QHBoxLayout()
+        count_row.addWidget(QLabel('最大条数：'))
+        self._spin_history_count = QSpinBox()
+        self._spin_history_count.setRange(50, 2000)
+        self._spin_history_count.setValue(self._config.get('history.max_count', 500))
+        self._spin_history_count.setToolTip('超出时自动删除最旧记录')
+        self._spin_history_count.valueChanged.connect(
+            lambda v: self._mark('history.max_count', v))
+        count_row.addWidget(self._spin_history_count)
+        count_row.addWidget(QLabel('条'))
+        count_row.addStretch()
+        history_lay.addLayout(count_row)
+
+        # 快捷键录制
+        hk_row = QHBoxLayout()
+        hk_row.addWidget(QLabel('快捷键：'))
+        self._btn_history_hotkey = QPushButton(
+            self._config.get('history.hotkey', 'ctrl+h'))
+        self._btn_history_hotkey.setCheckable(True)
+        self._btn_history_hotkey.setObjectName('hotkey_btn')
+        self._btn_history_hotkey.clicked.connect(self._on_history_hotkey_btn)
+        hk_row.addWidget(self._btn_history_hotkey)
+        hk_row.addStretch()
+        history_lay.addLayout(hk_row)
+
+        return history_box
 
     def _confirm_and_reset_general(self):
         reply = QMessageBox.question(
@@ -693,6 +737,7 @@ class SettingsWindow(QDialog):
             self._btn_record.setText('请按下热键组合...')
             self._btn_wheel_hotkey.setChecked(False)
             self._btn_preview_hotkey.setChecked(False)
+            self._btn_history_hotkey.setChecked(False)
             self.grabKeyboard()
             self._recording_target = 'clean'
         else:
@@ -704,6 +749,7 @@ class SettingsWindow(QDialog):
             self._btn_wheel_hotkey.setText('请按下热键组合...')
             self._btn_record.setChecked(False)
             self._btn_preview_hotkey.setChecked(False)
+            self._btn_history_hotkey.setChecked(False)
             self.grabKeyboard()
             self._recording_target = 'wheel'
         else:
@@ -715,8 +761,23 @@ class SettingsWindow(QDialog):
             self._btn_preview_hotkey.setText('请按下热键组合...')
             self._btn_record.setChecked(False)
             self._btn_wheel_hotkey.setChecked(False)
+            self._btn_history_hotkey.setChecked(False)
             self.grabKeyboard()
             self._recording_target = 'preview'
+        else:
+            self.releaseKeyboard()
+            self._recording_target = None
+
+    def _on_history_hotkey_btn(self, checked: bool):
+        """历史快捷键录制按钮回调。"""
+        if checked:
+            self._btn_history_hotkey.setText('请按下热键组合...')
+            # 取消其他录制按钮的 checked 状态
+            self._btn_record.setChecked(False)
+            self._btn_wheel_hotkey.setChecked(False)
+            self._btn_preview_hotkey.setChecked(False)
+            self.grabKeyboard()
+            self._recording_target = 'history'
         else:
             self.releaseKeyboard()
             self._recording_target = None
@@ -765,6 +826,9 @@ class SettingsWindow(QDialog):
             elif target == 'preview':
                 self._btn_preview_hotkey.setText(hotkey_str)
                 self._mark('preview.hotkey', hotkey_str)
+            elif target == 'history':
+                self._btn_history_hotkey.setText(hotkey_str)
+                self._mark('history.hotkey', hotkey_str)
 
         self.releaseKeyboard()
         self._recording_target = None
@@ -774,6 +838,8 @@ class SettingsWindow(QDialog):
             self._btn_wheel_hotkey.setChecked(False)
         elif target == 'preview':
             self._btn_preview_hotkey.setChecked(False)
+        elif target == 'history':
+            self._btn_history_hotkey.setChecked(False)
 
     # ── 滑块事件 ──────────────────────────────────────────────
 
