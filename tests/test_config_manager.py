@@ -1,8 +1,9 @@
-import sys
 import os
+import json
+import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from config_manager import ConfigManager
+from neatcopy.infrastructure.config_manager import BUILTIN_PROMPTS, ConfigManager
 
 
 class TestConfigManagerDefaults:
@@ -22,6 +23,15 @@ class TestConfigManagerDefaults:
     def test_default_llm_enabled_is_false(self, tmp_config_dir):
         cm = ConfigManager(config_dir=str(tmp_config_dir / 'NeatCopy'))
         assert cm.get('llm.enabled') is False
+
+    def test_default_timeout_is_30_seconds(self, tmp_config_dir):
+        cm = ConfigManager(config_dir=str(tmp_config_dir / 'NeatCopy'))
+        assert cm.get('llm.timeout') == 30
+
+    def test_default_clear_clipboard_hotkey_is_disabled(self, tmp_config_dir):
+        cm = ConfigManager(config_dir=str(tmp_config_dir / 'NeatCopy'))
+        assert cm.get('general.clear_clipboard_hotkey.enabled') is False
+        assert cm.get('general.clear_clipboard_hotkey.keys') == 'cmd+alt+k'
 
 
 class TestConfigManagerGetSet:
@@ -48,6 +58,16 @@ class TestConfigManagerGetSet:
     def test_get_nonexistent_key_returns_default(self, tmp_config_dir):
         cm = ConfigManager(config_dir=str(tmp_config_dir / 'NeatCopy'))
         assert cm.get('nonexistent.key', default='fallback') == 'fallback'
+
+    def test_update_many_persists_in_one_write_path(self, tmp_config_dir):
+        cm = ConfigManager(config_dir=str(tmp_config_dir / 'NeatCopy'))
+        cm.update_many({
+            'general.toast_notification': False,
+            'general.double_ctrl_c.interval_ms': 450,
+        })
+        cm2 = ConfigManager(config_dir=str(tmp_config_dir / 'NeatCopy'))
+        assert cm2.get('general.toast_notification') is False
+        assert cm2.get('general.double_ctrl_c.interval_ms') == 450
 
 
 class TestConfigManagerCorruptedFile:
@@ -90,13 +110,48 @@ class TestConfigManagerAllReturnsCopy:
 
 
 class TestConfigManagerPrompts:
-    def test_default_prompt_exists(self, tmp_config_dir):
+    def test_builtin_prompts_exist(self, tmp_config_dir):
         cm = ConfigManager(config_dir=str(tmp_config_dir / 'NeatCopy'))
         prompts = cm.get('llm.prompts')
-        assert len(prompts) >= 1
-        assert prompts[0]['id'] == 'default'
+        prompt_ids = [prompt['id'] for prompt in prompts]
+        assert prompt_ids[:4] == [prompt['id'] for prompt in BUILTIN_PROMPTS]
 
     def test_default_prompt_is_readonly(self, tmp_config_dir):
         cm = ConfigManager(config_dir=str(tmp_config_dir / 'NeatCopy'))
         prompts = cm.get('llm.prompts')
         assert prompts[0]['readonly'] is True
+
+    def test_existing_config_is_migrated_with_missing_builtin_prompts(self, tmp_config_dir):
+        cfg_dir = tmp_config_dir / 'NeatCopy'
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        cfg_file = cfg_dir / 'config.json'
+        cfg_file.write_text(json.dumps({
+            'llm': {
+                'active_prompt_id': 'default',
+                'prompts': [{'id': 'default', 'name': '旧默认', 'content': '旧内容', 'readonly': True}],
+            }
+        }, ensure_ascii=False), encoding='utf-8')
+
+        cm = ConfigManager(config_dir=str(cfg_dir))
+
+        prompts = cm.get('llm.prompts')
+        prompt_ids = [prompt['id'] for prompt in prompts]
+        assert prompt_ids[:4] == [prompt['id'] for prompt in BUILTIN_PROMPTS]
+        assert cm.get('llm.timeout') == 30
+
+    def test_migrates_old_clear_clipboard_hotkey_default(self, tmp_config_dir):
+        cfg_dir = tmp_config_dir / 'NeatCopy'
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        cfg_file = cfg_dir / 'config.json'
+        cfg_file.write_text(json.dumps({
+            'general': {
+                'clear_clipboard_hotkey': {
+                    'enabled': False,
+                    'keys': 'cmd+alt+backspace',
+                }
+            }
+        }, ensure_ascii=False), encoding='utf-8')
+
+        cm = ConfigManager(config_dir=str(cfg_dir))
+
+        assert cm.get('general.clear_clipboard_hotkey.keys') == 'cmd+alt+k'

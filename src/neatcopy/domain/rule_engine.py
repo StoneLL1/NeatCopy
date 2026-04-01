@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # 规则引擎：8条清洗规则，纯函数，无副作用，执行顺序在 clean() 中集中管理。
 import re
 
@@ -11,6 +13,7 @@ _HALF_TO_FULL = str.maketrans(',.!?;:', '\uff0c\u3002\uff01\uff1f\uff1b\uff1a')
 class RuleEngine:
 
     _PLACEHOLDER_PREFIX = '\x00CODEBLOCK_'
+    _PLACEHOLDER_RE = re.compile(r'(\x00CODEBLOCK_\d+\x00)')
 
     @staticmethod
     def clean(text: str, config: dict) -> str:
@@ -43,19 +46,7 @@ class RuleEngine:
         paragraphs = text.split('\n\n')
         processed = []
         for para in paragraphs:
-            # 含占位符的段落跳过所有清洗
-            if RuleEngine._PLACEHOLDER_PREFIX in para:
-                processed.append(para)
-                continue
-            if config.get('merge_spaces', True):
-                para = RuleEngine._merge_spaces(para)
-            if config.get('smart_punctuation', True):
-                para = RuleEngine._smart_punctuation(para)
-            if config.get('pangu_spacing', True):
-                para = RuleEngine._pangu_spacing(para)
-            if config.get('trim_lines', True):
-                para = RuleEngine._trim_lines(para)
-            processed.append(para)
+            processed.append(RuleEngine._process_paragraph(para, config))
 
         text = '\n\n'.join(processed)
 
@@ -64,6 +55,27 @@ class RuleEngine:
             text = text.replace(placeholder, original)
 
         return text
+
+    @staticmethod
+    def _process_paragraph(para: str, config: dict) -> str:
+        parts = RuleEngine._PLACEHOLDER_RE.split(para)
+        processed = []
+        for part in parts:
+            if not part:
+                continue
+            if RuleEngine._PLACEHOLDER_RE.fullmatch(part):
+                processed.append(part)
+                continue
+            if config.get('merge_spaces', True):
+                part = RuleEngine._merge_spaces(part)
+            if config.get('smart_punctuation', True):
+                part = RuleEngine._smart_punctuation(part)
+            if config.get('pangu_spacing', True):
+                part = RuleEngine._pangu_spacing(part)
+            if config.get('trim_lines', True):
+                part = RuleEngine._trim_lines(part)
+            processed.append(part)
+        return ''.join(processed)
 
     @staticmethod
     def _extract_code_blocks(text: str, store: dict) -> str:

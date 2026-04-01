@@ -1,47 +1,10 @@
-# 剪贴板处理调度：读取剪贴板 → 规则/LLM → 写回剪贴板。
-# 使用 win32clipboard 直接操作，绕过 Qt OleSetClipboard 无重试的问题。
-# 写入时重试（App 可能以延迟渲染持有 clipboard owner，需等其释放）。
-import time
+from __future__ import annotations
+
 from PyQt6.QtCore import QObject, pyqtSignal, QThread
 
-from rule_engine import RuleEngine
-
-
-def _read_clipboard() -> str | None:
-    import win32clipboard
-    for _ in range(5):
-        try:
-            win32clipboard.OpenClipboard(0)
-            try:
-                if win32clipboard.IsClipboardFormatAvailable(win32clipboard.CF_UNICODETEXT):
-                    data = win32clipboard.GetClipboardData(win32clipboard.CF_UNICODETEXT)
-                    if data:
-                        data = data.replace('\r\n', '\n').replace('\r', '\n')
-                    return data if data else None
-                return None
-            finally:
-                win32clipboard.CloseClipboard()
-        except Exception:
-            time.sleep(0.02)
-    return None
-
-
-def _write_clipboard(text: str) -> bool:
-    import win32clipboard
-    for attempt in range(10):
-        try:
-            win32clipboard.OpenClipboard(0)
-            try:
-                win32clipboard.EmptyClipboard()
-                win32clipboard.SetClipboardData(win32clipboard.CF_UNICODETEXT, text)
-                return True
-            finally:
-                win32clipboard.CloseClipboard()
-        except Exception:
-            if attempt < 9:
-                time.sleep(0.05)
-    return False
-
+from neatcopy.domain.rule_engine import RuleEngine
+from neatcopy.infrastructure.clipboard import read_payload, write_text
+from neatcopy.infrastructure.llm_client import LLMClient, classify_error
 
 class _LLMWorker(QThread):
     succeeded = pyqtSignal(str)
@@ -54,28 +17,15 @@ class _LLMWorker(QThread):
         self._llm_config = llm_config
 
     def run(self):
-        import httpx
-        from llm_client import classify_error
         try:
-            cfg = self._llm_config
-            headers = {'Authorization': f'Bearer {cfg.get("api_key", "")}'}
-            payload = {
-                'model': cfg.get('model_id', 'gpt-4o-mini'),
-                'temperature': cfg.get('temperature', 0.2),
-                'messages': [
-                    {'role': 'system', 'content': self._prompt},
-                    {'role': 'user', 'content': self._text},
-                ],
-            }
-            base_url = cfg.get('base_url', 'https://api.openai.com/v1').rstrip('/')
-            with httpx.Client(timeout=30.0) as client:
-                resp = client.post(f'{base_url}/chat/completions',
-                                   json=payload, headers=headers)
-                resp.raise_for_status()
-                content = resp.json()['choices'][0]['message']['content']
-                self.succeeded.emit(content)
+            content = LLMClient().format_sync(
+                self._text,
+                self._prompt,
+                self._llm_config,
+            )
+            self.succeeded.emit(content)
         except Exception as e:
-            self.failed.emit(classify_error(e))
+            self.failed.emit(classify_error(e, timeout=self._llm_config.get('timeout', 30)))
 
 
 class ClipProcessor(QObject):
@@ -91,7 +41,21 @@ class ClipProcessor(QObject):
         self._config = config
 
     def process(self):
-        text = _read_clipboard()
+        payload = read_payload()
+        if payload is None:
+            self.process_done.emit(False, '读取剪贴板失败，请重试')
+            return
+        if not payload.is_text:
+            self.process_done.emit(False, '检测到图片，文本清洗与模型处理不可用')
+            return
+        text = payload.text or ''
+        if not text.strip():
+            self.process_done.emit(False, '剪贴板为空')
+            return
+
+        self.process_text(text)
+
+    def process_text(self, text: str, mode: str | None = None, prompt_id: str | None = None):
         if text is None:
             self.process_done.emit(False, '读取剪贴板失败，请重试')
             return
@@ -99,9 +63,9 @@ class ClipProcessor(QObject):
             self.process_done.emit(False, '剪贴板为空')
             return
 
-        mode = self._config.get('rules.mode', 'rules')
-        if mode == 'llm':
-            self._process_llm(text)
+        resolved_mode = mode or 'rules'
+        if resolved_mode == 'llm':
+            self._process_llm(text, prompt_id=prompt_id)
         else:
             self._process_rules(text)
 
@@ -110,14 +74,14 @@ class ClipProcessor(QObject):
         try:
             rule_config = self._config.get('rules') or {}
             cleaned = RuleEngine.clean(text, rule_config)
-            if _write_clipboard(cleaned):
+            if write_text(cleaned):
                 self.process_done.emit(True, '已清洗，可直接粘贴')
             else:
                 self.process_done.emit(False, '写入剪贴板失败')
         except Exception as e:
             self.process_done.emit(False, f'清洗出错：{e}')
 
-    def _process_llm(self, text: str):
+    def _process_llm(self, text: str, prompt_id: str | None = None):
         # 若上一次请求仍在运行，拒绝新请求，防止 QThread 被 GC 且重复触发
         if self._current_worker is not None and self._current_worker.isRunning():
             self.process_done.emit(False, '正在处理中，请稍候')
@@ -128,7 +92,7 @@ class ClipProcessor(QObject):
             self.process_done.emit(False, '请先在设置中配置 API Key')
             return
 
-        active_id = llm_config.get('active_prompt_id', 'default')
+        active_id = prompt_id or llm_config.get('active_prompt_id', 'default')
         prompts = llm_config.get('prompts') or []
         prompt_obj = next((p for p in prompts if p['id'] == active_id),
                           prompts[0] if prompts else None)
@@ -145,7 +109,7 @@ class ClipProcessor(QObject):
         self._current_worker = worker
 
     def _on_llm_success(self, result: str):
-        if _write_clipboard(result):
+        if write_text(result):
             self.process_done.emit(True, '大模型处理完成，可直接粘贴')
         else:
             self.process_done.emit(False, '写入剪贴板失败')
