@@ -12,6 +12,19 @@ except (AttributeError, OSError):
     pass
 
 
+def _check_single_instance():
+    """检查是否已有实例运行，使用 Windows 命名互斥体。
+
+    Returns:
+        tuple: (mutex_handle, is_duplicate) - is_duplicate 为 True 表示已有实例
+    """
+    mutex_name = "NeatCopy_SingleInstance_Mutex"
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
+    last_error = ctypes.windll.kernel32.GetLastError()
+    is_duplicate = (last_error == 183)  # ERROR_ALREADY_EXISTS
+    return mutex, is_duplicate
+
+
 def _setup_logging():
     """崩溃时写 crash.log，方便冻结模式无 console 时排查问题。"""
     log_dir = os.path.join(os.environ.get('APPDATA', '.'), 'NeatCopy')
@@ -34,10 +47,18 @@ from history_manager import HistoryManager
 
 
 def main():
+    # 单实例检测（先检测，弹窗放在 QApplication 创建后）
+    _mutex, is_duplicate = _check_single_instance()
+
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName('NeatCopy')
     app.setWindowIcon(QIcon(_asset('idle.ico')))  # 应用级别图标
+
+    if is_duplicate:
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.warning(None, 'NeatCopy', 'NeatCopy 已在运行中，请检查系统托盘。')
+        sys.exit(1)
 
     config = ConfigManager()
     # 初始化历史管理器

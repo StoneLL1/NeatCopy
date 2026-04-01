@@ -24,6 +24,8 @@ class TrayManager(QObject):
 
         self._tray = QSystemTrayIcon(self._icon_idle)
         self._tray.setToolTip('NeatCopy')
+        # 左键点击打开设置
+        self._tray.activated.connect(self._on_tray_activated)
         self._build_menu()
         self._tray.show()
 
@@ -107,6 +109,12 @@ class TrayManager(QObject):
             self._act_locked.setText(f'当前锁定：{name}')
         else:
             self._act_locked.setText('当前锁定：无')
+
+    def _on_tray_activated(self, reason):
+        """托盘图标点击事件处理。"""
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            # 左键单击 → 打开设置
+            self.open_settings_requested.emit()
 
     def _on_pause_toggled(self, checked: bool):
         self._act_pause.setText('继续监听' if checked else '暂停监听')
