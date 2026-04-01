@@ -22,23 +22,27 @@ def is_enabled() -> bool:
         return False
 
 
-def enable() -> bool:
-    """启用开机自启动，写入注册表。"""
+def enable() -> tuple[bool, str]:
+    """启用开机自启动，写入注册表。仅在打包状态下生效。
+
+    Returns:
+        tuple: (success, message) - 成功时 message 为空，失败时为原因说明
+    """
     try:
         import winreg
-        # 获取当前 exe 路径（PyInstaller 打包后）或脚本路径
-        if getattr(sys, 'frozen', False):
-            exe_path = sys.executable
-        else:
-            exe_path = str(Path(__file__).parent.parent / 'src' / 'main.py')
+        # 只有打包后的 exe 才能开机自启动，脚本路径无效
+        if not getattr(sys, 'frozen', False):
+            return False, '开机自启动仅在打包后的 exe 版本中可用'
+
+        exe_path = sys.executable
 
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_KEY, 0, winreg.KEY_WRITE)
         winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, exe_path)
         winreg.CloseKey(key)
-        return True
+        return True, ''
     except Exception as e:
         print(f'[Autostart] enable failed: {e}')
-        return False
+        return False, f'写入注册表失败: {e}'
 
 
 def disable() -> bool:
@@ -57,11 +61,16 @@ def disable() -> bool:
         return False
 
 
-def sync_from_config(enabled: bool) -> bool:
-    """根据配置同步注册表状态。"""
+def sync_from_config(enabled: bool) -> tuple[bool, str]:
+    """根据配置同步注册表状态。
+
+    Returns:
+        tuple: (success, message)
+    """
     current = is_enabled()
     if enabled and not current:
         return enable()
     elif not enabled and current:
-        return disable()
-    return True
+        ok = disable()
+        return ok, '' if ok else '删除注册表失败'
+    return True, ''

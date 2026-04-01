@@ -1157,7 +1157,9 @@ class SettingsWindow(QDialog):
         self._mark('general.startup_with_windows', enabled)
         # 实时更新注册表
         if enabled:
-            _autostart_enable()
+            ok, msg = _autostart_enable()
+            if not ok and msg:
+                QMessageBox.warning(self, '开机自启动', msg)
         else:
             _autostart_disable()
 
