@@ -7,7 +7,7 @@
 
 **让复制粘贴更智能的AI 剪贴板 让大模型无处不在**
 
-[![Version](https://img.shields.io/badge/version-v1.9.0-blue.svg)](https://github.com/StoneLL1/NeatCopy/releases)
+[![Version](https://img.shields.io/badge/version-v1.9.2-blue.svg)](https://github.com/StoneLL1/NeatCopy/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-yellow.svg)]()
