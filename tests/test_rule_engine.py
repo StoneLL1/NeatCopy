@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from rule_engine import RuleEngine
+from neatcopy.domain.rule_engine import RuleEngine
 
 ALL_ON = {
     'merge_soft_newline': True,
@@ -165,6 +165,13 @@ class TestCodeBlockContentProtection:
         text = '段落\n\n    x  =  1\n    y  =  2\n\n后段落'
         result = clean(text)
         assert 'x  =  1' in result
+
+    def test_text_around_code_block_still_cleaned(self):
+        text = '前文  with  extra\n```\ncode\n```\n后文English'
+        result = clean(text)
+        assert '前文 with extra' in result
+        assert '后文 English' in result
+        assert '```\ncode\n```' in result
 
 
 class TestIntegration:
