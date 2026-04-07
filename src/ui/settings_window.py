@@ -1163,6 +1163,33 @@ class SettingsWindow(QDialog):
         else:
             _autostart_disable()
 
+    # ── 关闭事件 ─────────────────────────────────────────────
+
+    def closeEvent(self, event):
+        if self._pending:
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle('未保存的修改')
+            msg_box.setIcon(QMessageBox.Icon.Warning)
+            msg_box.setText('设置已更改但尚未保存，关闭后修改将丢失。')
+            msg_box.setInformativeText('是否保存更改？')
+            btn_save = msg_box.addButton('保存', QMessageBox.ButtonRole.AcceptRole)
+            btn_discard = msg_box.addButton('不保存', QMessageBox.ButtonRole.DestructiveRole)
+            btn_cancel = msg_box.addButton('取消', QMessageBox.ButtonRole.RejectRole)
+            msg_box.setDefaultButton(btn_save)
+            msg_box.setMinimumWidth(480)
+            # 让按钮文字更宽，避免挤在一起
+            for btn in (btn_save, btn_discard, btn_cancel):
+                btn.setMinimumWidth(90)
+            msg_box.exec()
+            clicked = msg_box.clickedButton()
+            if clicked == btn_save:
+                self._do_save()
+            elif clicked == btn_cancel:
+                event.ignore()
+                return
+            # btn_discard: 直接关闭
+        super().closeEvent(event)
+
     # ── 保存 ─────────────────────────────────────────────────
 
     def _mark(self, key: str, value):
