@@ -3,7 +3,7 @@
 from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout
 from PyQt6.QtCore import Qt
 
-from ui.styles import ColorPalette, FONT_SIZE_SM, FONT_SIZE_XS
+from ui.styles import ColorPalette, FONT_SIZE_SM, FONT_SIZE_XS, RADIUS_MD
 
 
 class Card(QFrame):
@@ -19,7 +19,7 @@ class Card(QFrame):
 
         # Main layout
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)  # sp_5 = 20px
+        layout.setContentsMargins(20, 20, 20, 20)  # sp-5 = 20px
         layout.setSpacing(0)
 
         # Title label
@@ -30,7 +30,8 @@ class Card(QFrame):
                 QLabel#card_title {{
                     font-size: {FONT_SIZE_SM};
                     font-weight: 600;
-                    margin-bottom: 16px;
+                    padding-bottom: 16px;
+                    background: transparent;
                 }}
             """)
             layout.addWidget(self._title_label)
@@ -45,8 +46,9 @@ class Card(QFrame):
             self._desc_label.setStyleSheet(f"""
                 QLabel#card_desc {{
                     font-size: {FONT_SIZE_XS};
-                    margin-top: -16px;
-                    margin-bottom: 12px;
+                    padding-top: 0px;
+                    padding-bottom: 12px;
+                    background: transparent;
                 }}
             """)
             layout.addWidget(self._desc_label)
@@ -74,8 +76,7 @@ class Card(QFrame):
             QFrame#card {{
                 background: {c['bg']};
                 border: 1px solid {c['border']};
-                border-radius: 8px;
-                margin-bottom: 16px;
+                border-radius: {RADIUS_MD};
             }}
         """)
 
@@ -85,7 +86,8 @@ class Card(QFrame):
                     color: {c['fg']};
                     font-size: {FONT_SIZE_SM};
                     font-weight: 600;
-                    margin-bottom: 16px;
+                    padding-bottom: 16px;
+                    background: transparent;
                 }}
             """)
 
@@ -94,8 +96,8 @@ class Card(QFrame):
                 QLabel#card_desc {{
                     color: {c['muted']};
                     font-size: {FONT_SIZE_XS};
-                    margin-top: -16px;
-                    margin-bottom: 12px;
+                    padding-bottom: 12px;
+                    background: transparent;
                 }}
             """)
 

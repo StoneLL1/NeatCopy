@@ -123,13 +123,14 @@ class HistoryWindow(QWidget):
             }}
         """)
 
-        # 清空按钮（ghost 样式）
+        # 清空按钮（ghost 样式 btn-sm）
         self.clear_all_btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
                 border: 1px solid {c['border']};
                 border-radius: {RADIUS_SM};
                 padding: 4px 12px;
+                min-height: 24px;
                 color: {c['muted']};
                 font-size: {FONT_SIZE_XS};
             }}
@@ -192,13 +193,14 @@ class HistoryWindow(QWidget):
         self.original_edit.setStyleSheet(edit_style)
         self.result_edit.setStyleSheet(edit_style)
 
-        # 复制按钮（ghost）
+        # 复制按钮（btn-sm ghost）
         ghost_btn = f"""
             QPushButton {{
                 background: transparent;
                 border: 1px solid {c['border']};
                 border-radius: {RADIUS_SM};
                 padding: 4px 12px;
+                min-height: 24px;
                 color: {c['fg']};
                 font-size: {FONT_SIZE_XS};
             }}
@@ -210,13 +212,14 @@ class HistoryWindow(QWidget):
         self.copy_original_btn.setStyleSheet(ghost_btn)
         self.copy_result_btn.setStyleSheet(ghost_btn)
 
-        # 删除按钮（danger ghost）
+        # 删除按钮（danger btn-sm ghost）
         self.delete_btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
                 border: 1px solid {c['border']};
                 border-radius: {RADIUS_SM};
                 padding: 4px 12px;
+                min-height: 24px;
                 color: {c['danger']};
                 font-size: {FONT_SIZE_XS};
             }}
@@ -457,8 +460,8 @@ class HistoryWindow(QWidget):
         c = ColorPalette.get(self._theme)
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(2)
+        layout.setContentsMargins(16, 10, 16, 10)
+        layout.setSpacing(4)
 
         # 格式化时间
         timestamp = entry.get('timestamp', '')
@@ -511,7 +514,7 @@ class HistoryWindow(QWidget):
         summary_label = QLabel(summary)
         summary_label.setStyleSheet(f"""
             color: {c['fg']};
-            font-size: 12px;
+            font-size: {FONT_SIZE_XS};
             background: transparent;
         """)
         layout.addWidget(summary_label)
@@ -550,7 +553,7 @@ class HistoryWindow(QWidget):
     def _calc_item_size(self, entry):
         """计算列表项的推荐大小（两行布局固定高度）。"""
         from PyQt6.QtCore import QSize
-        return QSize(0, 56)
+        return QSize(0, 62)
 
     def _on_item_clicked(self, item: QListWidgetItem):
         """点击列表项，显示详情。"""

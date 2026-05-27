@@ -257,9 +257,10 @@ def get_settings_stylesheet(theme: str) -> str:
             background: {c['surface_alt']};
             border: 1px solid {c['border']};
             border-radius: {RADIUS_SM};
-            padding: 8px 16px;
-            min-height: 28px;
+            padding: 4px 12px;
+            min-height: 24px;
             color: {c['fg']};
+            font-size: {FONT_SIZE_XS};
             font-weight: 500;
         }}
 
@@ -278,7 +279,8 @@ def get_settings_stylesheet(theme: str) -> str:
             border: none;
             color: {c['accent_on']};
             font-weight: 500;
-            padding: 8px 16px;
+            font-size: {FONT_SIZE_XS};
+            padding: 4px 12px;
             border-radius: {RADIUS_SM};
         }}
 
@@ -291,9 +293,10 @@ def get_settings_stylesheet(theme: str) -> str:
             background: {c['bg']};
             border: 1px solid {c['border']};
             border-radius: {RADIUS_SM};
-            padding: 8px 16px;
-            min-height: 28px;
+            padding: 4px 12px;
+            min-height: 24px;
             color: {c['fg']};
+            font-size: {FONT_SIZE_XS};
         }}
 
         QPushButton#btn_reset:hover {{
@@ -579,9 +582,10 @@ def get_history_stylesheet(theme: str) -> str:
             background: {c['surface_alt']};
             border: 1px solid {c['border']};
             border-radius: {RADIUS_SM};
-            padding: 8px 16px;
-            min-height: 28px;
+            padding: 4px 12px;
+            min-height: 24px;
             color: {c['fg']};
+            font-size: {FONT_SIZE_XS};
             font-weight: 500;
         }}
 
@@ -598,9 +602,10 @@ def get_history_stylesheet(theme: str) -> str:
             background: {c['accent']};
             border: none;
             color: {c['accent_on']};
-            font-weight: bold;
-            padding: 6px 16px;
-            border-radius: {RADIUS_MD};
+            font-weight: 500;
+            padding: 4px 12px;
+            font-size: {FONT_SIZE_XS};
+            border-radius: {RADIUS_SM};
         }}
 
         QPushButton#btn_copy:hover {{
@@ -611,9 +616,9 @@ def get_history_stylesheet(theme: str) -> str:
             background: transparent;
             border: 1px solid {c['border']};
             color: {c['danger']};
-            border-radius: {RADIUS_MD};
-            padding: 5px 14px;
-            min-height: 28px;
+            border-radius: {RADIUS_SM};
+            padding: 4px 12px;
+            font-size: {FONT_SIZE_XS};
         }}
 
         QPushButton#btn_delete:hover {{
@@ -656,15 +661,15 @@ def get_history_stylesheet(theme: str) -> str:
         /* ── Search input ── */
         QLineEdit#search_input {{
             border: 1px solid {c['border']};
-            border-radius: {RADIUS_MD};
+            border-radius: {RADIUS_SM};
             padding: 6px 10px;
             background: {c['surface_alt']};
             color: {c['fg']};
         }}
 
         QLineEdit#search_input:focus {{
-            border: 1.5px solid {c['accent']};
-            padding: 5px 9px;
+            border: 1px solid {c['accent']};
+            padding: 6px 10px;
         }}
 
         /* ── Status label ── */

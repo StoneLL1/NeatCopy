@@ -131,7 +131,7 @@ class SettingsWindow(QDialog):
         return titlebar
 
     def _build_footer(self) -> QWidget:
-        """Build footer bar (52px) with status label and save button."""
+        """Build footer bar (52px) with status label, reset and save buttons."""
         footer = QWidget()
         footer.setObjectName('bottom_bar')
         footer.setFixedHeight(52)
@@ -144,6 +144,11 @@ class SettingsWindow(QDialog):
         self._status_lbl.setObjectName('status_label')
         layout.addWidget(self._status_lbl)
         layout.addStretch()
+
+        self._btn_reset = QPushButton('重置全部')
+        self._btn_reset.setObjectName('btn_reset')
+        self._btn_reset.clicked.connect(self._on_reset_all)
+        layout.addWidget(self._btn_reset)
 
         self._btn_save = QPushButton('保存')
         self._btn_save.setObjectName('btn_save')
@@ -785,7 +790,7 @@ class SettingsWindow(QDialog):
         # Left column: available templates
         left_lay = QVBoxLayout()
         lbl_left = QLabel('可用模板')
-        lbl_left.setStyleSheet(f"color: {c['fg']}; font-weight: 600;")
+        lbl_left.setStyleSheet(f"color: {c['muted']}; font-size: {FONT_SIZE_XS}; font-weight: 600; background: transparent;")
         left_lay.addWidget(lbl_left)
         self._wheel_all_list = QListWidget()
         self._wheel_all_list.setMinimumHeight(150)
@@ -797,7 +802,7 @@ class SettingsWindow(QDialog):
         # Right column: selected templates
         right_lay = QVBoxLayout()
         lbl_right = QLabel(f'轮盘模板（最多{self.MAX_WHEEL_PROMPTS}个）')
-        lbl_right.setStyleSheet(f"color: {c['fg']}; font-weight: 600;")
+        lbl_right.setStyleSheet(f"color: {c['muted']}; font-size: {FONT_SIZE_XS}; font-weight: 600; background: transparent;")
         right_lay.addWidget(lbl_right)
         self._wheel_selected_list = QListWidget()
         self._wheel_selected_list.setMinimumHeight(150)
@@ -808,7 +813,7 @@ class SettingsWindow(QDialog):
         wl.addLayout(columns)
 
         tip = QLabel('提示：勾选左侧模板添加到轮盘')
-        tip.setStyleSheet(f"color: {c['muted']}; font-size: 11px;")
+        tip.setStyleSheet(f"color: {c['muted']}; font-size: {FONT_SIZE_XS}; background: transparent;")
         wl.addWidget(tip)
 
         layout.addWidget(card_wheel)
@@ -1087,7 +1092,7 @@ class SettingsWindow(QDialog):
         # Left: available templates
         left_lay = QVBoxLayout()
         lbl_left = QLabel('可用模板')
-        lbl_left.setStyleSheet(f"color: {c['fg']}; font-weight: 600;")
+        lbl_left.setStyleSheet(f"color: {c['muted']}; font-size: {FONT_SIZE_XS}; font-weight: 600; background: transparent;")
         left_lay.addWidget(lbl_left)
         modal_all = QListWidget()
         modal_all.setMinimumHeight(200)
@@ -1107,7 +1112,7 @@ class SettingsWindow(QDialog):
         # Right: selected templates
         right_lay = QVBoxLayout()
         lbl_right = QLabel(f'轮盘模板（最多{self.MAX_WHEEL_PROMPTS}个）')
-        lbl_right.setStyleSheet(f"color: {c['fg']}; font-weight: 600;")
+        lbl_right.setStyleSheet(f"color: {c['muted']}; font-size: {FONT_SIZE_XS}; font-weight: 600; background: transparent;")
         right_lay.addWidget(lbl_right)
         modal_selected = QListWidget()
         modal_selected.setMinimumHeight(200)
@@ -1131,7 +1136,7 @@ class SettingsWindow(QDialog):
         v.addLayout(columns)
 
         tip = QLabel('提示：勾选左侧模板添加到轮盘')
-        tip.setStyleSheet(f"color: {c['muted']}; font-size: 11px;")
+        tip.setStyleSheet(f"color: {c['muted']}; font-size: {FONT_SIZE_XS}; background: transparent;")
         v.addWidget(tip)
 
         btn_row = QHBoxLayout()
@@ -1208,7 +1213,7 @@ class SettingsWindow(QDialog):
         # GitHub link
         github_label = QLabel(
             '<a href="https://github.com/StoneLL1/NeatCopy" '
-            f'style="color: {c["fg"]}; text-decoration: underline;">'
+            f'style="color: {c["fg"]}; text-decoration: underline; font-size: {FONT_SIZE_SM};">'
             'github.com/StoneLL1/NeatCopy</a>')
         github_label.setTextFormat(Qt.TextFormat.RichText)
         github_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
@@ -1216,7 +1221,7 @@ class SettingsWindow(QDialog):
         github_label.linkActivated.connect(self._open_github)
         layout.addWidget(github_label)
 
-        layout.addSpacing(16)
+        layout.addSpacing(32)
 
         # Check update button
         self._btn_check_update = QPushButton('检查更新')
@@ -1224,9 +1229,10 @@ class SettingsWindow(QDialog):
             QPushButton {{
                 background: {c['surface_alt']};
                 border: 1px solid {c['border']};
-                border-radius: 8px;
+                border-radius: 6px;
                 padding: 8px 24px;
                 color: {c['fg']};
+                font-size: {FONT_SIZE_SM};
             }}
             QPushButton:hover {{
                 border-color: {c['border_strong']};
@@ -1389,6 +1395,23 @@ class SettingsWindow(QDialog):
         self._drag_pos = None
 
     # ── Save ────────────────────────────────────────────────────────
+
+    def _on_reset_all(self):
+        """Reset all settings to defaults after confirmation."""
+        reply = QMessageBox.question(
+            self, '确认重置',
+            '确定要将所有设置恢复为默认值吗？此操作不可撤销。',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        from config_manager import DEFAULT_CONFIG
+        for key, value in DEFAULT_CONFIG.items():
+            if not key.startswith('llm.prompts'):
+                self._mark(key, value)
+        self._do_save()
+        self.close()
 
     def _mark(self, key: str, value):
         """Mark a config key as pending save."""
