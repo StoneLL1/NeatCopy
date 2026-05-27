@@ -39,17 +39,17 @@ class WheelWindow(QWidget):
     # ── 调色板（Design Spec） ───────────────────────
     # 扇区基底 rgba(255,255,255,0.06)
     _SECTOR_BASE   = QColor(255, 255, 255,  15)
-    # 悬停 rgba(255,255,255,0.14)
-    _HOVER_TINT    = QColor(255, 255, 255,  36)
+    # 悬停/选中 rgba(255,255,255,0.2)
+    _HOVER_TINT    = QColor(255, 255, 255,  51)
     _HOVER_BORDER  = QColor(255, 255, 255,  20)
     _HOVER_TEXT    = QColor(255, 255, 255, 178)
     _HOVER_NUM     = QColor(255, 255, 255,  77)
     # 上次使用 last-used mark rgba(255,255,255,0.1)
     _LAST_TINT     = QColor(255, 255, 255,  26)
-    _LAST_BORDER   = QColor(255, 255, 255,  62)
+    _LAST_BORDER   = QColor(255, 255, 255,  20)
     _LAST_TEXT     = QColor(255, 255, 255, 178)
     # 普通状态
-    _BORDER_NORMAL = QColor(255, 255, 255,  18)
+    _BORDER_NORMAL = QColor(255, 255, 255,  20)
     _TEXT_NORMAL   = QColor(255, 255, 255, 179)
     _NUM_NORMAL    = QColor(255, 255, 255,  77)
     # 中心圆 fill rgba(30,30,46,0.95) + stroke rgba(255,255,255,0.1)
@@ -312,7 +312,7 @@ class WheelWindow(QWidget):
 
             # 文字位置
             mid_angle = math.radians(start_angle + sector_deg / 2)
-            text_r = self._INNER_R + (self._OUTER_R - self._INNER_R) * 0.60
+            text_r = (self._OUTER_R + self._INNER_R) / 2 + 8
             tx = cx + text_r * math.cos(mid_angle)
             ty = cy + text_r * math.sin(mid_angle)
 
@@ -326,7 +326,7 @@ class WheelWindow(QWidget):
                 painter.setPen(QPen(self._TEXT_NORMAL))
             name = prompt.get('name', '')
             if len(name) > 5:
-                name = name[:4] + '…'
+                name = name[:5]
             fm = painter.fontMetrics()
             tw = fm.horizontalAdvance(name)
             th = fm.height()

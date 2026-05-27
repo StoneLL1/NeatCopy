@@ -75,6 +75,7 @@ class PreviewWindow(QWidget):
             return {
                 'panel_bg': 'rgba(255, 255, 255, 0.92)',
                 'panel_border': 'rgba(0, 0, 0, 0.08)',
+                'titlebar_border': 'rgba(0, 0, 0, 0.06)',
                 'edit_bg': 'rgba(249, 250, 251, 0.88)',
                 'edit_border': 'rgba(0, 0, 0, 0.08)',
                 'edit_focus_border': c['accent'],
@@ -85,6 +86,7 @@ class PreviewWindow(QWidget):
                 'scrollbar_handle': c['scrollbar_handle'],
                 **status_colors,
                 'prompt_text': c['muted'],
+                'prompt_name_text': c['fg_2'],
                 'btn_bg': c['accent'],
                 'btn_border': c['accent'],
                 'btn_text': c['accent_on'],
@@ -99,21 +101,23 @@ class PreviewWindow(QWidget):
             return {
                 'panel_bg': 'rgba(30, 30, 46, 0.92)',
                 'panel_border': 'rgba(255, 255, 255, 0.08)',
+                'titlebar_border': 'rgba(255, 255, 255, 0.06)',
                 'edit_bg': 'rgba(39, 39, 42, 0.80)',
                 'edit_border': 'rgba(255, 255, 255, 0.06)',
                 'edit_focus_border': c['accent'],
                 'edit_text': '#e2e2e8',
-                'edit_placeholder': c['muted'],
+                'edit_placeholder': 'rgba(255, 255, 255, 0.25)',
                 'edit_selection': 'rgba(250, 250, 250, 0.08)',
                 'scrollbar_bg': c['scrollbar_bg'],
                 'scrollbar_handle': c['scrollbar_handle'],
                 **status_colors,
-                'prompt_text': c['muted'],
+                'prompt_text': 'rgba(255, 255, 255, 0.4)',
+                'prompt_name_text': 'rgba(255, 255, 255, 0.6)',
                 'btn_bg': '#ffffff',
                 'btn_border': '#ffffff',
                 'btn_text': '#1e1e2e',
-                'btn_hover_bg': '#e4e4e7',
-                'btn_hover_border': '#e4e4e7',
+                'btn_hover_bg': 'rgba(255, 255, 255, 0.9)',
+                'btn_hover_border': 'rgba(255, 255, 255, 0.9)',
                 'btn_pressed_bg': '#d4d4d8',
                 'close_text': 'rgba(255, 255, 255, 0.4)',
                 'close_hover_bg': 'rgba(255, 255, 255, 0.08)',
@@ -208,9 +212,10 @@ class PreviewWindow(QWidget):
         # Titlebar border
         titlebar = self.container.findChild(QWidget, 'previewTitlebar')
         if titlebar:
+            tb_border = styles.get('titlebar_border', styles['panel_border'])
             titlebar.setStyleSheet(f"""
                 QWidget#previewTitlebar {{
-                    border-bottom: 1px solid {styles['panel_border']};
+                    border-bottom: 1px solid {tb_border};
                     background: transparent;
                 }}
             """)
@@ -218,10 +223,10 @@ class PreviewWindow(QWidget):
         # 页脚分隔线
         footer = self.container.findChild(QWidget, 'previewFooter')
         if footer:
-            border_color = styles.get('panel_border', 'rgba(255,255,255,0.06)')
+            ft_border = styles.get('titlebar_border', styles['panel_border'])
             footer.setStyleSheet(f"""
                 QWidget#previewFooter {{
-                    border-top: 1px solid {border_color};
+                    border-top: 1px solid {ft_border};
                     background: transparent;
                 }}
             """)
@@ -240,7 +245,10 @@ class PreviewWindow(QWidget):
         }
         color = color_map.get(status, styles['status_waiting'])
 
-        self.status_dot.setStyleSheet(f"color: {color}; font-size: 10px;")
+        self.status_dot.setStyleSheet(f"""
+            background: {color};
+            border-radius: 4px;
+        """)
         self.status_label.setStyleSheet(f"""
             #statusLabel {{
                 color: {color};
@@ -276,11 +284,11 @@ class PreviewWindow(QWidget):
         titlebar.setFixedHeight(36)
         top_bar = QHBoxLayout(titlebar)
         top_bar.setContentsMargins(12, 0, 12, 0)
-        top_bar.setSpacing(6)
+        top_bar.setSpacing(8)
 
         # 状态指示点
-        self.status_dot = QLabel("●")
-        self.status_dot.setFixedWidth(12)
+        self.status_dot = QLabel()
+        self.status_dot.setFixedSize(8, 8)
         top_bar.addWidget(self.status_dot)
 
         # 状态文字
@@ -326,7 +334,6 @@ class PreviewWindow(QWidget):
         # 应用按钮
         self.apply_btn = QPushButton("应用到剪贴板")
         self.apply_btn.setObjectName("applyBtn")
-        self.apply_btn.setFixedHeight(30)
         self.apply_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.apply_btn.clicked.connect(self._on_apply_clicked)
         footer_layout.addWidget(self.apply_btn)
@@ -393,7 +400,16 @@ class PreviewWindow(QWidget):
         self._current_result = result
         self._current_prompt = prompt_name
         self.text_edit.setPlainText(result)
-        self.prompt_label.setText(f"Prompt: {prompt_name}" if prompt_name else "")
+        if prompt_name:
+            styles = self._get_theme_styles(self._theme)
+            name_color = styles.get('prompt_name_text', styles['prompt_text'])
+            self.prompt_label.setText(
+                f'<span style="color:{styles["prompt_text"]}">Prompt:</span> '
+                f'<span style="color:{name_color};font-weight:500">{prompt_name}</span>'
+            )
+            self.prompt_label.setTextFormat(Qt.TextFormat.RichText)
+        else:
+            self.prompt_label.setText("")
         self.set_status("处理完成")
 
     def set_status(self, status: str):

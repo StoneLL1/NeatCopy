@@ -9,7 +9,7 @@ from PyQt6.QtCore import (
     Qt,
 )
 from assets import asset as _asset
-from ui.styles import ColorPalette, FONT_SIZE_XS, FONT_SIZE_SM, RADIUS_SM
+from ui.styles import ColorPalette, FONT_SIZE_XS, FONT_SIZE_SM, RADIUS_SM, RADIUS_MD
 
 
 # ── Toast 通知类型配色 ────────────────────────────────────────
@@ -110,11 +110,21 @@ class ToastWidget(QWidget):
 
     def _fade_out(self):
         """淡出 200ms 后关闭并销毁。"""
+        base_pos = self.pos()
+        down_pos = QPoint(base_pos.x(), base_pos.y() + 4)
+
+        self._anim_pos_out = QPropertyAnimation(self, b'pos')
+        self._anim_pos_out.setDuration(200)
+        self._anim_pos_out.setStartValue(base_pos)
+        self._anim_pos_out.setEndValue(down_pos)
+        self._anim_pos_out.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim_pos_out.start()
+
         self._anim_opacity_out = QPropertyAnimation(self._opacity, b'opacity')
         self._anim_opacity_out.setDuration(200)
         self._anim_opacity_out.setStartValue(1.0)
         self._anim_opacity_out.setEndValue(0.0)
-        self._anim_opacity_out.setEasingCurve(QEasingCurve.Type.InCubic)
+        self._anim_opacity_out.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._anim_opacity_out.finished.connect(self.close)
         self._anim_opacity_out.start()
 
@@ -126,12 +136,12 @@ def _get_menu_stylesheet(theme: str) -> str:
         QMenu {{
             background: {c['bg']};
             border: 1px solid {c['border']};
-            border-radius: 8px;
+            border-radius: {RADIUS_MD};
             padding: 4px 0;
         }}
         QMenu::item {{
             padding: 8px 12px;
-            border-radius: 6px;
+            border-radius: {RADIUS_SM};
             color: {c['fg']};
             font-size: {FONT_SIZE_SM};
         }}
