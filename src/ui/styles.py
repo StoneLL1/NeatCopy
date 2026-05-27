@@ -129,7 +129,7 @@ def get_settings_stylesheet(theme: str) -> str:
 
         /* ── Layout dividers ── */
         QFrame#sidebar_separator {{
-            background: {c['bg']};
+            background: {c['border']};
             max-width: 1px;
             border: none;
         }}
@@ -454,7 +454,7 @@ def get_sidebar_stylesheet(theme: str) -> str:
         }}
 
         QLabel#sidebarAppName {{
-            color: {c['fg_2']};
+            color: {c['fg']};
             font-family: {FONT_FAMILY};
             font-size: {FONT_SIZE_BASE};
             font-weight: bold;

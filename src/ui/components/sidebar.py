@@ -21,13 +21,13 @@ class SidebarWidget(QWidget):
         self.setObjectName('sidebar')
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 16, 0, 16)
+        layout.setContentsMargins(0, 12, 0, 12)
         layout.setSpacing(0)
 
         # App name brand label
         app_name = QLabel('NeatCopy')
         app_name.setObjectName('sidebarAppName')
-        app_name.setContentsMargins(16, 8, 0, 16)
+        app_name.setContentsMargins(16, 8, 16, 16)
         layout.addWidget(app_name)
 
         # Navigation list with 5 items

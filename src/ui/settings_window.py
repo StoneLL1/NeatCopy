@@ -289,7 +289,7 @@ class SettingsWindow(QDialog):
 
         # Row 3: 间隔阈值 — QSlider + QLabel (indented, disabled when double-click off)
         interval_row = QHBoxLayout()
-        interval_row.setContentsMargins(16, 8, 0, 8)
+        interval_row.setContentsMargins(16, 12, 0, 12)
 
         interval_label = QLabel('间隔阈值')
         c = ColorPalette.get(self._theme)
@@ -302,7 +302,7 @@ class SettingsWindow(QDialog):
         self._sld_interval.setSingleStep(50)
         self._sld_interval.setPageStep(50)
         self._sld_interval.setValue(self._config.get('general.double_ctrl_c.interval_ms', 300))
-        self._sld_interval.setFixedWidth(140)
+        self._sld_interval.setFixedWidth(200)
         interval_row.addWidget(self._sld_interval)
 
         self._lbl_interval = QLabel(f"{self._sld_interval.value()} ms")
@@ -350,7 +350,7 @@ class SettingsWindow(QDialog):
 
         # Row 2: QCheckBox — 随清洗热键触发时弹出轮盘 (indented)
         chk_row = QHBoxLayout()
-        chk_row.setContentsMargins(16, 8, 0, 8)
+        chk_row.setContentsMargins(16, 12, 0, 12)
         self._chk_wheel_trigger = QCheckBox('随清洗热键触发时弹出轮盘')
         self._chk_wheel_trigger.setChecked(
             self._config.get('wheel.trigger_with_clean', True))
@@ -739,7 +739,7 @@ class SettingsWindow(QDialog):
         self._sld_temp.setRange(0, 20)
         temp_val = self._config.get('llm.temperature', 0.2)
         self._sld_temp.setValue(int(temp_val * 10))
-        self._sld_temp.setFixedWidth(140)
+        self._sld_temp.setFixedWidth(200)
         self._sld_temp.valueChanged.connect(self._on_temp_changed)
         temp_row.addWidget(self._sld_temp)
 

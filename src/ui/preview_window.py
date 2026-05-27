@@ -205,6 +205,16 @@ class PreviewWindow(QWidget):
             }}
         """)
 
+        # Titlebar border
+        titlebar = self.container.findChild(QWidget, 'previewTitlebar')
+        if titlebar:
+            titlebar.setStyleSheet(f"""
+                QWidget#previewTitlebar {{
+                    border-bottom: 1px solid {styles['panel_border']};
+                    background: transparent;
+                }}
+            """)
+
         # 页脚分隔线
         footer = self.container.findChild(QWidget, 'previewFooter')
         if footer:
@@ -262,6 +272,7 @@ class PreviewWindow(QWidget):
 
         # === 顶部栏：可拖动区域 + 状态 + 关闭按钮 ===
         titlebar = QWidget()
+        titlebar.setObjectName("previewTitlebar")
         titlebar.setFixedHeight(36)
         top_bar = QHBoxLayout(titlebar)
         top_bar.setContentsMargins(12, 0, 12, 0)
@@ -290,7 +301,7 @@ class PreviewWindow(QWidget):
         # === 文本编辑区 ===
         body = QWidget()
         body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(16, 0, 16, 0)
+        body_layout.setContentsMargins(16, 16, 16, 16)
         body_layout.setSpacing(0)
 
         self.text_edit = QTextEdit()

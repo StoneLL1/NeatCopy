@@ -39,9 +39,9 @@ class WheelWindow(QWidget):
     # ── 调色板（Design Spec） ───────────────────────
     # 扇区基底 rgba(255,255,255,0.06)
     _SECTOR_BASE   = QColor(255, 255, 255,  15)
-    # 悬停 / selected rgba(255,255,255,0.2)
-    _HOVER_TINT    = QColor(255, 255, 255,  51)
-    _HOVER_BORDER  = QColor(255, 255, 255, 128)
+    # 悬停 rgba(255,255,255,0.14)
+    _HOVER_TINT    = QColor(255, 255, 255,  36)
+    _HOVER_BORDER  = QColor(255, 255, 255,  20)
     _HOVER_TEXT    = QColor(255, 255, 255, 178)
     _HOVER_NUM     = QColor(255, 255, 255,  77)
     # 上次使用 last-used mark rgba(255,255,255,0.1)
@@ -303,11 +303,11 @@ class WheelWindow(QWidget):
 
             # 3. 边框
             if is_hovered:
-                painter.setPen(QPen(self._HOVER_BORDER, 1.2))
+                painter.setPen(QPen(self._HOVER_BORDER, 1.0))
             elif is_last:
-                painter.setPen(QPen(self._LAST_BORDER, 0.8))
+                painter.setPen(QPen(self._LAST_BORDER, 1.0))
             else:
-                painter.setPen(QPen(self._BORDER_NORMAL, 0.6))
+                painter.setPen(QPen(self._BORDER_NORMAL, 1.0))
             painter.drawPath(path)
 
             # 文字位置
@@ -348,7 +348,7 @@ class WheelWindow(QWidget):
         # ── 中心圆（ESC 提示） ────────────────────────────────
         center_fill = self._CENTER_HOVER if self._center_hovered else self._CENTER_FILL
         painter.setBrush(QBrush(center_fill))
-        painter.setPen(QPen(self._CENTER_BORDER, 0.8))
+        painter.setPen(QPen(self._CENTER_BORDER, 1.0))
         painter.drawEllipse(cx - self._INNER_R, cy - self._INNER_R,
                             self._INNER_R * 2, self._INNER_R * 2)
         painter.setFont(self._font_esc)

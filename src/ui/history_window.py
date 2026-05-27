@@ -113,14 +113,14 @@ class HistoryWindow(QWidget):
             QLineEdit {{
                 border: 1px solid {c['border']};
                 border-radius: {RADIUS_SM};
-                padding: 6px 10px 6px 28px;
+                padding: 8px 10px 8px 24px;
                 background: {c['surface_alt']};
                 color: {c['fg']};
                 font-family: {FONT_FAMILY};
             }}
             QLineEdit:focus {{
                 border: 2px solid {c['accent']};
-                padding: 5px 9px 5px 27px;
+                padding: 7px 9px 7px 23px;
                 background: {c['surface_alt']};
             }}
         """)
@@ -160,7 +160,7 @@ class HistoryWindow(QWidget):
                 color: {c['accent']};
                 border-radius: 9999px;
                 padding: 2px 8px;
-                font-size: 11px;
+                font-size: 10px;
                 font-weight: bold;
             }}
         """)
@@ -506,8 +506,8 @@ class HistoryWindow(QWidget):
             background: {c['accent_soft']};
             color: {c['accent']};
             border-radius: 9999px;
-            padding: 1px 6px;
-            font-size: 11px;
+            padding: 2px 8px;
+            font-size: 10px;
             font-weight: bold;
         """)
         top.addWidget(mode_badge)

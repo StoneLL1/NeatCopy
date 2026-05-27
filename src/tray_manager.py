@@ -14,10 +14,10 @@ from ui.styles import ColorPalette, FONT_SIZE_XS, FONT_SIZE_SM, RADIUS_SM
 
 # ── Toast 通知类型配色 ────────────────────────────────────────
 _TOAST_COLORS = {
-    'save':    lambda c: ('#111827',     '#ffffff'),        # ✓ 已保存 — always dark bg
+    'save':    lambda c: (c['fg'],       c['bg']),          # ✓ 已保存 — fg/bg inversion
     'success': lambda c: (c['success'],  '#ffffff'),        # ✓ 清洗完成
     'error':   lambda c: (c['danger'],   '#ffffff'),        # ✕ 处理失败
-    'info':    lambda c: ('#111827',     '#ffffff'),        # 已应用到剪贴板 — always dark bg
+    'info':    lambda c: (c['fg'],       c['bg']),          # 已应用到剪贴板 — fg/bg inversion
     'warn':    lambda c: (c['warn'],     '#ffffff'),        # ! 连接超时
 }
 
