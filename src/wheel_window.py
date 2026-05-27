@@ -4,7 +4,7 @@ import ctypes
 import ctypes.wintypes as wintypes
 from PyQt6.QtWidgets import QWidget, QApplication, QGraphicsOpacityEffect
 from PyQt6.QtCore import (
-    Qt, QPoint, QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer
+    Qt, QPoint, QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer, pyqtProperty
 )
 from PyQt6.QtGui import (
     QPainter, QColor, QPen, QFont, QPainterPath, QBrush, QCursor
@@ -32,9 +32,9 @@ class WheelWindow(QWidget):
     prompt_selected = pyqtSignal(str)   # 发射选中的 prompt id
     wheel_cancelled = pyqtSignal()      # ESC / 点击外部取消
 
-    _WINDOW_SIZE = 268
-    _OUTER_R = 112
-    _INNER_R = 40
+    _WINDOW_SIZE = 260
+    _OUTER_R = 120
+    _INNER_R = 32
 
     # ── 调色板（Design Spec） ───────────────────────
     # 扇区基底 rgba(255,255,255,0.06)
@@ -71,6 +71,7 @@ class WheelWindow(QWidget):
         self._mouse_hook_handle = None
         self._mouse_hook_proc = None
         self._wheel_open = False
+        self._scale_value = 1.0
 
         # 无边框置顶普通窗口。不使用 Popup（会在 WM_ACTIVATEAPP 时被 Qt 强制关闭）
         # 也不使用 Tool（阻止 Windows 赋予焦点）。点击轮盘外部通过 WH_MOUSE_LL 检测。
@@ -83,16 +84,35 @@ class WheelWindow(QWidget):
         self.setMouseTracking(True)
 
         # 字体（避免在 paintEvent 中每帧重复创建）
-        self._font_name = QFont('Microsoft YaHei UI', 12)
-        self._font_name.setBold(True)
-        self._font_num = QFont('Microsoft YaHei UI', 10)
-        self._font_num.setBold(True)
+        self._font_name = QFont('Microsoft YaHei UI')
+        self._font_name.setPixelSize(12)
+        self._font_name.setWeight(500)
+
+        self._font_num = QFont('Microsoft YaHei UI')
+        self._font_num.setPixelSize(10)
+
+        self._font_esc = QFont('Consolas')
+        self._font_esc.setPixelSize(11)
+        self._font_esc.setWeight(QFont.Weight.DemiBold)
 
         # 透明度动画
         self._opacity_effect = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self._opacity_effect)
         self._anim = QPropertyAnimation(self._opacity_effect, b'opacity', self)
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        # 缩放动画
+        self._scale_anim = QPropertyAnimation(self, b'scale_value', self)
+        self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+    @pyqtProperty(float)
+    def scale_value(self):
+        return self._scale_value
+
+    @scale_value.setter
+    def scale_value(self, val):
+        self._scale_value = val
+        self.update()
 
     # ── 公开接口 ──────────────────────────────────────────────
 
@@ -117,6 +137,7 @@ class WheelWindow(QWidget):
         self.move(x, y)
 
         self._opacity_effect.setOpacity(0.0)
+        self._scale_value = 0.8
         self._wheel_open = True
         self.show()
         self.raise_()
@@ -124,14 +145,21 @@ class WheelWindow(QWidget):
         self.setFocus()
 
         # 展开动画：先断开上一次 _close_wheel 留下的 finished→hide 连接，否则 open 动画
-        # 结束时也会触发 hide()，导致轮盘每次第二次弹出后 150ms 内自动消失。
+        # 结束时也会触发 hide()，导致轮盘每次第二次弹出后自动消失。
         self._anim.stop()
         if self._anim.receivers(self._anim.finished) > 0:
             self._anim.finished.disconnect()
-        self._anim.setDuration(150)
+        self._anim.setDuration(250)
         self._anim.setStartValue(0.0)
         self._anim.setEndValue(1.0)
         self._anim.start()
+
+        # 缩放动画
+        self._scale_anim.stop()
+        self._scale_anim.setDuration(250)
+        self._scale_anim.setStartValue(0.8)
+        self._scale_anim.setEndValue(1.0)
+        self._scale_anim.start()
 
         # 安装全局鼠标钩子，检测轮盘外点击
         self._install_mouse_hook()
@@ -171,11 +199,18 @@ class WheelWindow(QWidget):
         self._anim.stop()
         if self._anim.receivers(self._anim.finished) > 0:
             self._anim.finished.disconnect()
-        self._anim.setDuration(100)
+        self._anim.setDuration(200)
         self._anim.setStartValue(self._opacity_effect.opacity())
         self._anim.setEndValue(0.0)
         self._anim.finished.connect(self.hide)
         self._anim.start()
+
+        # 缩放动画
+        self._scale_anim.stop()
+        self._scale_anim.setDuration(200)
+        self._scale_anim.setStartValue(self._scale_value)
+        self._scale_anim.setEndValue(0.85)
+        self._scale_anim.start()
         if cancelled:
             self.wheel_cancelled.emit()
 
@@ -211,6 +246,12 @@ class WheelWindow(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # 缩放变换：以中心为原点
+        cx = cy = self._WINDOW_SIZE // 2
+        painter.translate(cx, cy)
+        painter.scale(self._scale_value, self._scale_value)
+        painter.translate(-cx, -cy)
 
         n = len(self._prompts)
         if n == 0:
@@ -284,7 +325,7 @@ class WheelWindow(QWidget):
             painter.drawText(int(tx - tw / 2), int(ty + th / 4), name)
 
             # 数字标签（带小药丸背景）
-            num_r = self._INNER_R + 13
+            num_r = self._OUTER_R - 14
             nx = cx + num_r * math.cos(mid_angle)
             ny = cy + num_r * math.sin(mid_angle)
             painter.setFont(self._font_num)
@@ -311,7 +352,7 @@ class WheelWindow(QWidget):
         painter.setPen(QPen(self._CENTER_BORDER, 0.8))
         painter.drawEllipse(cx - self._INNER_R, cy - self._INNER_R,
                             self._INNER_R * 2, self._INNER_R * 2)
-        painter.setFont(self._font_num)
+        painter.setFont(self._font_esc)
         painter.setPen(QPen(self._CENTER_TEXT))
         esc_txt = 'ESC'
         fm_center = painter.fontMetrics()
