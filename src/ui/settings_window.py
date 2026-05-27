@@ -1141,16 +1141,142 @@ class SettingsWindow(QDialog):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setObjectName('content_scroll')
+
         page = QWidget()
         page.setObjectName('content_page')
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(24, 24, 24, 24)
-        label = QLabel('关于（开发中）')
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label)
+        layout.setContentsMargins(48, 48, 48, 48)
+        layout.setSpacing(12)
+        layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+
+        c = ColorPalette.get(self._theme)
+        from ui.styles import FONT_MONO, FONT_SIZE_SM, FONT_SIZE_XS
+
+        # NeatCopy brand name
+        name_label = QLabel('NeatCopy')
+        name_label.setStyleSheet(f"""
+            color: {c['fg']};
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        """)
+        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(name_label)
+
+        # Version
+        version_label = QLabel(f'v{VERSION}')
+        version_label.setStyleSheet(f"""
+            color: {c['muted']};
+            font-family: {FONT_MONO};
+            font-size: {FONT_SIZE_SM};
+        """)
+        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(version_label)
+
+        # Author
+        author_label = QLabel('by StoneLL1')
+        author_label.setStyleSheet(f"""
+            color: {c['muted']};
+            font-size: {FONT_SIZE_SM};
+        """)
+        author_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(author_label)
+
+        # GitHub link
+        github_label = QLabel(
+            '<a href="https://github.com/StoneLL1/NeatCopy" '
+            f'style="color: {c["fg"]}; text-decoration: underline;">'
+            'github.com/StoneLL1/NeatCopy</a>')
+        github_label.setTextFormat(Qt.TextFormat.RichText)
+        github_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        github_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        github_label.linkActivated.connect(self._open_github)
+        layout.addWidget(github_label)
+
+        layout.addSpacing(16)
+
+        # Check update button
+        self._btn_check_update = QPushButton('检查更新')
+        self._btn_check_update.setStyleSheet(f"""
+            QPushButton {{
+                background: {c['surface_alt']};
+                border: 1px solid {c['border']};
+                border-radius: 8px;
+                padding: 8px 24px;
+                color: {c['fg']};
+            }}
+            QPushButton:hover {{
+                border-color: {c['border_strong']};
+                background: {c['fg_soft']};
+            }}
+        """)
+        self._btn_check_update.clicked.connect(self._on_check_update)
+        btn_container = QHBoxLayout()
+        btn_container.addStretch()
+        btn_container.addWidget(self._btn_check_update)
+        btn_container.addStretch()
+        layout.addLayout(btn_container)
+
+        # Star prompt
+        star_label = QLabel('如果觉得有用，欢迎 Star ⭐')
+        star_label.setStyleSheet(f"""
+            color: {c['muted']};
+            font-size: {FONT_SIZE_SM};
+        """)
+        star_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(star_label)
+
         layout.addStretch()
         scroll.setWidget(page)
         return scroll
+
+    def _open_github(self, url: str):
+        QDesktopServices.openUrl(QUrl(url))
+
+    def _on_check_update(self):
+        self._btn_check_update.setEnabled(False)
+        self._btn_check_update.setText('检查中...')
+
+        from PyQt6.QtCore import QThread, pyqtSignal
+
+        class _UpdateWorker(QThread):
+            result = pyqtSignal(str, str)  # latest_version, download_url_or_error
+
+            def run(self):
+                try:
+                    import httpx
+                    with httpx.Client(timeout=10.0) as client:
+                        resp = client.get('https://api.github.com/repos/StoneLL1/NeatCopy/releases/latest')
+                        resp.raise_for_status()
+                        data = resp.json()
+                        latest = data.get('tag_name', '').lstrip('v')
+                        download_url = data.get('html_url', '')
+                        self.result.emit(latest, download_url)
+                except Exception as e:
+                    self.result.emit('', str(e))
+
+        worker = _UpdateWorker()
+        worker.result.connect(self._on_update_result)
+        worker.start()
+        self._update_worker = worker
+
+    def _on_update_result(self, latest: str, url_or_error: str):
+        self._btn_check_update.setEnabled(True)
+        self._btn_check_update.setText('检查更新')
+        if not latest:
+            QMessageBox.warning(self, '检查失败', f'无法获取最新版本信息：{url_or_error}')
+            return
+        if latest == VERSION:
+            QMessageBox.information(self, '已是最新', f'当前版本 v{VERSION} 已是最新版本。')
+        else:
+            msg = f'发现新版本：v{latest}\n当前版本：v{VERSION}\n\n是否前往下载页面？'
+            reply = QMessageBox.question(
+                self, '发现新版本', msg,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                QDesktopServices.openUrl(QUrl(url_or_error))
 
     # ── Theme ───────────────────────────────────────────────────────
 
