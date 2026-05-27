@@ -49,7 +49,7 @@ class PreviewWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.resize(
-            self._config.get('preview.window_width', 360),
+            self._config.get('preview.window_width', 480),
             self._config.get('preview.window_height', 260)
         )
         self.setMinimumSize(240, 180)
@@ -102,7 +102,7 @@ class PreviewWindow(QWidget):
                 'edit_bg': 'rgba(39, 39, 42, 0.80)',
                 'edit_border': 'rgba(255, 255, 255, 0.06)',
                 'edit_focus_border': c['accent'],
-                'edit_text': c['fg'],
+                'edit_text': '#e2e2e8',
                 'edit_placeholder': c['muted'],
                 'edit_selection': 'rgba(250, 250, 250, 0.08)',
                 'scrollbar_bg': c['scrollbar_bg'],
@@ -130,7 +130,7 @@ class PreviewWindow(QWidget):
             #panel {{
                 background: {styles['panel_bg']};
                 border: 1px solid {styles['panel_border']};
-                border-radius: 10px;
+                border-radius: 12px;
             }}
         """)
 
@@ -145,7 +145,7 @@ class PreviewWindow(QWidget):
                 border-radius: 6px;
                 padding: 8px;
                 color: {styles['edit_text']};
-                font-size: 13px;
+                font-size: 14px;
                 selection-background-color: {styles['edit_selection']};
             }}
             QTextEdit:focus {{
@@ -202,7 +202,7 @@ class PreviewWindow(QWidget):
                 border: none;
                 font-size: 12px;
                 color: {styles['close_text']};
-                border-radius: 4px;
+                border-radius: 6px;
             }}
             #closeBtn:hover {{
                 background: {styles['close_hover_bg']};
@@ -228,7 +228,7 @@ class PreviewWindow(QWidget):
         self.status_label.setStyleSheet(f"""
             #statusLabel {{
                 color: {color};
-                font-size: 11px;
+                font-size: 12px;
                 font-weight: 500;
                 letter-spacing: 0.3px;
             }}
@@ -252,7 +252,7 @@ class PreviewWindow(QWidget):
         self.container = QWidget()
         self.container.setObjectName("panel")
         layout = QVBoxLayout(self.container)
-        layout.setContentsMargins(14, 10, 14, 12)
+        layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(8)
 
         # === 顶部栏：可拖动区域 + 状态 + 关闭按钮 ===
@@ -273,7 +273,7 @@ class PreviewWindow(QWidget):
         # 关闭按钮
         self.close_btn = QPushButton("✕")
         self.close_btn.setObjectName("closeBtn")
-        self.close_btn.setFixedSize(26, 26)
+        self.close_btn.setFixedSize(24, 24)
         self.close_btn.clicked.connect(self.hide)
         top_bar.addWidget(self.close_btn)
 
@@ -325,7 +325,7 @@ class PreviewWindow(QWidget):
                 #panel {{
                     background: {self._get_fallback_bg()};
                     border: 1px solid {styles['panel_border']};
-                    border-radius: 10px;
+                    border-radius: 12px;
                 }}
             """)
             return
@@ -347,7 +347,7 @@ class PreviewWindow(QWidget):
                 #panel {{
                     background: {self._get_fallback_bg()};
                     border: 1px solid {styles['panel_border']};
-                    border-radius: 10px;
+                    border-radius: 12px;
                 }}
             """)
 
