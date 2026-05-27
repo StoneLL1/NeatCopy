@@ -49,6 +49,13 @@ class SettingsWindow(QDialog):
         self._toggles: list[ToggleSwitch] = []
         self._segmented_controls: list[SegmentedControl] = []
 
+        # Hotkey recording state
+        self._recording_target = None
+        self._recording_timer = QTimer()
+        self._recording_timer.setSingleShot(True)
+        self._recording_timer.timeout.connect(self._on_recording_timeout)
+        self._hotkey_buttons = {}  # maps 'clean'/'wheel'/'preview'/'history' -> QPushButton
+
         # Window setup
         self.setWindowTitle('NeatCopy 设置')
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
@@ -232,7 +239,7 @@ class SettingsWindow(QDialog):
         parent_layout.addWidget(line)
         return row
 
-    # ── Stub pages (Pages 1-4) ──────────────────────────────────────
+    # ── Hotkeys page (Page 1) ───────────────────────────────────────
 
     def _build_hotkeys_page(self) -> QScrollArea:
         scroll = QScrollArea()
@@ -243,12 +250,303 @@ class SettingsWindow(QDialog):
         page.setObjectName('content_page')
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 24, 24, 24)
-        label = QLabel('快捷键设置（开发中）')
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label)
+        layout.setSpacing(16)
+
+        # ── Card 1: 清洗触发 ──────────────────────────────────────────
+        card_clean = Card('清洗触发')
+        self._cards.append(card_clean)
+
+        # Row 1: 独立热键 — ToggleSwitch + HotkeyBtn
+        self._toggle_clean_hotkey = ToggleSwitch(
+            parent=self, checked=self._config.get('general.custom_hotkey.enabled', True))
+        self._toggles.append(self._toggle_clean_hotkey)
+        self._toggle_clean_hotkey.toggled.connect(
+            lambda v: self._mark('general.custom_hotkey.enabled', v))
+
+        self._btn_clean_hotkey = QPushButton(
+            self._config.get('general.custom_hotkey.keys', 'ctrl+shift+c'))
+        self._btn_clean_hotkey.setObjectName('hotkey_btn')
+        self._btn_clean_hotkey.setCheckable(True)
+        self._btn_clean_hotkey.clicked.connect(self._on_clean_hotkey_btn)
+        self._hotkey_buttons['clean'] = self._btn_clean_hotkey
+
+        self._make_setting_row(card_clean.content_layout(), '独立热键',
+                               self._toggle_clean_hotkey, self._btn_clean_hotkey)
+
+        # Row 2: 双击 Ctrl+C — ToggleSwitch
+        self._toggle_double_ctrl_c = ToggleSwitch(
+            parent=self, checked=self._config.get('general.double_ctrl_c.enabled', False))
+        self._toggles.append(self._toggle_double_ctrl_c)
+        self._toggle_double_ctrl_c.toggled.connect(self._on_double_click_changed)
+        self._make_setting_row(card_clean.content_layout(), '双击 Ctrl+C',
+                               self._toggle_double_ctrl_c)
+
+        # Row 3: 间隔阈值 — QSlider + QLabel (indented, disabled when double-click off)
+        interval_row = QHBoxLayout()
+        interval_row.setContentsMargins(16, 8, 0, 8)
+
+        interval_label = QLabel('间隔阈值')
+        c = ColorPalette.get(self._theme)
+        interval_label.setStyleSheet(f"color: {c['fg']};")
+        interval_row.addWidget(interval_label)
+        interval_row.addStretch()
+
+        self._sld_interval = QSlider(Qt.Orientation.Horizontal)
+        self._sld_interval.setRange(100, 500)
+        self._sld_interval.setSingleStep(50)
+        self._sld_interval.setPageStep(50)
+        self._sld_interval.setValue(self._config.get('general.double_ctrl_c.interval_ms', 300))
+        self._sld_interval.setFixedWidth(140)
+        interval_row.addWidget(self._sld_interval)
+
+        self._lbl_interval = QLabel(f"{self._sld_interval.value()} ms")
+        self._lbl_interval.setStyleSheet(f"color: {c['muted']};")
+        self._lbl_interval.setFixedWidth(50)
+        interval_row.addWidget(self._lbl_interval)
+
+        self._sld_interval.valueChanged.connect(self._on_interval_changed)
+        card_clean.content_layout().addLayout(interval_row)
+
+        # Separator for interval row
+        interval_sep = QFrame()
+        interval_sep.setFrameShape(QFrame.Shape.HLine)
+        interval_sep.setStyleSheet(
+            f"background: {c['border']}; max-height: 1px; border: none;")
+        card_clean.content_layout().addWidget(interval_sep)
+
+        # Disable interval row when double-click is off
+        double_enabled = self._config.get('general.double_ctrl_c.enabled', False)
+        self._sld_interval.setEnabled(double_enabled)
+        self._lbl_interval.setEnabled(double_enabled)
+
+        layout.addWidget(card_clean)
+
+        # ── Card 2: 功能快捷键 ────────────────────────────────────────
+        card_features = Card('功能快捷键')
+        self._cards.append(card_features)
+
+        # Row 1: 轮盘选择器 — ToggleSwitch + HotkeyBtn
+        self._toggle_wheel = ToggleSwitch(
+            parent=self, checked=self._config.get('wheel.enabled', True))
+        self._toggles.append(self._toggle_wheel)
+        self._toggle_wheel.toggled.connect(self._on_wheel_enabled_changed)
+
+        self._btn_wheel_hotkey = QPushButton(
+            self._config.get('wheel.switch_hotkey', 'ctrl+shift+p'))
+        self._btn_wheel_hotkey.setObjectName('hotkey_btn')
+        self._btn_wheel_hotkey.setCheckable(True)
+        self._btn_wheel_hotkey.clicked.connect(self._on_wheel_hotkey_btn)
+        self._hotkey_buttons['wheel'] = self._btn_wheel_hotkey
+
+        self._make_setting_row(card_features.content_layout(), '轮盘选择器',
+                               self._toggle_wheel, self._btn_wheel_hotkey)
+
+        # Row 2: QCheckBox — 随清洗热键触发时弹出轮盘 (indented)
+        chk_row = QHBoxLayout()
+        chk_row.setContentsMargins(16, 8, 0, 8)
+        self._chk_wheel_trigger = QCheckBox('随清洗热键触发时弹出轮盘')
+        self._chk_wheel_trigger.setChecked(
+            self._config.get('wheel.trigger_with_clean', True))
+        self._chk_wheel_trigger.toggled.connect(
+            lambda v: self._mark('wheel.trigger_with_clean', v))
+        wheel_enabled = self._config.get('wheel.enabled', True)
+        self._chk_wheel_trigger.setEnabled(wheel_enabled)
+        chk_row.addWidget(self._chk_wheel_trigger)
+        chk_row.addStretch()
+        card_features.content_layout().addLayout(chk_row)
+
+        chk_sep = QFrame()
+        chk_sep.setFrameShape(QFrame.Shape.HLine)
+        chk_sep.setStyleSheet(
+            f"background: {c['border']}; max-height: 1px; border: none;")
+        card_features.content_layout().addWidget(chk_sep)
+
+        # Row 3: 预览面板 — ToggleSwitch + HotkeyBtn
+        self._toggle_preview = ToggleSwitch(
+            parent=self, checked=self._config.get('preview.enabled', True))
+        self._toggles.append(self._toggle_preview)
+        self._toggle_preview.toggled.connect(
+            lambda v: self._mark('preview.enabled', v))
+
+        self._btn_preview_hotkey = QPushButton(
+            self._config.get('preview.hotkey', 'ctrl+q'))
+        self._btn_preview_hotkey.setObjectName('hotkey_btn')
+        self._btn_preview_hotkey.setCheckable(True)
+        self._btn_preview_hotkey.clicked.connect(self._on_preview_hotkey_btn)
+        self._hotkey_buttons['preview'] = self._btn_preview_hotkey
+
+        self._make_setting_row(card_features.content_layout(), '预览面板',
+                               self._toggle_preview, self._btn_preview_hotkey)
+
+        # Row 4: 历史记录 — ToggleSwitch + HotkeyBtn
+        self._toggle_history = ToggleSwitch(
+            parent=self, checked=self._config.get('history.enabled', True))
+        self._toggles.append(self._toggle_history)
+        self._toggle_history.toggled.connect(
+            lambda v: self._mark('history.enabled', v))
+
+        self._btn_history_hotkey = QPushButton(
+            self._config.get('history.hotkey', 'ctrl+h'))
+        self._btn_history_hotkey.setObjectName('hotkey_btn')
+        self._btn_history_hotkey.setCheckable(True)
+        self._btn_history_hotkey.clicked.connect(self._on_history_hotkey_btn)
+        self._hotkey_buttons['history'] = self._btn_history_hotkey
+
+        self._make_setting_row(card_features.content_layout(), '历史记录',
+                               self._toggle_history, self._btn_history_hotkey)
+
+        layout.addWidget(card_features)
+
+        # ── Card 3: 历史记录 ──────────────────────────────────────────
+        card_history = Card('历史记录')
+        self._cards.append(card_history)
+
+        # Row: 最大条数 — QSpinBox + "条" label
+        spn_max = QSpinBox()
+        spn_max.setRange(50, 2000)
+        spn_max.setFixedWidth(80)
+        spn_max.setValue(self._config.get('history.max_count', 500))
+        spn_max.valueChanged.connect(
+            lambda v: self._mark('history.max_count', v))
+        lbl_suffix = QLabel('条')
+        lbl_suffix.setStyleSheet(f"color: {c['muted']};")
+        self._make_setting_row(card_history.content_layout(), '最大条数',
+                               spn_max, lbl_suffix)
+
+        layout.addWidget(card_history)
+
         layout.addStretch()
         scroll.setWidget(page)
         return scroll
+
+    # ── Hotkey recording ────────────────────────────────────────────
+
+    def _on_clean_hotkey_btn(self, checked: bool):
+        if checked:
+            self._cancel_other_recording('clean')
+            self._btn_clean_hotkey.setText('请按下快捷键组合...')
+            self.grabKeyboard()
+            self._recording_target = 'clean'
+            self._recording_timer.start(5000)
+        else:
+            self._release_recording()
+
+    def _on_wheel_hotkey_btn(self, checked: bool):
+        if checked:
+            self._cancel_other_recording('wheel')
+            self._btn_wheel_hotkey.setText('请按下快捷键组合...')
+            self.grabKeyboard()
+            self._recording_target = 'wheel'
+            self._recording_timer.start(5000)
+        else:
+            self._release_recording()
+
+    def _on_preview_hotkey_btn(self, checked: bool):
+        if checked:
+            self._cancel_other_recording('preview')
+            self._btn_preview_hotkey.setText('请按下快捷键组合...')
+            self.grabKeyboard()
+            self._recording_target = 'preview'
+            self._recording_timer.start(5000)
+        else:
+            self._release_recording()
+
+    def _on_history_hotkey_btn(self, checked: bool):
+        if checked:
+            self._cancel_other_recording('history')
+            self._btn_history_hotkey.setText('请按下快捷键组合...')
+            self.grabKeyboard()
+            self._recording_target = 'history'
+            self._recording_timer.start(5000)
+        else:
+            self._release_recording()
+
+    def _cancel_other_recording(self, current: str):
+        """Uncheck all hotkey buttons except the one being activated."""
+        for name, btn in self._hotkey_buttons.items():
+            if name != current:
+                btn.setChecked(False)
+
+    def _release_recording(self):
+        """Release keyboard and clear recording state."""
+        self.releaseKeyboard()
+        self._recording_target = None
+        self._recording_timer.stop()
+
+    def _on_recording_timeout(self):
+        """Cancel hotkey recording after timeout."""
+        target = self._recording_target
+        if target and target in self._hotkey_buttons:
+            config_map = {
+                'clean': ('general.custom_hotkey.keys', 'ctrl+shift+c'),
+                'wheel': ('wheel.switch_hotkey', 'ctrl+shift+p'),
+                'preview': ('preview.hotkey', 'ctrl+q'),
+                'history': ('history.hotkey', 'ctrl+h'),
+            }
+            key, default = config_map[target]
+            self._hotkey_buttons[target].setText(self._config.get(key, default))
+            self._hotkey_buttons[target].setChecked(False)
+        self._release_recording()
+
+    def keyPressEvent(self, event):
+        """Capture hotkey recording."""
+        target = getattr(self, '_recording_target', None)
+        if target is None:
+            return super().keyPressEvent(event)
+
+        key = event.key()
+        mods = event.modifiers()
+
+        # Ignore pure modifier keys
+        if key in (Qt.Key.Key_Control, Qt.Key.Key_Shift,
+                   Qt.Key.Key_Alt, Qt.Key.Key_Meta, Qt.Key.Key_unknown):
+            return
+
+        parts = []
+        if mods & Qt.KeyboardModifier.ControlModifier:
+            parts.append('ctrl')
+        if mods & Qt.KeyboardModifier.ShiftModifier:
+            parts.append('shift')
+        if mods & Qt.KeyboardModifier.AltModifier:
+            parts.append('alt')
+
+        try:
+            key_name = Qt.Key(key).name.replace('Key_', '').lower()
+        except (ValueError, KeyError):
+            key_name = ''
+        if key_name:
+            parts.append(key_name)
+
+        if len(parts) >= 2:
+            hotkey_str = '+'.join(parts)
+            config_map = {
+                'clean': 'general.custom_hotkey.keys',
+                'wheel': 'wheel.switch_hotkey',
+                'preview': 'preview.hotkey',
+                'history': 'history.hotkey',
+            }
+            self._hotkey_buttons[target].setText(hotkey_str)
+            self._mark(config_map[target], hotkey_str)
+
+        self._hotkey_buttons[target].setChecked(False)
+        self._release_recording()
+
+    # ── Hotkey page toggles ────────────────────────────────────────
+
+    def _on_wheel_enabled_changed(self, checked: bool):
+        self._mark('wheel.enabled', checked)
+        self._chk_wheel_trigger.setEnabled(checked)
+
+    def _on_double_click_changed(self, checked: bool):
+        self._mark('general.double_ctrl_c.enabled', checked)
+        self._sld_interval.setEnabled(checked)
+        self._lbl_interval.setEnabled(checked)
+
+    def _on_interval_changed(self, value: int):
+        self._lbl_interval.setText(f"{value} ms")
+        self._mark('general.double_ctrl_c.interval_ms', value)
+
+    # ── Stub pages (Pages 2, 3, 4) ──────────────────────────────────
 
     def _build_rules_page(self) -> QScrollArea:
         scroll = QScrollArea()
