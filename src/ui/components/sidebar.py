@@ -1,43 +1,45 @@
-"""Notion-style sidebar navigation widget."""
+"""Shadcn-style sidebar navigation widget."""
 
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QListWidget, QListWidgetItem
 from PyQt6.QtCore import pyqtSignal, Qt
 
-from ui.styles import get_sidebar_stylesheet
+from ui.styles import get_sidebar_stylesheet, FONT_SIZE_BASE
 from ui.components.icon_helper import get_nav_icon
 
 
 class SidebarWidget(QWidget):
-    """Left sidebar navigation with Notion-style visual indicators."""
+    """Left sidebar navigation with Shadcn-style visual indicators."""
 
     currentChanged = pyqtSignal(int)  # emits page index
 
-    def __init__(self, items: list[str], theme: str = 'light', parent=None):
+    NAV_ITEMS = ['通用', '快捷键', '清洗规则', '大模型', '关于']
+
+    def __init__(self, theme='light', parent=None):
         super().__init__(parent)
         self._theme = theme
-        self._items = items
-        self.setFixedWidth(150)
+        self.setFixedWidth(160)
         self.setObjectName('sidebar')
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 16, 0, 16)
         layout.setSpacing(0)
 
-        # App name label - 字体由 QSS 控制
+        # App name brand label
         app_name = QLabel('NeatCopy')
         app_name.setObjectName('sidebarAppName')
-        app_name.setContentsMargins(16, 0, 0, 16)
+        app_name.setContentsMargins(16, 8, 0, 16)
         layout.addWidget(app_name)
 
-        # Navigation list
+        # Navigation list with 5 items
         self._list = QListWidget()
         self._list.setObjectName('sidebarNav')
         self._list.setCurrentRow(0)
-        for item_text in items:
+        for item_text in self.NAV_ITEMS:
             item = QListWidgetItem(item_text)
             item.setIcon(get_nav_icon(item_text, self._theme, 16))
+            # Set minimum height for items
             item.setSizeHint(item.sizeHint().expandedTo(
-                item.sizeHint().__class__(0, 32)))
+                item.sizeHint().__class__(0, 36)))
             self._list.addItem(item)
         self._list.currentRowChanged.connect(self._on_row_changed)
         layout.addWidget(self._list)
@@ -50,7 +52,7 @@ class SidebarWidget(QWidget):
 
     def set_theme(self, theme: str):
         self._theme = theme
-        # 更新所有图标颜色
+        # Update all icon colors
         for i in range(self._list.count()):
             item = self._list.item(i)
             item.setIcon(get_nav_icon(item.text(), self._theme, 16))
