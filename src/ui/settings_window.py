@@ -546,7 +546,7 @@ class SettingsWindow(QDialog):
         self._lbl_interval.setText(f"{value} ms")
         self._mark('general.double_ctrl_c.interval_ms', value)
 
-    # ── Stub pages (Pages 2, 3, 4) ──────────────────────────────────
+    # ── Rules page (Page 2) ──────────────────────────────────────────
 
     def _build_rules_page(self) -> QScrollArea:
         scroll = QScrollArea()
@@ -557,12 +557,49 @@ class SettingsWindow(QDialog):
         page.setObjectName('content_page')
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 24, 24, 24)
-        label = QLabel('清洗规则设置（开发中）')
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label)
+        layout.setSpacing(16)
+
+        # Card 1: 清洗模式
+        card_mode = Card('清洗模式')
+        self._cards.append(card_mode)
+        self._seg_mode = SegmentedControl(
+            ['规则模式', '大模型模式'], parent=self, full_width=True)
+        self._segmented_controls.append(self._seg_mode)
+        current_mode = self._config.get('rules.mode', 'rules')
+        self._seg_mode.setCurrentIndex(0 if current_mode == 'rules' else 1)
+        self._seg_mode.selectionChanged.connect(self._on_mode_changed)
+        card_mode.content_layout().addWidget(self._seg_mode)
+        layout.addWidget(card_mode)
+
+        # Card 2: 规则开关
+        card_rules = Card('规则开关', description='规则模式下生效')
+        self._cards.append(card_rules)
+        for key, (label_text, hint_text) in RULE_LABELS.items():
+            chk = QCheckBox(label_text)
+            chk.setToolTip(hint_text)
+            chk.setChecked(self._config.get(f'rules.{key}', True))
+            chk.toggled.connect(lambda v, k=key: self._mark(f'rules.{k}', bool(v)))
+            card_rules.content_layout().addWidget(chk)
+            # Separator between rule checkboxes
+            sep = QFrame()
+            sep.setFrameShape(QFrame.Shape.HLine)
+            sep.setStyleSheet(
+                f"background: {ColorPalette.get(self._theme)['border']}; "
+                f"max-height: 1px; border: none;")
+            card_rules.content_layout().addWidget(sep)
+        layout.addWidget(card_rules)
+
         layout.addStretch()
         scroll.setWidget(page)
         return scroll
+
+    def _on_mode_changed(self, index: int):
+        """Handle cleaning mode segmented control change."""
+        mode = 'rules' if index == 0 else 'llm'
+        self._mark('rules.mode', mode)
+        # If user selected LLM mode, switch to LLM page
+        if mode == 'llm':
+            self._sidebar.setCurrentIndex(3)  # LLM page
 
     def _build_llm_page(self) -> QScrollArea:
         scroll = QScrollArea()
