@@ -14,7 +14,7 @@ from PyQt6.QtGui import QDesktopServices
 from version import VERSION
 from assets import asset as _asset
 from autostart_manager import enable as _autostart_enable, disable as _autostart_disable
-from ui.styles import get_settings_stylesheet, ColorPalette
+from ui.styles import get_settings_stylesheet, ColorPalette, FONT_MONO, FONT_SIZE_XS
 from ui.components.sidebar import SidebarWidget
 from ui.components.card import Card
 from ui.components.toggle_switch import ToggleSwitch
@@ -619,7 +619,7 @@ class SettingsWindow(QDialog):
         self._toggle_llm.toggled.connect(self._on_llm_toggled)
 
         enable_row = QHBoxLayout()
-        enable_row.setContentsMargins(0, 0, 0, 8)
+        enable_row.setContentsMargins(0, 0, 0, 16)
         lbl_enable = QLabel('启用大模型模式')
         c = ColorPalette.get(self._theme)
         lbl_enable.setStyleSheet(f"color: {c['fg']}; font-weight: 600;")
@@ -651,7 +651,7 @@ class SettingsWindow(QDialog):
         key_row = QHBoxLayout()
         key_row.setContentsMargins(0, 8, 0, 8)
         lbl_key = QLabel('API Key')
-        lbl_key.setStyleSheet(f"color: {c['fg']};")
+        lbl_key.setStyleSheet(f"color: {c['fg']}; font-size: {FONT_SIZE_XS};")
         key_row.addWidget(lbl_key)
         key_row.addStretch()
 
@@ -664,6 +664,18 @@ class SettingsWindow(QDialog):
         self._btn_show_key = QPushButton('显示')
         self._btn_show_key.setCheckable(True)
         self._btn_show_key.setFixedWidth(50)
+        self._btn_show_key.setStyleSheet(f"""
+            QPushButton {{
+                background: none;
+                border: none;
+                font-size: {FONT_SIZE_XS};
+                color: {c['muted']};
+                cursor: pointer;
+            }}
+            QPushButton:hover {{
+                color: {c['fg']};
+            }}
+        """)
         self._btn_show_key.toggled.connect(self._on_toggle_apikey_visibility)
         key_row.addWidget(self._btn_show_key)
         cl.addLayout(key_row)
@@ -690,7 +702,7 @@ class SettingsWindow(QDialog):
         temp_row.addWidget(self._sld_temp)
 
         self._lbl_temp_val = QLabel(f'{temp_val:.1f}')
-        self._lbl_temp_val.setStyleSheet(f"color: {c['muted']};")
+        self._lbl_temp_val.setStyleSheet(f"color: {c['muted']}; font-family: {FONT_MONO}; font-size: {FONT_SIZE_XS};")
         self._lbl_temp_val.setFixedWidth(30)
         temp_row.addWidget(self._lbl_temp_val)
         cl.addLayout(temp_row)

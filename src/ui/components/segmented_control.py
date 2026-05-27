@@ -99,8 +99,8 @@ class SegmentedControl(QWidget):
         self._theme = theme
         c = ColorPalette.get(theme)
 
-        # Update all shadow colours
-        shadow_color = QColor(c["border"])
+        # Update all shadow colours — design says 0 1px 2px rgba(0,0,0,0.06)
+        shadow_color = QColor(0, 0, 0, 15)
         for shadow in self._shadows:
             shadow.setColor(shadow_color)
 

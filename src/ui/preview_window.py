@@ -140,16 +140,11 @@ class PreviewWindow(QWidget):
         # 文本编辑区
         self.text_edit.setStyleSheet(f"""
             QTextEdit {{
-                background: {styles['edit_bg']};
-                border: 1px solid {styles['edit_border']};
-                border-radius: 6px;
-                padding: 8px;
+                background: transparent;
+                border: none;
                 color: {styles['edit_text']};
                 font-size: 14px;
                 selection-background-color: {styles['edit_selection']};
-            }}
-            QTextEdit:focus {{
-                border: 1px solid {styles['edit_focus_border']};
             }}
             QScrollBar:vertical {{
                 background: {styles['scrollbar_bg']};
@@ -210,6 +205,17 @@ class PreviewWindow(QWidget):
             }}
         """)
 
+        # 页脚分隔线
+        footer = self.container.findChild(QWidget, 'previewFooter')
+        if footer:
+            border_color = styles.get('panel_border', 'rgba(255,255,255,0.06)')
+            footer.setStyleSheet(f"""
+                QWidget#previewFooter {{
+                    border-top: 1px solid {border_color};
+                    background: transparent;
+                }}
+            """)
+
     def _refresh_status_style(self):
         """根据当前状态刷新状态点样式。"""
         status = self.status_label.text()
@@ -252,11 +258,14 @@ class PreviewWindow(QWidget):
         self.container = QWidget()
         self.container.setObjectName("panel")
         layout = QVBoxLayout(self.container)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(8)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         # === 顶部栏：可拖动区域 + 状态 + 关闭按钮 ===
-        top_bar = QHBoxLayout()
+        titlebar = QWidget()
+        titlebar.setFixedHeight(36)
+        top_bar = QHBoxLayout(titlebar)
+        top_bar.setContentsMargins(12, 0, 12, 0)
         top_bar.setSpacing(6)
 
         # 状态指示点
@@ -277,23 +286,32 @@ class PreviewWindow(QWidget):
         self.close_btn.clicked.connect(self.hide)
         top_bar.addWidget(self.close_btn)
 
-        layout.addLayout(top_bar)
+        layout.addWidget(titlebar)
 
         # === 文本编辑区 ===
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(16, 0, 16, 0)
+        body_layout.setSpacing(0)
+
         self.text_edit = QTextEdit()
         self.text_edit.setPlaceholderText("等待 LLM 处理结果…")
         self.text_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        layout.addWidget(self.text_edit, stretch=1)
+        body_layout.addWidget(self.text_edit, stretch=1)
+        layout.addWidget(body, stretch=1)
 
         # === 底部栏：prompt 名称 + 应用按钮 ===
-        bottom_bar = QHBoxLayout()
-        bottom_bar.setSpacing(8)
+        footer = QWidget()
+        footer.setObjectName("previewFooter")
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(12, 8, 12, 8)
+        footer_layout.setSpacing(8)
 
         # Prompt 名称
         self.prompt_label = QLabel("")
         self.prompt_label.setObjectName("promptLabel")
-        bottom_bar.addWidget(self.prompt_label)
-        bottom_bar.addStretch()
+        footer_layout.addWidget(self.prompt_label)
+        footer_layout.addStretch()
 
         # 应用按钮
         self.apply_btn = QPushButton("应用到剪贴板")
@@ -301,9 +319,9 @@ class PreviewWindow(QWidget):
         self.apply_btn.setFixedHeight(30)
         self.apply_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.apply_btn.clicked.connect(self._on_apply_clicked)
-        bottom_bar.addWidget(self.apply_btn)
+        footer_layout.addWidget(self.apply_btn)
 
-        layout.addLayout(bottom_bar)
+        layout.addWidget(footer)
 
         outer.addWidget(self.container)
 
