@@ -298,7 +298,7 @@ class HistoryWindow(QWidget):
         titlebar_layout.addWidget(self.title_label)
         titlebar_layout.addStretch()
 
-        self.close_btn = QPushButton("x")
+        self.close_btn = QPushButton("✕")
         self.close_btn.setFixedSize(28, 28)
         self.close_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.close_btn.clicked.connect(self.close)

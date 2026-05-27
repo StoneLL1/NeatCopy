@@ -209,13 +209,13 @@ def get_settings_stylesheet(theme: str) -> str:
             background: transparent;
         }}
 
-        /* ── GroupBox ── */
+        /* ── GroupBox (legacy fallback, matches Card) ── */
         QGroupBox {{
             background: {c['bg']};
             border: 1px solid {c['border']};
-            border-radius: {RADIUS_LG};
+            border-radius: {RADIUS_MD};
             margin-top: 16px;
-            padding: 18px 12px 12px;
+            padding: 20px;
             font-weight: normal;
         }}
 
@@ -226,8 +226,8 @@ def get_settings_stylesheet(theme: str) -> str:
             padding: 0 6px;
             background: {c['bg']};
             color: {c['fg']};
-            font-size: 15px;
-            font-weight: bold;
+            font-size: {FONT_SIZE_SM};
+            font-weight: 600;
         }}
 
         /* ── Checkbox ── */

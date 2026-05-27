@@ -122,7 +122,7 @@ class SettingsWindow(QDialog):
         layout.addWidget(title_label)
         layout.addStretch()
 
-        close_btn = QPushButton('×')
+        close_btn = QPushButton('✕')
         close_btn.setObjectName('titlebar_close')
         close_btn.setFixedSize(28, 28)
         close_btn.clicked.connect(self.close)
@@ -226,8 +226,9 @@ class SettingsWindow(QDialog):
         """Create a horizontal row: label on left (stretch), widgets on right."""
         row = QHBoxLayout()
         row.setContentsMargins(0, 12, 0, 12)
+        row.setSpacing(12)
         label = QLabel(label_text)
-        label.setStyleSheet(f"color: {ColorPalette.get(self._theme)['fg']};")
+        label.setStyleSheet(f"color: {ColorPalette.get(self._theme)['fg']}; background: transparent;")
         row.addWidget(label)
         row.addStretch()
         for w in widgets:
@@ -305,8 +306,9 @@ class SettingsWindow(QDialog):
         interval_row.addWidget(self._sld_interval)
 
         self._lbl_interval = QLabel(f"{self._sld_interval.value()} ms")
-        self._lbl_interval.setStyleSheet(f"color: {c['muted']};")
-        self._lbl_interval.setFixedWidth(50)
+        self._lbl_interval.setStyleSheet(
+            f"color: {c['muted']}; font-family: {FONT_MONO}; font-size: {FONT_SIZE_XS}; background: transparent;")
+        self._lbl_interval.setFixedWidth(40)
         interval_row.addWidget(self._lbl_interval)
 
         self._sld_interval.valueChanged.connect(self._on_interval_changed)
@@ -649,19 +651,43 @@ class SettingsWindow(QDialog):
         self._cards.append(card_api)
         cl = card_api.content_layout()
 
-        # Row 1: Base URL
+        # Row 1: Base URL (label uses text-xs per design)
+        row_url = QHBoxLayout()
+        row_url.setContentsMargins(0, 12, 0, 0)
+        lbl_url = QLabel('Base URL')
+        lbl_url.setStyleSheet(f"color: {c['fg']}; font-size: {FONT_SIZE_XS}; background: transparent;")
+        row_url.addWidget(lbl_url)
+        row_url.addStretch()
         self._le_base_url = QLineEdit(
             str(self._config.get('llm.base_url', 'https://api.openai.com/v1')))
         self._le_base_url.setPlaceholderText('https://api.openai.com/v1')
         self._le_base_url.textChanged.connect(lambda t: self._mark('llm.base_url', t))
-        self._make_setting_row(cl, 'Base URL', self._le_base_url)
+        row_url.addWidget(self._le_base_url, 1)
+        cl.addLayout(row_url)
 
-        # Row 2: Model ID
+        url_sep = QFrame()
+        url_sep.setFrameShape(QFrame.Shape.HLine)
+        url_sep.setStyleSheet(f"background: {c['border']}; max-height: 1px; border: none;")
+        cl.addWidget(url_sep)
+
+        # Row 2: Model ID (label uses text-xs per design)
+        row_model = QHBoxLayout()
+        row_model.setContentsMargins(0, 12, 0, 0)
+        lbl_model = QLabel('Model ID')
+        lbl_model.setStyleSheet(f"color: {c['fg']}; font-size: {FONT_SIZE_XS}; background: transparent;")
+        row_model.addWidget(lbl_model)
+        row_model.addStretch()
         self._le_model_id = QLineEdit(
             str(self._config.get('llm.model_id', 'gpt-4o-mini')))
         self._le_model_id.setPlaceholderText('gpt-4o-mini')
         self._le_model_id.textChanged.connect(lambda t: self._mark('llm.model_id', t))
-        self._make_setting_row(cl, 'Model ID', self._le_model_id)
+        row_model.addWidget(self._le_model_id, 1)
+        cl.addLayout(row_model)
+
+        model_sep = QFrame()
+        model_sep.setFrameShape(QFrame.Shape.HLine)
+        model_sep.setStyleSheet(f"background: {c['border']}; max-height: 1px; border: none;")
+        cl.addWidget(model_sep)
 
         # Row 3: API Key (password + show/hide toggle)
         key_row = QHBoxLayout()
@@ -718,8 +744,8 @@ class SettingsWindow(QDialog):
         temp_row.addWidget(self._sld_temp)
 
         self._lbl_temp_val = QLabel(f'{temp_val:.1f}')
-        self._lbl_temp_val.setStyleSheet(f"color: {c['muted']}; font-family: {FONT_MONO}; font-size: {FONT_SIZE_XS};")
-        self._lbl_temp_val.setFixedWidth(30)
+        self._lbl_temp_val.setStyleSheet(f"color: {c['muted']}; font-family: {FONT_MONO}; font-size: {FONT_SIZE_XS}; background: transparent;")
+        self._lbl_temp_val.setFixedWidth(40)
         temp_row.addWidget(self._lbl_temp_val)
         cl.addLayout(temp_row)
 
@@ -1187,6 +1213,7 @@ class SettingsWindow(QDialog):
             font-size: 28px;
             font-weight: 800;
             letter-spacing: -0.03em;
+            background: transparent;
         """)
         name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(name_label)
@@ -1197,6 +1224,7 @@ class SettingsWindow(QDialog):
             color: {c['muted']};
             font-family: {FONT_MONO};
             font-size: {FONT_SIZE_SM};
+            background: transparent;
         """)
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(version_label)
@@ -1206,6 +1234,7 @@ class SettingsWindow(QDialog):
         author_label.setStyleSheet(f"""
             color: {c['muted']};
             font-size: {FONT_SIZE_SM};
+            background: transparent;
         """)
         author_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(author_label)
@@ -1221,7 +1250,7 @@ class SettingsWindow(QDialog):
         github_label.linkActivated.connect(self._open_github)
         layout.addWidget(github_label)
 
-        layout.addSpacing(32)
+        layout.addSpacing(24)
 
         # Check update button
         self._btn_check_update = QPushButton('检查更新')
@@ -1230,7 +1259,7 @@ class SettingsWindow(QDialog):
                 background: {c['surface_alt']};
                 border: 1px solid {c['border']};
                 border-radius: 6px;
-                padding: 8px 24px;
+                padding: 8px 16px;
                 color: {c['fg']};
                 font-size: {FONT_SIZE_SM};
             }}
@@ -1251,6 +1280,7 @@ class SettingsWindow(QDialog):
         star_label.setStyleSheet(f"""
             color: {c['muted']};
             font-size: {FONT_SIZE_SM};
+            background: transparent;
         """)
         star_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(star_label)
