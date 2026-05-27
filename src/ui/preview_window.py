@@ -59,64 +59,65 @@ class PreviewWindow(QWidget):
     # ================================================================
 
     def _get_theme_styles(self, theme: str) -> dict:
-        """返回指定主题的样式配置字典。基于 ColorPalette 基础色 + 预览面板专用透明度色。"""
+        """返回指定主题的样式配置字典。基于 Shadcn ColorPalette + 预览面板专用透明度色。"""
         c = ColorPalette.get(theme)
+
+        # 状态点颜色：统一使用 palette 语义色
+        status_colors = {
+            'status_waiting': c['muted'],
+            'status_processing': c['warn'],
+            'status_done': c['success'],
+            'status_failed': c['danger'],
+            'status_applied': c['info'],
+        }
 
         if theme == 'light':
             return {
-                'panel_bg': 'rgba(255, 255, 255, 230)',
-                'panel_border': f'rgba(233, 233, 233, 180)',
-                'edit_bg': 'rgba(247, 247, 245, 220)',
-                'edit_border': f'rgba(218, 218, 218, 120)',
-                'edit_focus_border': f'rgba(55, 53, 47, 150)',
-                'edit_text': c['text_primary'],
-                'edit_placeholder': c['text_secondary'],
-                'edit_selection': 'rgba(55, 53, 47, 80)',
+                'panel_bg': 'rgba(255, 255, 255, 0.92)',
+                'panel_border': 'rgba(0, 0, 0, 0.08)',
+                'edit_bg': 'rgba(249, 250, 251, 0.88)',
+                'edit_border': 'rgba(0, 0, 0, 0.08)',
+                'edit_focus_border': c['accent'],
+                'edit_text': c['fg'],
+                'edit_placeholder': c['muted'],
+                'edit_selection': 'rgba(0, 0, 0, 0.08)',
                 'scrollbar_bg': c['scrollbar_bg'],
-                'scrollbar_handle': 'rgba(160, 160, 160, 120)',
-                'status_waiting': c['text_secondary'],
-                'status_processing': '#f0ad4e',
-                'status_done': '#5cb85c',
-                'status_failed': '#d9534f',
-                'status_applied': '#5bc0de',
-                'prompt_text': c['text_secondary'],
-                'btn_bg': 'rgba(250, 250, 250, 200)',
-                'btn_border': 'rgba(218, 218, 218, 140)',
-                'btn_text': c['text_primary'],
-                'btn_hover_bg': 'rgba(240, 240, 240, 220)',
-                'btn_hover_border': 'rgba(200, 200, 200, 160)',
-                'btn_pressed_bg': 'rgba(228, 228, 228, 240)',
-                'close_text': c['text_secondary'],
-                'close_hover_bg': 'rgba(0, 0, 0, 15)',
-                'close_hover_text': c['text_primary'],
+                'scrollbar_handle': c['scrollbar_handle'],
+                **status_colors,
+                'prompt_text': c['muted'],
+                'btn_bg': c['accent'],
+                'btn_border': c['accent'],
+                'btn_text': c['accent_on'],
+                'btn_hover_bg': c['accent_hover'],
+                'btn_hover_border': c['accent_hover'],
+                'btn_pressed_bg': c['accent_hover'],
+                'close_text': c['muted'],
+                'close_hover_bg': 'rgba(0, 0, 0, 0.05)',
+                'close_hover_text': c['fg'],
             }
         else:  # dark
             return {
-                'panel_bg': 'rgba(25, 25, 25, 210)',
-                'panel_border': f'rgba(55, 53, 47, 140)',
-                'edit_bg': 'rgba(31, 31, 31, 200)',
-                'edit_border': f'rgba(61, 60, 58, 100)',
-                'edit_focus_border': f'rgba(155, 154, 151, 150)',
-                'edit_text': c['text_primary'],
-                'edit_placeholder': c['text_secondary'],
-                'edit_selection': 'rgba(155, 154, 151, 100)',
+                'panel_bg': 'rgba(30, 30, 46, 0.92)',
+                'panel_border': 'rgba(255, 255, 255, 0.08)',
+                'edit_bg': 'rgba(39, 39, 42, 0.80)',
+                'edit_border': 'rgba(255, 255, 255, 0.06)',
+                'edit_focus_border': c['accent'],
+                'edit_text': c['fg'],
+                'edit_placeholder': c['muted'],
+                'edit_selection': 'rgba(250, 250, 250, 0.08)',
                 'scrollbar_bg': c['scrollbar_bg'],
-                'scrollbar_handle': 'rgba(74, 74, 74, 100)',
-                'status_waiting': c['text_secondary'],
-                'status_processing': '#f0ad4e',
-                'status_done': '#5cb85c',
-                'status_failed': '#d9534f',
-                'status_applied': '#5bc0de',
-                'prompt_text': c['text_secondary'],
-                'btn_bg': 'rgba(47, 47, 47, 160)',
-                'btn_border': 'rgba(61, 60, 58, 100)',
-                'btn_text': c['text_primary'],
-                'btn_hover_bg': 'rgba(55, 55, 55, 180)',
-                'btn_hover_border': 'rgba(78, 77, 74, 140)',
-                'btn_pressed_bg': 'rgba(64, 64, 64, 200)',
-                'close_text': c['text_secondary'],
-                'close_hover_bg': 'rgba(255, 255, 255, 25)',
-                'close_hover_text': c['text_primary'],
+                'scrollbar_handle': c['scrollbar_handle'],
+                **status_colors,
+                'prompt_text': c['muted'],
+                'btn_bg': '#fafafa',
+                'btn_border': '#fafafa',
+                'btn_text': '#18181b',
+                'btn_hover_bg': '#e4e4e7',
+                'btn_hover_border': '#e4e4e7',
+                'btn_pressed_bg': '#d4d4d8',
+                'close_text': 'rgba(255, 255, 255, 0.4)',
+                'close_hover_bg': 'rgba(255, 255, 255, 0.08)',
+                'close_hover_text': 'rgba(255, 255, 255, 0.8)',
             }
 
     def _apply_theme(self, theme: str):
@@ -306,17 +307,23 @@ class PreviewWindow(QWidget):
 
         outer.addWidget(self.container)
 
+    def _get_fallback_bg(self) -> str:
+        """返回 Win10 降级时使用的不透明背景色。"""
+        if self._theme == 'dark':
+            return '#1e1e2e'
+        return '#ffffff'
+
     def _apply_acrylic_effect(self):
         if sys.platform != 'win32':
             return
 
         version = sys.getwindowsversion()
         if version.major < 10 or (version.major == 10 and version.build < 22000):
-            # Win10 降级：根据主题设置背景
+            # Win10 降级：使用不透明背景色
             styles = self._get_theme_styles(self._theme)
             self.container.setStyleSheet(f"""
                 #panel {{
-                    background: {styles['panel_bg'].replace('210', '235') if self._theme == 'dark' else styles['panel_bg'].replace('230', '245')};
+                    background: {self._get_fallback_bg()};
                     border: 1px solid {styles['panel_border']};
                     border-radius: 10px;
                 }}
@@ -338,7 +345,7 @@ class PreviewWindow(QWidget):
             styles = self._get_theme_styles(self._theme)
             self.container.setStyleSheet(f"""
                 #panel {{
-                    background: {styles['panel_bg'].replace('210', '235') if self._theme == 'dark' else styles['panel_bg'].replace('230', '245')};
+                    background: {self._get_fallback_bg()};
                     border: 1px solid {styles['panel_border']};
                     border-radius: 10px;
                 }}
