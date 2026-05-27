@@ -7,7 +7,7 @@ from PyQt6.QtCore import (
     Qt, QPoint, QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer
 )
 from PyQt6.QtGui import (
-    QPainter, QColor, QPen, QFont, QPainterPath, QBrush, QCursor, QRadialGradient
+    QPainter, QColor, QPen, QFont, QPainterPath, QBrush, QCursor
 )
 
 _user32 = ctypes.windll.user32
@@ -36,28 +36,26 @@ class WheelWindow(QWidget):
     _OUTER_R = 112
     _INNER_R = 40
 
-    # ── 调色板（Editorial Monochrome） ───────────────────────
-    # 扇区基底（径向渐变：内深 → 外略浅，纯灰阶）
-    _SECTOR_INNER = QColor(16, 16, 16, 242)
-    _SECTOR_OUTER = QColor(26, 26, 26, 235)
-    # 悬停：白色高亮（纯亮度，无色相）
-    _HOVER_TINT   = QColor(255, 255, 255,  18)
-    _HOVER_BORDER = QColor(255, 255, 255, 128)
-    _HOVER_TEXT   = QColor(255, 255, 255)
-    _HOVER_NUM    = QColor(195, 195, 195)
-    # 上次使用：略亮边框区分（无色相）
-    _LAST_TINT    = QColor(255, 255, 255,  10)
-    _LAST_BORDER  = QColor(255, 255, 255,  62)
-    _LAST_TEXT    = QColor(235, 235, 235)
-    # 普通状态
+    # ── 调色板（Design Spec） ───────────────────────
+    # 扇区基底 rgba(255,255,255,0.06)
+    _SECTOR_BASE   = QColor(255, 255, 255,  15)
+    # 悬停 rgba(255,255,255,0.14)
+    _HOVER_TINT    = QColor(255, 255, 255,  36)
+    _HOVER_BORDER  = QColor(255, 255, 255, 128)
+    _HOVER_TEXT    = QColor(255, 255, 255, 178)
+    _HOVER_NUM     = QColor(255, 255, 255,  77)
+    # 上次使用（selected）rgba(255,255,255,0.2)
+    _LAST_TINT     = QColor(255, 255, 255,  51)
+    _LAST_BORDER   = QColor(255, 255, 255,  62)
+    _LAST_TEXT     = QColor(255, 255, 255, 178)
+    # 普通状态 last-used mark rgba(255,255,255,0.1)
     _BORDER_NORMAL = QColor(255, 255, 255,  18)
-    _TEXT_NORMAL   = QColor(205, 205, 205)
-    _NUM_NORMAL    = QColor( 70,  70,  70)
-    # 中心圆
-    _CENTER_INNER  = QColor(10,  10,  10, 252)
-    _CENTER_OUTER  = QColor(20,  20,  20, 246)
-    _CENTER_BORDER = QColor(255, 255, 255,  25)
-    _CENTER_TEXT   = QColor( 55,  55,  55)
+    _TEXT_NORMAL   = QColor(255, 255, 255, 179)
+    _NUM_NORMAL    = QColor(255, 255, 255,  77)
+    # 中心圆 fill rgba(30,30,46,0.95) + stroke rgba(255,255,255,0.1)
+    _CENTER_FILL   = QColor( 30,  30,  46, 242)
+    _CENTER_BORDER = QColor(255, 255, 255,  26)
+    _CENTER_TEXT   = QColor(255, 255, 255, 102)
     # 装饰外圈
     _DECO_RING     = QColor(255, 255, 255,  10)
     # 数字药丸背景
@@ -85,9 +83,9 @@ class WheelWindow(QWidget):
         self.setMouseTracking(True)
 
         # 字体（避免在 paintEvent 中每帧重复创建）
-        self._font_name = QFont('Microsoft YaHei UI', 10)
+        self._font_name = QFont('Microsoft YaHei UI', 12)
         self._font_name.setBold(True)
-        self._font_num = QFont('Microsoft YaHei UI', 7)
+        self._font_num = QFont('Microsoft YaHei UI', 10)
         self._font_num.setBold(True)
 
         # 透明度动画
@@ -222,11 +220,8 @@ class WheelWindow(QWidget):
         sector_deg = 360.0 / n
         start_offset = -90.0  # 从正上方开始
 
-        # 扇区基底径向渐变（所有扇区共用，从中心到外缘）
-        base_grad = QRadialGradient(cx, cy, self._OUTER_R * 1.05)
-        inner_stop = self._INNER_R / (self._OUTER_R * 1.05)
-        base_grad.setColorAt(inner_stop, self._SECTOR_INNER)
-        base_grad.setColorAt(1.0, self._SECTOR_OUTER)
+        # 扇区基底填充 rgba(255,255,255,0.06)
+        sector_base = self._SECTOR_BASE
 
         for i, prompt in enumerate(self._prompts):
             start_angle = start_offset + i * sector_deg
@@ -248,8 +243,8 @@ class WheelWindow(QWidget):
                        -(start_angle + sector_deg), sector_deg)
             path.closeSubpath()
 
-            # 1. 基底渐变填充
-            painter.fillPath(path, QBrush(base_grad))
+            # 1. 基底填充
+            painter.fillPath(path, QBrush(sector_base))
 
             # 2. 状态叠加色（半透明覆盖层）
             if is_hovered:
@@ -311,10 +306,8 @@ class WheelWindow(QWidget):
             painter.drawText(int(nx - nw / 2), int(ny + nh / 4), num_str)
 
         # ── 中心圆（ESC 提示） ────────────────────────────────
-        center_grad = QRadialGradient(cx, cy, self._INNER_R)
-        center_grad.setColorAt(0.0, self._CENTER_INNER)
-        center_grad.setColorAt(1.0, self._CENTER_OUTER)
-        painter.setBrush(QBrush(center_grad))
+        # fill rgba(30,30,46,0.95) + stroke rgba(255,255,255,0.1)
+        painter.setBrush(QBrush(self._CENTER_FILL))
         painter.setPen(QPen(self._CENTER_BORDER, 0.8))
         painter.drawEllipse(cx - self._INNER_R, cy - self._INNER_R,
                             self._INNER_R * 2, self._INNER_R * 2)
