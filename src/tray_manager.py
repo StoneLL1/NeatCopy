@@ -1,22 +1,197 @@
 # 托盘管理：图标三态变色、右键菜单、Toast 通知。
-import sys
-from PyQt6.QtWidgets import QSystemTrayIcon, QMenu, QApplication
+from PyQt6.QtWidgets import (
+    QSystemTrayIcon, QMenu, QApplication, QLabel, QWidget, QVBoxLayout,
+    QGraphicsOpacityEffect, QWidgetAction, QPushButton,
+)
 from PyQt6.QtGui import QIcon, QAction
-from PyQt6.QtCore import QTimer, pyqtSignal, QObject
+from PyQt6.QtCore import (
+    QTimer, pyqtSignal, QObject, QPropertyAnimation, QPoint, QEasingCurve,
+    Qt,
+)
 from assets import asset as _asset
+from ui.styles import ColorPalette, FONT_SIZE_SM, RADIUS_SM
+
+
+# ── Toast 通知类型配色 ────────────────────────────────────────
+_TOAST_COLORS = {
+    'save':    lambda c: (c['accent'],   c['accent_on']),  # ✓ 已保存
+    'success': lambda c: (c['success'],  '#ffffff'),        # ✓ 清洗完成
+    'error':   lambda c: (c['danger'],   '#ffffff'),        # ✕ 处理失败
+    'info':    lambda c: (c['fg'],       c['bg']),          # 已应用到剪贴板
+    'warn':    lambda c: (c['warn'],     '#ffffff'),        # ! 连接超时
+}
+
+
+class ToastWidget(QWidget):
+    """轻量 Toast 悬浮通知，淡入从底部上滑，淡出后自动销毁。"""
+
+    def __init__(self, text: str, toast_type: str = 'info',
+                 duration: int = 2000, theme: str = 'light'):
+        super().__init__(None)
+        self._duration = duration
+
+        # 无边框 + 置顶 + 不抢焦点 + 不显示在任务栏
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+
+        c = ColorPalette.get(theme)
+        bg_color, fg_color = _TOAST_COLORS.get(
+            toast_type, _TOAST_COLORS['info'])(c)
+
+        # 内部容器用于 QSS border-radius
+        self._container = QWidget()
+        self._container.setObjectName('toast_root')
+        self._container.setStyleSheet(f"""
+            QWidget#toast_root {{
+                background: {bg_color};
+                color: {fg_color};
+                border-radius: {RADIUS_SM};
+                font-size: {FONT_SIZE_SM};
+                font-weight: 500;
+                padding: 8px 16px;
+            }}
+        """)
+
+        inner = QVBoxLayout(self._container)
+        inner.setContentsMargins(0, 0, 0, 0)
+        label = QLabel(text)
+        label.setStyleSheet('background: transparent; border: none;')
+        inner.addWidget(label)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self._container)
+
+        # 透明度效果
+        self._opacity = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self._opacity)
+        self._opacity.setOpacity(0.0)
+
+        self.adjustSize()
+
+    # ── 动画 ──────────────────────────────────────────────────
+    def show_animated(self):
+        """淡入：上滑 8px，然后延迟淡出。"""
+        base_pos = self.pos()
+        down_pos = QPoint(base_pos.x(), base_pos.y() + 8)
+
+        # 透明度淡入
+        self._anim_opacity_in = QPropertyAnimation(self._opacity, b'opacity')
+        self._anim_opacity_in.setDuration(200)
+        self._anim_opacity_in.setStartValue(0.0)
+        self._anim_opacity_in.setEndValue(1.0)
+        self._anim_opacity_in.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        # 位置上滑
+        self._anim_pos = QPropertyAnimation(self, b'pos')
+        self._anim_pos.setDuration(200)
+        self._anim_pos.setStartValue(down_pos)
+        self._anim_pos.setEndValue(base_pos)
+        self._anim_pos.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        self.show()
+        self._anim_opacity_in.start()
+        self._anim_pos.start()
+
+        # 延迟淡出
+        QTimer.singleShot(self._duration, self._fade_out)
+
+    def _fade_out(self):
+        """淡出 200ms 后关闭并销毁。"""
+        self._anim_opacity_out = QPropertyAnimation(self._opacity, b'opacity')
+        self._anim_opacity_out.setDuration(200)
+        self._anim_opacity_out.setStartValue(1.0)
+        self._anim_opacity_out.setEndValue(0.0)
+        self._anim_opacity_out.setEasingCurve(QEasingCurve.Type.InCubic)
+        self._anim_opacity_out.finished.connect(self.close)
+        self._anim_opacity_out.start()
+
+
+def _get_menu_stylesheet(theme: str) -> str:
+    """生成托盘右键菜单样式。"""
+    c = ColorPalette.get(theme)
+    return f"""
+        QMenu {{
+            background: {c['bg']};
+            border: 1px solid {c['border']};
+            border-radius: 8px;
+            padding: 4px 0;
+        }}
+        QMenu::item {{
+            padding: 8px 12px;
+            border-radius: 6px;
+            color: {c['fg']};
+            font-size: {FONT_SIZE_SM};
+        }}
+        QMenu::item:selected {{
+            background: {c['accent_soft']};
+        }}
+        QMenu::item:disabled {{
+            color: {c['muted']};
+        }}
+        QMenu::separator {{
+            height: 1px;
+            background: {c['border']};
+            margin: 4px 0;
+        }}
+    """
+
+
+def _make_exit_action(menu: QMenu, theme: str) -> QWidgetAction:
+    """创建带 danger 文字色的退出 action（QWidgetAction 方案）。
+    QMenu::item QSS 无法按 action 单独定位颜色，
+    因此用 QWidgetAction 内嵌一个自绘 label 来实现 danger 色。"""
+    c = ColorPalette.get(theme)
+    danger_color = c['danger']
+    danger_soft = c['danger_soft']
+
+    action = QWidgetAction(menu)
+
+    exit_btn = QPushButton('退出')
+    exit_btn.setObjectName('exit_btn')
+    exit_btn.setFlat(True)
+    exit_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    exit_btn.setStyleSheet(f"""
+        QPushButton#exit_btn {{
+            color: {danger_color};
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: {FONT_SIZE_SM};
+            font-weight: normal;
+            text-align: left;
+        }}
+        QPushButton#exit_btn:hover {{
+            background: {danger_soft};
+            color: {danger_color};
+        }}
+        QPushButton#exit_btn:pressed {{
+            background: {danger_color};
+            color: #ffffff;
+        }}
+    """)
+    action.setDefaultWidget(exit_btn)
+
+    return action
 
 
 class TrayManager(QObject):
     open_settings_requested = pyqtSignal()
-    open_history_requested = pyqtSignal()  # 新增
+    open_history_requested = pyqtSignal()
     pause_toggled = pyqtSignal(bool)
     quit_requested = pyqtSignal()
-    locked_prompt_changed = pyqtSignal(str)   # 从菜单切换锁定时发射 prompt id（空字符串=解除）
+    locked_prompt_changed = pyqtSignal(str)
 
     def __init__(self, config=None, parent=None):
         super().__init__(parent)
         self._config = config
-        self._locked_name: str | None = None   # 当前锁定的 prompt 名称
+        self._locked_name: str | None = None
         self._icon_idle = QIcon(_asset('idle.png'))
         self._icon_processing = QIcon(_asset('processing.png'))
         self._icon_success = QIcon(_asset('success.png'))
@@ -24,7 +199,6 @@ class TrayManager(QObject):
 
         self._tray = QSystemTrayIcon(self._icon_idle)
         self._tray.setToolTip('NeatCopy')
-        # 左键点击打开设置
         self._tray.activated.connect(self._on_tray_activated)
         self._build_menu()
         self._tray.show()
@@ -33,23 +207,31 @@ class TrayManager(QObject):
         self._restore_timer.setSingleShot(True)
         self._restore_timer.timeout.connect(self._restore_idle)
 
+        self._toast: ToastWidget | None = None
+
+    def _theme(self) -> str:
+        return self._config.get('ui.theme', 'light') if self._config else 'light'
+
     def _build_menu(self):
-        # 所有 QMenu/QAction 必须存为实例变量，防止 GC 回收
         self._menu = QMenu()
+        self._menu.setStyleSheet(_get_menu_stylesheet(self._theme()))
+
         self._act_settings = QAction('打开设置', self._menu)
         self._act_settings.triggered.connect(self.open_settings_requested)
         self._act_history = QAction('历史记录', self._menu)
         self._act_history.triggered.connect(self.open_history_requested)
 
-        # 锁定 Prompt 状态显示与子菜单
         self._act_locked = QAction('当前锁定：无', self._menu)
-        self._act_locked.setEnabled(False)   # 仅显示用，不可直接点击
+        self._act_locked.setEnabled(False)
         self._menu_lock = QMenu('切换锁定 Prompt', self._menu)
+        self._menu_lock.setStyleSheet(_get_menu_stylesheet(self._theme()))
 
         self._act_pause = QAction('暂停监听', self._menu)
         self._act_pause.setCheckable(True)
         self._act_pause.triggered.connect(self._on_pause_toggled)
-        self._act_quit = QAction('退出', self._menu)
+
+        # 退出项使用 QWidgetAction 实现 danger 色
+        self._act_quit = _make_exit_action(self._menu, self._theme())
         self._act_quit.triggered.connect(self.quit_requested)
 
         self._menu.addAction(self._act_settings)
@@ -63,12 +245,13 @@ class TrayManager(QObject):
         self._menu.addAction(self._act_quit)
         self._tray.setContextMenu(self._menu)
 
-        # 右键菜单弹出时刷新锁定子菜单
         self._menu.aboutToShow.connect(self._refresh_lock_submenu)
 
     def _refresh_lock_submenu(self):
         """每次菜单弹出时重建"切换锁定 Prompt"子菜单。"""
         self._menu_lock.clear()
+        self._menu_lock.setStyleSheet(_get_menu_stylesheet(self._theme()))
+
         if self._config is None:
             return
 
@@ -76,7 +259,6 @@ class TrayManager(QObject):
         visible = [p for p in prompts if p.get('visible_in_wheel', True)][:5]
         locked_id = self._config.get('wheel.locked_prompt_id')
 
-        # 解除锁定选项
         act_none = QAction('（无 / 解除锁定）', self._menu_lock)
         act_none.setCheckable(True)
         act_none.setChecked(not locked_id)
@@ -93,7 +275,6 @@ class TrayManager(QObject):
             act.triggered.connect(lambda checked, _pid=pid: self._on_lock_selected(_pid))
             self._menu_lock.addAction(act)
 
-        # 轮盘未启用时隐藏子菜单
         wheel_cfg = self._config.get('wheel') or {}
         wheel_enabled = wheel_cfg.get('enabled', True)
         self._menu_lock.setEnabled(wheel_enabled)
@@ -113,12 +294,13 @@ class TrayManager(QObject):
     def _on_tray_activated(self, reason):
         """托盘图标点击事件处理。"""
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
-            # 左键单击 → 打开设置
             self.open_settings_requested.emit()
 
     def _on_pause_toggled(self, checked: bool):
         self._act_pause.setText('继续监听' if checked else '暂停监听')
         self.pause_toggled.emit(checked)
+
+    # ── 状态切换 ───────────────────────────────────────────────
 
     def set_processing(self):
         self._restore_timer.stop()
@@ -129,18 +311,60 @@ class TrayManager(QObject):
         self._tray.setIcon(self._icon_success)
         self._tray.setToolTip('NeatCopy — 成功')
         if toast_enabled:
-            self._tray.showMessage('NeatCopy', message,
-                                   QSystemTrayIcon.MessageIcon.Information, 2000)
+            self._show_toast('✓ ' + message, 'success')
         self._restore_timer.start(1500)
 
     def set_error(self, message: str, toast_enabled: bool = True):
         self._tray.setIcon(self._icon_error)
         self._tray.setToolTip('NeatCopy — 错误')
         if toast_enabled:
-            self._tray.showMessage('NeatCopy', message,
-                                   QSystemTrayIcon.MessageIcon.Critical, 3000)
+            self._show_toast('✗ ' + message, 'error', duration=3000)
         self._restore_timer.start(1500)
+
+    def show_save_toast(self, message: str = '已保存'):
+        """显示保存成功的 accent 色 Toast。"""
+        self._show_toast('✓ ' + message, 'save')
+
+    def show_info_toast(self, message: str):
+        """显示信息型 Toast。"""
+        self._show_toast(message, 'info')
+
+    def show_warn_toast(self, message: str):
+        """显示警告型 Toast。"""
+        self._show_toast('⚠ ' + message, 'warn')
+
+    # ── Toast ──────────────────────────────────────────────────
+
+    def _show_toast(self, text: str, toast_type: str = 'info',
+                    duration: int = 2000):
+        """在屏幕右下角显示 Toast。"""
+        if self._toast is not None:
+            self._toast.close()
+            self._toast = None
+
+        toast = ToastWidget(text, toast_type, duration,
+                            theme=self._theme())
+        self._toast = toast
+
+        screen = QApplication.primaryScreen()
+        if screen:
+            geo = screen.availableGeometry()
+            x = geo.right() - toast.width() - 16
+            y = geo.bottom() - toast.height() - 16
+            toast.move(x, y)
+
+        toast.show_animated()
 
     def _restore_idle(self):
         self._tray.setIcon(self._icon_idle)
         self._tray.setToolTip('NeatCopy')
+
+    def refresh_style(self):
+        """主题切换后刷新菜单样式。"""
+        self._menu.setStyleSheet(_get_menu_stylesheet(self._theme()))
+        self._menu_lock.setStyleSheet(_get_menu_stylesheet(self._theme()))
+        # 重建退出 action 以更新 danger 色
+        self._menu.removeAction(self._act_quit)
+        self._act_quit = _make_exit_action(self._menu, self._theme())
+        self._act_quit.triggered.connect(self.quit_requested)
+        self._menu.addAction(self._act_quit)
