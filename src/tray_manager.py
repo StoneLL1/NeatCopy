@@ -9,15 +9,15 @@ from PyQt6.QtCore import (
     Qt,
 )
 from assets import asset as _asset
-from ui.styles import ColorPalette, FONT_SIZE_SM, RADIUS_SM
+from ui.styles import ColorPalette, FONT_SIZE_XS, FONT_SIZE_SM, RADIUS_SM
 
 
 # ── Toast 通知类型配色 ────────────────────────────────────────
 _TOAST_COLORS = {
-    'save':    lambda c: (c['accent'],   c['accent_on']),  # ✓ 已保存
+    'save':    lambda c: ('#111827',     '#ffffff'),        # ✓ 已保存 — always dark bg
     'success': lambda c: (c['success'],  '#ffffff'),        # ✓ 清洗完成
     'error':   lambda c: (c['danger'],   '#ffffff'),        # ✕ 处理失败
-    'info':    lambda c: (c['fg'],       c['bg']),          # 已应用到剪贴板
+    'info':    lambda c: ('#111827',     '#ffffff'),        # 已应用到剪贴板 — always dark bg
     'warn':    lambda c: (c['warn'],     '#ffffff'),        # ! 连接超时
 }
 
@@ -51,7 +51,7 @@ class ToastWidget(QWidget):
                 background: {bg_color};
                 color: {fg_color};
                 border-radius: {RADIUS_SM};
-                font-size: {FONT_SIZE_SM};
+                font-size: {FONT_SIZE_XS};
                 font-weight: 500;
                 padding: 8px 16px;
             }}
@@ -82,14 +82,14 @@ class ToastWidget(QWidget):
 
         # 透明度淡入
         self._anim_opacity_in = QPropertyAnimation(self._opacity, b'opacity')
-        self._anim_opacity_in.setDuration(200)
+        self._anim_opacity_in.setDuration(250)
         self._anim_opacity_in.setStartValue(0.0)
         self._anim_opacity_in.setEndValue(1.0)
         self._anim_opacity_in.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         # 位置上滑
         self._anim_pos = QPropertyAnimation(self, b'pos')
-        self._anim_pos.setDuration(200)
+        self._anim_pos.setDuration(250)
         self._anim_pos.setStartValue(down_pos)
         self._anim_pos.setEndValue(base_pos)
         self._anim_pos.setEasingCurve(QEasingCurve.Type.OutCubic)
