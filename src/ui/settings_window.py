@@ -580,6 +580,17 @@ class SettingsWindow(QDialog):
             chk.setChecked(self._config.get(f'rules.{key}', True))
             chk.toggled.connect(lambda v, k=key: self._mark(f'rules.{k}', bool(v)))
             card_rules.content_layout().addWidget(chk)
+            # Hint label below checkbox (visible, per design)
+            c = ColorPalette.get(self._theme)
+            hint_lbl = QLabel(hint_text)
+            hint_lbl.setStyleSheet(f"""
+                color: {c['muted']};
+                font-size: {FONT_SIZE_XS};
+                padding: 0 0 0 22px;
+                background: transparent;
+                border: none;
+            """)
+            card_rules.content_layout().addWidget(hint_lbl)
             # Separator between rule checkboxes
             sep = QFrame()
             sep.setFrameShape(QFrame.Shape.HLine)
@@ -1157,7 +1168,7 @@ class SettingsWindow(QDialog):
         page = QWidget()
         page.setObjectName('content_page')
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(48, 48, 48, 48)
+        layout.setContentsMargins(24, 48, 24, 48)
         layout.setSpacing(12)
         layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
 

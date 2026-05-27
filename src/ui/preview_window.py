@@ -109,9 +109,9 @@ class PreviewWindow(QWidget):
                 'scrollbar_handle': c['scrollbar_handle'],
                 **status_colors,
                 'prompt_text': c['muted'],
-                'btn_bg': '#fafafa',
-                'btn_border': '#fafafa',
-                'btn_text': '#18181b',
+                'btn_bg': '#ffffff',
+                'btn_border': '#ffffff',
+                'btn_text': '#1e1e2e',
                 'btn_hover_bg': '#e4e4e7',
                 'btn_hover_border': '#e4e4e7',
                 'btn_pressed_bg': '#d4d4d8',
@@ -165,7 +165,7 @@ class PreviewWindow(QWidget):
         self.prompt_label.setStyleSheet(f"""
             #promptLabel {{
                 color: {styles['prompt_text']};
-                font-size: 10px;
+                font-size: 12px;
             }}
         """)
 

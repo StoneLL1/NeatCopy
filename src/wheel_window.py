@@ -4,7 +4,7 @@ import ctypes
 import ctypes.wintypes as wintypes
 from PyQt6.QtWidgets import QWidget, QApplication, QGraphicsOpacityEffect
 from PyQt6.QtCore import (
-    Qt, QPoint, QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer, pyqtProperty
+    Qt, QPoint, QPointF, QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer, pyqtProperty
 )
 from PyQt6.QtGui import (
     QPainter, QColor, QPen, QFont, QPainterPath, QBrush, QCursor
@@ -39,33 +39,30 @@ class WheelWindow(QWidget):
     # ── 调色板（Design Spec） ───────────────────────
     # 扇区基底 rgba(255,255,255,0.06)
     _SECTOR_BASE   = QColor(255, 255, 255,  15)
-    # 悬停 rgba(255,255,255,0.14)
-    _HOVER_TINT    = QColor(255, 255, 255,  36)
+    # 悬停 / selected rgba(255,255,255,0.2)
+    _HOVER_TINT    = QColor(255, 255, 255,  51)
     _HOVER_BORDER  = QColor(255, 255, 255, 128)
     _HOVER_TEXT    = QColor(255, 255, 255, 178)
     _HOVER_NUM     = QColor(255, 255, 255,  77)
-    # 上次使用（selected）rgba(255,255,255,0.2)
-    _LAST_TINT     = QColor(255, 255, 255,  51)
+    # 上次使用 last-used mark rgba(255,255,255,0.1)
+    _LAST_TINT     = QColor(255, 255, 255,  26)
     _LAST_BORDER   = QColor(255, 255, 255,  62)
     _LAST_TEXT     = QColor(255, 255, 255, 178)
-    # 普通状态 last-used mark rgba(255,255,255,0.1)
+    # 普通状态
     _BORDER_NORMAL = QColor(255, 255, 255,  18)
     _TEXT_NORMAL   = QColor(255, 255, 255, 179)
     _NUM_NORMAL    = QColor(255, 255, 255,  77)
     # 中心圆 fill rgba(30,30,46,0.95) + stroke rgba(255,255,255,0.1)
     _CENTER_FILL   = QColor( 30,  30,  46, 242)
+    _CENTER_HOVER  = QColor( 30,  30,  46, 204)  # rgba(30,30,46,0.8)
     _CENTER_BORDER = QColor(255, 255, 255,  26)
     _CENTER_TEXT   = QColor(255, 255, 255, 102)
-    # 装饰外圈
-    _DECO_RING     = QColor(255, 255, 255,  10)
-    # 数字药丸背景
-    _PILL_HOVER    = QColor(255, 255, 255,  22)
-    _PILL_NORMAL   = QColor(255, 255, 255,  13)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._prompts: list[dict] = []
         self._hovered: int = -1
+        self._center_hovered: bool = False
         self._selected_callback = None
         self._last_prompt_id: str | None = None   # 记住上次，供高亮默认用
         self._mouse_hook_handle = None
@@ -84,11 +81,11 @@ class WheelWindow(QWidget):
         self.setMouseTracking(True)
 
         # 字体（避免在 paintEvent 中每帧重复创建）
-        self._font_name = QFont('Microsoft YaHei UI')
+        self._font_name = QFont('Segoe UI Variable, Segoe UI, Microsoft YaHei UI')
         self._font_name.setPixelSize(12)
         self._font_name.setWeight(500)
 
-        self._font_num = QFont('Microsoft YaHei UI')
+        self._font_num = QFont('Cascadia Code, Fira Code, Consolas')
         self._font_num.setPixelSize(10)
 
         self._font_esc = QFont('Consolas')
@@ -99,11 +96,11 @@ class WheelWindow(QWidget):
         self._opacity_effect = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self._opacity_effect)
         self._anim = QPropertyAnimation(self._opacity_effect, b'opacity', self)
-        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim.setEasingCurve(self._make_design_easing())
 
         # 缩放动画
         self._scale_anim = QPropertyAnimation(self, b'scale_value', self)
-        self._scale_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._scale_anim.setEasingCurve(self._make_design_easing())
 
     @pyqtProperty(float)
     def scale_value(self):
@@ -113,6 +110,17 @@ class WheelWindow(QWidget):
     def scale_value(self, val):
         self._scale_value = val
         self.update()
+
+    @staticmethod
+    def _make_design_easing() -> QEasingCurve:
+        """Create cubic-bezier(0.2, 0, 0, 1) easing curve matching the design spec."""
+        curve = QEasingCurve(QEasingCurve.Type.BezierSpline)
+        curve.addCubicBezierSegment(
+            QPointF(0.2, 0.0),
+            QPointF(0.0, 1.0),
+            QPointF(1.0, 1.0)
+        )
+        return curve
 
     # ── 公开接口 ──────────────────────────────────────────────
 
@@ -324,7 +332,7 @@ class WheelWindow(QWidget):
             th = fm.height()
             painter.drawText(int(tx - tw / 2), int(ty + th / 4), name)
 
-            # 数字标签（带小药丸背景）
+            # 数字标签
             num_r = self._OUTER_R - 14
             nx = cx + num_r * math.cos(mid_angle)
             ny = cy + num_r * math.sin(mid_angle)
@@ -334,21 +342,12 @@ class WheelWindow(QWidget):
             nw = fm_num.horizontalAdvance(num_str)
             nh = fm_num.height()
 
-            pill_w = nw + 7
-            pill_h = nh - 1
-            pill_x = int(nx - pill_w / 2)
-            pill_y = int(ny - pill_h / 2)
-            pill_color = self._PILL_HOVER if is_hovered else self._PILL_NORMAL
-            painter.setBrush(QBrush(pill_color))
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRoundedRect(pill_x, pill_y, pill_w, pill_h, 3, 3)
-
             painter.setPen(QPen(self._HOVER_NUM if is_hovered else self._NUM_NORMAL))
             painter.drawText(int(nx - nw / 2), int(ny + nh / 4), num_str)
 
         # ── 中心圆（ESC 提示） ────────────────────────────────
-        # fill rgba(30,30,46,0.95) + stroke rgba(255,255,255,0.1)
-        painter.setBrush(QBrush(self._CENTER_FILL))
+        center_fill = self._CENTER_HOVER if self._center_hovered else self._CENTER_FILL
+        painter.setBrush(QBrush(center_fill))
         painter.setPen(QPen(self._CENTER_BORDER, 0.8))
         painter.drawEllipse(cx - self._INNER_R, cy - self._INNER_R,
                             self._INNER_R * 2, self._INNER_R * 2)
@@ -360,16 +359,15 @@ class WheelWindow(QWidget):
         fh = fm_center.height()
         painter.drawText(cx - fw // 2, cy + fh // 4, esc_txt)
 
-        # ── 装饰外圈 ──────────────────────────────────────────
-        deco_r = self._OUTER_R + 4
-        painter.setPen(QPen(self._DECO_RING, 1.5))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawEllipse(cx - deco_r, cy - deco_r, deco_r * 2, deco_r * 2)
-
     def mouseMoveEvent(self, event):
         new_hovered = self._index_at(event.pos().x(), event.pos().y())
-        if new_hovered != self._hovered:
+        cx = cy = self._WINDOW_SIZE // 2
+        dx = event.pos().x() - cx
+        dy = event.pos().y() - cy
+        new_center = math.hypot(dx, dy) <= self._INNER_R
+        if new_hovered != self._hovered or new_center != self._center_hovered:
             self._hovered = new_hovered
+            self._center_hovered = new_center
             self.update()
 
     def mousePressEvent(self, event):
@@ -395,4 +393,5 @@ class WheelWindow(QWidget):
 
     def leaveEvent(self, event):
         self._hovered = -1
+        self._center_hovered = False
         self.update()

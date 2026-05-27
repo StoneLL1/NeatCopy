@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QMessageBox, QSizePolicy, QSplitter, QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QCursor
+from PyQt6.QtGui import QCursor, QIcon, QPixmap, QPainter, QColor, QPen, QAction
 
 from ui.styles import (
     get_history_stylesheet, ColorPalette,
@@ -46,6 +46,20 @@ class HistoryWindow(QWidget):
             self._config.get('history.window_height', 520)
         )
         self.setMinimumSize(400, 300)
+
+    @staticmethod
+    def _create_search_icon() -> QIcon:
+        """Create a 14x14 magnifying glass icon programmatically."""
+        pm = QPixmap(14, 14)
+        pm.fill(QColor(0, 0, 0, 0))
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(QPen(QColor(0, 0, 0, 120), 1.5))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawEllipse(2, 2, 7, 7)
+        p.drawLine(9, 9, 13, 13)
+        p.end()
+        return QIcon(pm)
 
     # ================================================================
     #  主题样式
@@ -99,7 +113,7 @@ class HistoryWindow(QWidget):
             QLineEdit {{
                 border: 1px solid {c['border']};
                 border-radius: {RADIUS_SM};
-                padding: 6px 10px;
+                padding: 6px 10px 6px 28px;
                 background: {c['surface_alt']};
                 color: {c['fg']};
                 font-family: {FONT_FAMILY};
@@ -290,7 +304,7 @@ class HistoryWindow(QWidget):
         toolbar = QWidget()
         toolbar.setObjectName("toolbar")
         toolbar_layout = QHBoxLayout(toolbar)
-        toolbar_layout.setContentsMargins(16, 8, 16, 8)
+        toolbar_layout.setContentsMargins(16, 12, 16, 12)
         toolbar_layout.setSpacing(12)
 
         self.toolbar_title = QLabel("历史记录")
@@ -304,6 +318,12 @@ class HistoryWindow(QWidget):
         self.search_input.setMaximumWidth(280)
         self.search_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.search_input.textChanged.connect(self._on_search_changed)
+
+        # Search icon (14x14 magnifying glass drawn programmatically)
+        search_icon = self._create_search_icon()
+        search_action = QAction(search_icon, '', self.search_input)
+        self.search_input.addAction(search_action, QLineEdit.ActionPosition.LeadingPosition)
+
         toolbar_layout.addWidget(self.search_input)
 
         self.clear_all_btn = QPushButton("清空")
@@ -437,7 +457,7 @@ class HistoryWindow(QWidget):
         c = ColorPalette.get(self._theme)
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(2)
 
         # 格式化时间
@@ -490,7 +510,7 @@ class HistoryWindow(QWidget):
         # 底行：摘要
         summary_label = QLabel(summary)
         summary_label.setStyleSheet(f"""
-            color: {c['muted']};
+            color: {c['fg']};
             font-size: 12px;
             background: transparent;
         """)
