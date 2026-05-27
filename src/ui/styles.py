@@ -616,7 +616,7 @@ def get_history_stylesheet(theme: str) -> str:
 
         QPushButton#btn_delete {{
             background: transparent;
-            border: 1px solid {c['border']};
+            border: none;
             color: {c['danger']};
             border-radius: {RADIUS_SM};
             padding: 4px 12px;
@@ -625,7 +625,6 @@ def get_history_stylesheet(theme: str) -> str:
 
         QPushButton#btn_delete:hover {{
             background: {c['danger_soft']};
-            border-color: {c['danger']};
         }}
 
         /* ── Labels ── */

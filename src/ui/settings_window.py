@@ -184,7 +184,7 @@ class SettingsWindow(QDialog):
         self._toggles.append(self._toggle_toast)
         self._toggle_toast.toggled.connect(
             lambda v: self._mark('general.toast_notification', v))
-        self._make_setting_row(card_notify.content_layout(), '显示清洗完成通知', self._toggle_toast)
+        self._make_setting_row(card_notify.content_layout(), '显示清洗完成通知', self._toggle_toast, separator=False)
         layout.addWidget(card_notify)
 
         # Card 2: Startup
@@ -194,7 +194,7 @@ class SettingsWindow(QDialog):
             parent=self, checked=self._config.get('general.startup_with_windows', False))
         self._toggles.append(self._toggle_startup)
         self._toggle_startup.toggled.connect(self._on_startup_changed)
-        self._make_setting_row(card_startup.content_layout(), '开机自动启动', self._toggle_startup)
+        self._make_setting_row(card_startup.content_layout(), '开机自动启动', self._toggle_startup, separator=False)
         layout.addWidget(card_startup)
 
         # Card 3: Appearance
@@ -214,7 +214,7 @@ class SettingsWindow(QDialog):
         preview_theme_val = self._config.get('preview.theme', 'dark')
         self._seg_preview_theme.setCurrentIndex(0 if preview_theme_val == 'dark' else 1)
         self._seg_preview_theme.selectionChanged.connect(self._on_preview_theme_changed)
-        self._make_setting_row(card_appearance.content_layout(), '预览面板主题', self._seg_preview_theme)
+        self._make_setting_row(card_appearance.content_layout(), '预览面板主题', self._seg_preview_theme, separator=False)
 
         layout.addWidget(card_appearance)
 
@@ -222,7 +222,7 @@ class SettingsWindow(QDialog):
         scroll.setWidget(page)
         return scroll
 
-    def _make_setting_row(self, parent_layout, label_text, *widgets):
+    def _make_setting_row(self, parent_layout, label_text, *widgets, separator=True):
         """Create a horizontal row: label on left (stretch), widgets on right."""
         row = QHBoxLayout()
         row.setContentsMargins(0, 12, 0, 12)
@@ -235,14 +235,15 @@ class SettingsWindow(QDialog):
             row.addWidget(w)
         parent_layout.addLayout(row)
 
-        # Separator line
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet(
-            f"background: {ColorPalette.get(self._theme)['border']}; "
-            f"max-height: 1px; border: none;"
-        )
-        parent_layout.addWidget(line)
+        # Separator line (only between rows, not after the last)
+        if separator:
+            line = QFrame()
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setStyleSheet(
+                f"background: {ColorPalette.get(self._theme)['border']}; "
+                f"max-height: 1px; border: none;"
+            )
+            parent_layout.addWidget(line)
         return row
 
     # ── Hotkeys page (Page 1) ───────────────────────────────────────
@@ -285,7 +286,7 @@ class SettingsWindow(QDialog):
         self._toggles.append(self._toggle_double_ctrl_c)
         self._toggle_double_ctrl_c.toggled.connect(self._on_double_click_changed)
         self._make_setting_row(card_clean.content_layout(), '双击 Ctrl+C',
-                               self._toggle_double_ctrl_c)
+                               self._toggle_double_ctrl_c, separator=False)
 
         # Row 3: 间隔阈值 — QSlider + QLabel (indented, disabled when double-click off)
         interval_row = QHBoxLayout()
@@ -313,13 +314,6 @@ class SettingsWindow(QDialog):
 
         self._sld_interval.valueChanged.connect(self._on_interval_changed)
         card_clean.content_layout().addLayout(interval_row)
-
-        # Separator for interval row
-        interval_sep = QFrame()
-        interval_sep.setFrameShape(QFrame.Shape.HLine)
-        interval_sep.setStyleSheet(
-            f"background: {c['border']}; max-height: 1px; border: none;")
-        card_clean.content_layout().addWidget(interval_sep)
 
         # Disable interval row when double-click is off
         double_enabled = self._config.get('general.double_ctrl_c.enabled', False)
@@ -400,7 +394,7 @@ class SettingsWindow(QDialog):
         self._hotkey_buttons['history'] = self._btn_history_hotkey
 
         self._make_setting_row(card_features.content_layout(), '历史记录',
-                               self._toggle_history, self._btn_history_hotkey)
+                               self._toggle_history, self._btn_history_hotkey, separator=False)
 
         layout.addWidget(card_features)
 
@@ -418,7 +412,7 @@ class SettingsWindow(QDialog):
         lbl_suffix = QLabel('条')
         lbl_suffix.setStyleSheet(f"color: {c['muted']};")
         self._make_setting_row(card_history.content_layout(), '最大条数',
-                               spn_max, lbl_suffix)
+                               spn_max, lbl_suffix, separator=False)
 
         layout.addWidget(card_history)
 
@@ -763,7 +757,7 @@ class SettingsWindow(QDialog):
         self._spin_timeout.valueChanged.connect(lambda v: self._mark('llm.timeout', v))
         lbl_sec = QLabel('秒')
         lbl_sec.setStyleSheet(f"color: {c['muted']};")
-        self._make_setting_row(cl, '超时时长', self._spin_timeout, lbl_sec)
+        self._make_setting_row(cl, '超时时长', self._spin_timeout, lbl_sec, separator=False)
 
         layout.addWidget(card_api)
 
@@ -1265,7 +1259,7 @@ class SettingsWindow(QDialog):
         github_label.linkActivated.connect(self._open_github)
         layout.addWidget(github_label)
 
-        layout.addSpacing(24)
+        layout.addSpacing(32)
 
         # Check update button
         self._btn_check_update = QPushButton('检查更新')

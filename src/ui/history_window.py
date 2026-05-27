@@ -113,14 +113,14 @@ class HistoryWindow(QWidget):
             QLineEdit {{
                 border: 1px solid {c['border']};
                 border-radius: {RADIUS_SM};
-                padding: 8px 10px 8px 24px;
+                padding: 8px 12px 8px 24px;
                 background: {c['surface_alt']};
                 color: {c['fg']};
                 font-family: {FONT_FAMILY};
             }}
             QLineEdit:focus {{
                 border: 2px solid {c['accent']};
-                padding: 7px 9px 7px 23px;
+                padding: 7px 11px 7px 23px;
                 background: {c['surface_alt']};
             }}
         """)
@@ -160,7 +160,7 @@ class HistoryWindow(QWidget):
                 color: {c['accent']};
                 border-radius: 9999px;
                 padding: 2px 8px;
-                font-size: 10px;
+                font-size: 11px;
                 font-weight: bold;
             }}
         """)
@@ -215,11 +215,11 @@ class HistoryWindow(QWidget):
         self.copy_original_btn.setStyleSheet(ghost_btn)
         self.copy_result_btn.setStyleSheet(ghost_btn)
 
-        # 删除按钮（danger btn-sm ghost）
+        # 删除按钮（danger btn-sm, no border per design btn-danger）
         self.delete_btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
-                border: 1px solid {c['border']};
+                border: none;
                 border-radius: {RADIUS_SM};
                 padding: 4px 12px;
                 min-height: 24px;
@@ -228,7 +228,6 @@ class HistoryWindow(QWidget):
             }}
             QPushButton:hover {{
                 background: {c['danger_soft']};
-                border-color: {c['danger']};
             }}
         """)
 
@@ -503,14 +502,24 @@ class HistoryWindow(QWidget):
         top.addStretch()
 
         mode_badge = QLabel(mode_str)
-        mode_badge.setStyleSheet(f"""
-            background: {c['accent_soft']};
-            color: {c['accent']};
-            border-radius: 9999px;
-            padding: 2px 8px;
-            font-size: 10px;
-            font-weight: bold;
-        """)
+        if mode == 'rules':
+            mode_badge.setStyleSheet(f"""
+                background: {c['surface_alt']};
+                color: {c['muted']};
+                border-radius: 9999px;
+                padding: 2px 8px;
+                font-size: 10px;
+                font-weight: bold;
+            """)
+        else:
+            mode_badge.setStyleSheet(f"""
+                background: {c['accent_soft']};
+                color: {c['accent']};
+                border-radius: 9999px;
+                padding: 2px 8px;
+                font-size: 10px;
+                font-weight: bold;
+            """)
         top.addWidget(mode_badge)
         layout.addLayout(top)
 
@@ -587,9 +596,29 @@ class HistoryWindow(QWidget):
         mode = entry.get('mode', 'rules')
         if mode == 'rules':
             self.mode_badge.setText("规则")
+            self.mode_badge.setStyleSheet(f"""
+                QLabel {{
+                    background: {c['surface_alt']};
+                    color: {c['muted']};
+                    border-radius: 9999px;
+                    padding: 2px 8px;
+                    font-size: 11px;
+                    font-weight: bold;
+                }}
+            """)
         else:
             prompt_name = entry.get('prompt_name', '')
             self.mode_badge.setText(f"LLM: {prompt_name}" if prompt_name else "LLM")
+            self.mode_badge.setStyleSheet(f"""
+                QLabel {{
+                    background: {c['accent_soft']};
+                    color: {c['accent']};
+                    border-radius: 9999px;
+                    padding: 2px 8px;
+                    font-size: 11px;
+                    font-weight: bold;
+                }}
+            """)
 
         # 显示原文
         self.original_edit.setPlainText(entry.get('original', ''))
