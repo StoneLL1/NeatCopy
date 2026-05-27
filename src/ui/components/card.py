@@ -46,7 +46,7 @@ class Card(QFrame):
             self._desc_label.setStyleSheet(f"""
                 QLabel#card_desc {{
                     font-size: {FONT_SIZE_XS};
-                    padding-top: 0px;
+                    margin-top: -16px;
                     padding-bottom: 12px;
                     background: transparent;
                 }}
@@ -96,6 +96,7 @@ class Card(QFrame):
                 QLabel#card_desc {{
                     color: {c['muted']};
                     font-size: {FONT_SIZE_XS};
+                    margin-top: -16px;
                     padding-bottom: 12px;
                     background: transparent;
                 }}

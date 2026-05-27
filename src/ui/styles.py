@@ -368,7 +368,7 @@ def get_settings_stylesheet(theme: str) -> str:
             width: 16px;
             height: 16px;
             margin: -6px 0;
-            background: #ffffff;
+            background: {c['bg']};
             border: 2px solid {c['accent']};
             border-radius: 8px;
         }}

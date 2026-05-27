@@ -396,6 +396,7 @@ class HistoryWindow(QWidget):
         detail_inner.addWidget(self.action_separator)
 
         action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, 8, 0, 0)
         action_row.setSpacing(8)
         self.copy_original_btn = QPushButton("复制原文")
         self.copy_original_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))

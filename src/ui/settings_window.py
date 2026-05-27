@@ -226,7 +226,7 @@ class SettingsWindow(QDialog):
         """Create a horizontal row: label on left (stretch), widgets on right."""
         row = QHBoxLayout()
         row.setContentsMargins(0, 12, 0, 12)
-        row.setSpacing(12)
+        row.setSpacing(16)
         label = QLabel(label_text)
         label.setStyleSheet(f"color: {ColorPalette.get(self._theme)['fg']}; background: transparent;")
         row.addWidget(label)
@@ -799,6 +799,21 @@ class SettingsWindow(QDialog):
         btn_add.clicked.connect(self._on_add_prompt)
         prompt_btn_row.addWidget(btn_add)
         btn_wheel_mgmt = QPushButton('管理轮盘')
+        btn_wheel_mgmt.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                border: none;
+                padding: 4px 12px;
+                min-height: 24px;
+                color: {c['muted']};
+                font-size: {FONT_SIZE_XS};
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                color: {c['fg']};
+                background: {c['fg_soft']};
+            }}
+        """)
         btn_wheel_mgmt.clicked.connect(self._show_wheel_modal)
         prompt_btn_row.addWidget(btn_wheel_mgmt)
         prompt_btn_row.addStretch()
@@ -1454,8 +1469,8 @@ class SettingsWindow(QDialog):
         self._pending.clear()
         if self._hotkey_manager:
             self._hotkey_manager.reload_config(self._config)
-        self._status_lbl.setText('已保存 ✓')
-        QTimer.singleShot(1500, lambda: self._status_lbl.setText(''))
+        self._status_lbl.setText('✓ 已保存')
+        QTimer.singleShot(2000, lambda: self._status_lbl.setText(''))
 
     # ── Close event ─────────────────────────────────────────────────
 
