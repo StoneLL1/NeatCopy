@@ -114,7 +114,7 @@ class SettingsWindow(QDialog):
         titlebar.setFixedHeight(40)
 
         layout = QHBoxLayout(titlebar)
-        layout.setContentsMargins(16, 0, 8, 0)
+        layout.setContentsMargins(16, 0, 16, 0)
         layout.setSpacing(0)
 
         title_label = QLabel('设置')
@@ -220,7 +220,7 @@ class SettingsWindow(QDialog):
     def _make_setting_row(self, parent_layout, label_text, *widgets):
         """Create a horizontal row: label on left (stretch), widgets on right."""
         row = QHBoxLayout()
-        row.setContentsMargins(0, 8, 0, 8)
+        row.setContentsMargins(0, 12, 0, 12)
         label = QLabel(label_text)
         label.setStyleSheet(f"color: {ColorPalette.get(self._theme)['fg']};")
         row.addWidget(label)
@@ -1156,7 +1156,7 @@ class SettingsWindow(QDialog):
         name_label = QLabel('NeatCopy')
         name_label.setStyleSheet(f"""
             color: {c['fg']};
-            font-size: 24px;
+            font-size: 28px;
             font-weight: 800;
             letter-spacing: -0.03em;
         """)
@@ -1307,8 +1307,8 @@ class SettingsWindow(QDialog):
                     padding: 4px;
                 }}
                 QPushButton#titlebar_close:hover {{
-                    background: #ef4444;
-                    color: white;
+                    background: {c['danger_soft']};
+                    color: {c['danger']};
                 }}
             """)
 
