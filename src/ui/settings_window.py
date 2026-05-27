@@ -610,12 +610,531 @@ class SettingsWindow(QDialog):
         page.setObjectName('content_page')
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 24, 24, 24)
-        label = QLabel('大模型设置（开发中）')
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label)
+        layout.setSpacing(16)
+
+        # ── Page-level: 启用大模型模式 (not in a card) ──
+        self._toggle_llm = ToggleSwitch(
+            parent=self, checked=self._config.get('rules.mode') == 'llm')
+        self._toggles.append(self._toggle_llm)
+        self._toggle_llm.toggled.connect(self._on_llm_toggled)
+
+        enable_row = QHBoxLayout()
+        enable_row.setContentsMargins(0, 0, 0, 8)
+        lbl_enable = QLabel('启用大模型模式')
+        c = ColorPalette.get(self._theme)
+        lbl_enable.setStyleSheet(f"color: {c['fg']}; font-weight: 600;")
+        enable_row.addWidget(lbl_enable)
+        enable_row.addStretch()
+        enable_row.addWidget(self._toggle_llm)
+        layout.addLayout(enable_row)
+
+        # ── Card 1: API配置 ──
+        card_api = Card('API配置')
+        self._cards.append(card_api)
+        cl = card_api.content_layout()
+
+        # Row 1: Base URL
+        self._le_base_url = QLineEdit(
+            str(self._config.get('llm.base_url', 'https://api.openai.com/v1')))
+        self._le_base_url.setPlaceholderText('https://api.openai.com/v1')
+        self._le_base_url.textChanged.connect(lambda t: self._mark('llm.base_url', t))
+        self._make_setting_row(cl, 'Base URL', self._le_base_url)
+
+        # Row 2: Model ID
+        self._le_model_id = QLineEdit(
+            str(self._config.get('llm.model_id', 'gpt-4o-mini')))
+        self._le_model_id.setPlaceholderText('gpt-4o-mini')
+        self._le_model_id.textChanged.connect(lambda t: self._mark('llm.model_id', t))
+        self._make_setting_row(cl, 'Model ID', self._le_model_id)
+
+        # Row 3: API Key (password + show/hide toggle)
+        key_row = QHBoxLayout()
+        key_row.setContentsMargins(0, 8, 0, 8)
+        lbl_key = QLabel('API Key')
+        lbl_key.setStyleSheet(f"color: {c['fg']};")
+        key_row.addWidget(lbl_key)
+        key_row.addStretch()
+
+        self._le_apikey = QLineEdit(self._config.get('llm.api_key', ''))
+        self._le_apikey.setEchoMode(QLineEdit.EchoMode.Password)
+        self._le_apikey.setPlaceholderText('sk-...')
+        self._le_apikey.textChanged.connect(lambda t: self._mark('llm.api_key', t))
+        key_row.addWidget(self._le_apikey, 1)
+
+        self._btn_show_key = QPushButton('显示')
+        self._btn_show_key.setCheckable(True)
+        self._btn_show_key.setFixedWidth(50)
+        self._btn_show_key.toggled.connect(self._on_toggle_apikey_visibility)
+        key_row.addWidget(self._btn_show_key)
+        cl.addLayout(key_row)
+
+        key_sep = QFrame()
+        key_sep.setFrameShape(QFrame.Shape.HLine)
+        key_sep.setStyleSheet(f"background: {c['border']}; max-height: 1px; border: none;")
+        cl.addWidget(key_sep)
+
+        # Row 4: Temperature slider + label
+        temp_row = QHBoxLayout()
+        temp_row.setContentsMargins(0, 8, 0, 8)
+        lbl_temp = QLabel('Temperature')
+        lbl_temp.setStyleSheet(f"color: {c['fg']};")
+        temp_row.addWidget(lbl_temp)
+        temp_row.addStretch()
+
+        self._sld_temp = QSlider(Qt.Orientation.Horizontal)
+        self._sld_temp.setRange(0, 20)
+        temp_val = self._config.get('llm.temperature', 0.2)
+        self._sld_temp.setValue(int(temp_val * 10))
+        self._sld_temp.setFixedWidth(140)
+        self._sld_temp.valueChanged.connect(self._on_temp_changed)
+        temp_row.addWidget(self._sld_temp)
+
+        self._lbl_temp_val = QLabel(f'{temp_val:.1f}')
+        self._lbl_temp_val.setStyleSheet(f"color: {c['muted']};")
+        self._lbl_temp_val.setFixedWidth(30)
+        temp_row.addWidget(self._lbl_temp_val)
+        cl.addLayout(temp_row)
+
+        temp_sep = QFrame()
+        temp_sep.setFrameShape(QFrame.Shape.HLine)
+        temp_sep.setStyleSheet(f"background: {c['border']}; max-height: 1px; border: none;")
+        cl.addWidget(temp_sep)
+
+        # Row 5: 超时时长 spinbox
+        self._spin_timeout = QSpinBox()
+        self._spin_timeout.setRange(10, 300)
+        self._spin_timeout.setFixedWidth(72)
+        self._spin_timeout.setValue(int(self._config.get('llm.timeout', 30)))
+        self._spin_timeout.setToolTip('LLM 请求最大等待时间（10-300 秒）')
+        self._spin_timeout.valueChanged.connect(lambda v: self._mark('llm.timeout', v))
+        lbl_sec = QLabel('秒')
+        lbl_sec.setStyleSheet(f"color: {c['muted']};")
+        self._make_setting_row(cl, '超时时长', self._spin_timeout, lbl_sec)
+
+        layout.addWidget(card_api)
+
+        # ── Bottom row: 测试连接 + 恢复默认 (outside card) ──
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+        self._btn_test = QPushButton('测试连接')
+        self._btn_test.clicked.connect(self._on_test_connection)
+        btn_row.addWidget(self._btn_test)
+        btn_reset_llm = QPushButton('恢复默认')
+        btn_reset_llm.setObjectName('btn_reset')
+        btn_reset_llm.clicked.connect(self._confirm_and_reset_llm_api)
+        btn_row.addWidget(btn_reset_llm)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        # ── Card 2: Prompt模板 ──
+        card_prompts = Card('Prompt模板')
+        self._cards.append(card_prompts)
+        pl = card_prompts.content_layout()
+
+        self._prompt_list = QListWidget()
+        self._prompt_list.setMinimumHeight(150)
+        self._prompt_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._prompt_list.customContextMenuRequested.connect(self._show_prompt_menu)
+        self._prompt_list.itemDoubleClicked.connect(
+            lambda item: self._edit_prompt_by_id(item.data(Qt.ItemDataRole.UserRole)))
+        self._refresh_prompts()
+        pl.addWidget(self._prompt_list)
+
+        prompt_btn_row = QHBoxLayout()
+        btn_add = QPushButton('+ 新增模板')
+        btn_add.clicked.connect(self._on_add_prompt)
+        prompt_btn_row.addWidget(btn_add)
+        btn_wheel_mgmt = QPushButton('管理轮盘')
+        btn_wheel_mgmt.clicked.connect(self._show_wheel_modal)
+        prompt_btn_row.addWidget(btn_wheel_mgmt)
+        prompt_btn_row.addStretch()
+        pl.addLayout(prompt_btn_row)
+
+        layout.addWidget(card_prompts)
+
+        # ── Card 3: 轮盘 Prompt 选择 ──
+        card_wheel = Card('轮盘 Prompt 选择')
+        self._cards.append(card_wheel)
+        wl = card_wheel.content_layout()
+
+        columns = QHBoxLayout()
+
+        # Left column: available templates
+        left_lay = QVBoxLayout()
+        lbl_left = QLabel('可用模板')
+        lbl_left.setStyleSheet(f"color: {c['fg']}; font-weight: 600;")
+        left_lay.addWidget(lbl_left)
+        self._wheel_all_list = QListWidget()
+        self._wheel_all_list.setMinimumHeight(150)
+        self._wheel_all_list.itemChanged.connect(self._on_wheel_all_item_changed)
+        self._refresh_wheel_all_list()
+        left_lay.addWidget(self._wheel_all_list)
+        columns.addLayout(left_lay, 1)
+
+        # Right column: selected templates
+        right_lay = QVBoxLayout()
+        lbl_right = QLabel(f'轮盘模板（最多{self.MAX_WHEEL_PROMPTS}个）')
+        lbl_right.setStyleSheet(f"color: {c['fg']}; font-weight: 600;")
+        right_lay.addWidget(lbl_right)
+        self._wheel_selected_list = QListWidget()
+        self._wheel_selected_list.setMinimumHeight(150)
+        self._refresh_wheel_selected_list()
+        right_lay.addWidget(self._wheel_selected_list)
+        columns.addLayout(right_lay, 1)
+
+        wl.addLayout(columns)
+
+        tip = QLabel('提示：勾选左侧模板添加到轮盘')
+        tip.setStyleSheet(f"color: {c['muted']}; font-size: 11px;")
+        wl.addWidget(tip)
+
+        layout.addWidget(card_wheel)
+
         layout.addStretch()
         scroll.setWidget(page)
         return scroll
+
+    # ── LLM page helpers ────────────────────────────────────────────
+
+    def _on_llm_toggled(self, checked: bool):
+        mode = 'llm' if checked else 'rules'
+        self._mark('rules.mode', mode)
+        if hasattr(self, '_seg_mode'):
+            self._seg_mode.blockSignals(True)
+            self._seg_mode.setCurrentIndex(0 if mode == 'rules' else 1)
+            self._seg_mode.blockSignals(False)
+
+    def _on_toggle_apikey_visibility(self, checked: bool):
+        if checked:
+            self._le_apikey.setEchoMode(QLineEdit.EchoMode.Normal)
+            self._btn_show_key.setText('隐藏')
+        else:
+            self._le_apikey.setEchoMode(QLineEdit.EchoMode.Password)
+            self._btn_show_key.setText('显示')
+
+    def _on_temp_changed(self, value: int):
+        temp = value / 10.0
+        self._lbl_temp_val.setText(f'{temp:.1f}')
+        self._mark('llm.temperature', temp)
+
+    def _refresh_prompts(self):
+        self._prompt_list.clear()
+        prompts = self._config.get('llm.prompts') or []
+        active_id = self._config.get('llm.active_prompt_id', 'default')
+        for p in prompts:
+            tag = '[默认] ' if p['id'] == active_id else ''
+            lock = ' 🔒' if p.get('readonly') else ''
+            item = QListWidgetItem(f"{tag}{p['name']}{lock}")
+            item.setData(Qt.ItemDataRole.UserRole, p['id'])
+            self._prompt_list.addItem(item)
+        if hasattr(self, '_wheel_all_list'):
+            self._refresh_wheel_all_list()
+            self._refresh_wheel_selected_list()
+
+    def _show_prompt_menu(self, pos):
+        item = self._prompt_list.itemAt(pos)
+        if not item:
+            return
+        pid = item.data(Qt.ItemDataRole.UserRole)
+        prompts = self._config.get('llm.prompts') or []
+        prompt = next((p for p in prompts if p['id'] == pid), None)
+        if not prompt:
+            return
+
+        menu = QMenu(self)
+        act_default = menu.addAction('设为默认')
+        act_edit = menu.addAction('编辑')
+        act_del = menu.addAction('删除')
+        act_del.setEnabled(not prompt.get('readonly', False))
+        action = menu.exec(self._prompt_list.mapToGlobal(pos))
+
+        if action == act_default:
+            self._mark('llm.active_prompt_id', pid)
+            self._do_save()
+            self._refresh_prompts()
+        elif action == act_edit:
+            self._edit_prompt_by_id(pid)
+        elif action == act_del:
+            new_prompts = [p for p in prompts if p['id'] != pid]
+            self._mark('llm.prompts', new_prompts)
+            self._do_save()
+            self._refresh_prompts()
+
+    def _edit_prompt_by_id(self, pid: str):
+        prompts = list(self._config.get('llm.prompts') or [])
+        prompt = next((p for p in prompts if p['id'] == pid), None)
+        if not prompt:
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f'编辑：{prompt["name"]}')
+        dlg.resize(500, 320)
+        v = QVBoxLayout(dlg)
+        editor = QTextEdit()
+        editor.setPlainText(prompt['content'])
+        v.addWidget(editor)
+        btn_ok = QPushButton('保存')
+        btn_ok.clicked.connect(dlg.accept)
+        v.addWidget(btn_ok)
+        if dlg.exec():
+            for p in prompts:
+                if p['id'] == pid:
+                    p['content'] = editor.toPlainText()
+            self._mark('llm.prompts', prompts)
+            self._do_save()
+
+    def _on_add_prompt(self):
+        name, ok = QInputDialog.getText(self, '新增 Prompt', '模板名称：')
+        if not ok or not name.strip():
+            return
+        new_prompt = {
+            'id': str(uuid.uuid4()),
+            'name': name.strip(),
+            'content': '',
+            'readonly': False,
+        }
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f'编辑：{new_prompt["name"]}')
+        dlg.resize(500, 320)
+        v = QVBoxLayout(dlg)
+        editor = QTextEdit()
+        editor.setPlaceholderText('在此输入 Prompt 内容...')
+        v.addWidget(editor)
+        btn_ok = QPushButton('保存')
+        btn_ok.clicked.connect(dlg.accept)
+        v.addWidget(btn_ok)
+        if dlg.exec():
+            new_prompt['content'] = editor.toPlainText()
+            prompts = list(self._config.get('llm.prompts') or [])
+            prompts.append(new_prompt)
+            self._mark('llm.prompts', prompts)
+            self._do_save()
+            self._refresh_prompts()
+
+    def _on_test_connection(self):
+        self._do_save()
+        llm_cfg = self._config.get('llm') or {}
+        self._btn_test.setEnabled(False)
+        self._btn_test.setText('测试中...')
+
+        from PyQt6.QtCore import QThread as _QT
+        from PyQt6.QtCore import pyqtSignal as _sig
+
+        class _TestWorker(_QT):
+            success = _sig(str)
+            error = _sig(str)
+
+            def __init__(self, cfg):
+                super().__init__()
+                self._cfg = cfg
+
+            def run(self):
+                try:
+                    import httpx
+                    headers = {'Authorization': f'Bearer {self._cfg.get("api_key", "")}'}
+                    payload = {
+                        'model': self._cfg.get('model_id', 'gpt-4o-mini'),
+                        'temperature': self._cfg.get('temperature', 0.2),
+                        'messages': [
+                            {'role': 'system', 'content': '请原样返回我发送给你的文字，不做任何修改。'},
+                            {'role': 'user', 'content': '测试文本：hello world'},
+                        ],
+                    }
+                    base_url = self._cfg.get('base_url', 'https://api.openai.com/v1').rstrip('/')
+                    timeout = float(self._cfg.get('timeout', 30))
+                    with httpx.Client(timeout=timeout) as client:
+                        resp = client.post(f'{base_url}/chat/completions',
+                                           json=payload, headers=headers)
+                        resp.raise_for_status()
+                        content = resp.json()['choices'][0]['message']['content']
+                        self.success.emit(content)
+                except Exception as e:
+                    from llm_client import classify_error
+                    self.error.emit(classify_error(e, timeout=int(self._cfg.get('timeout', 30))))
+
+        worker = _TestWorker(llm_cfg)
+
+        def _on_success(r):
+            QMessageBox.information(self, '连接成功', f'模型回复：{r[:200]}')
+            self._btn_test.setEnabled(True)
+            self._btn_test.setText('测试连接')
+
+        def _on_error(e):
+            QMessageBox.critical(self, '连接失败', e)
+            self._btn_test.setEnabled(True)
+            self._btn_test.setText('测试连接')
+
+        worker.success.connect(_on_success)
+        worker.error.connect(_on_error)
+        worker.start()
+        self._test_worker = worker
+
+    def _confirm_and_reset_llm_api(self):
+        reply = QMessageBox.question(
+            self, '确认恢复默认',
+            '确定要将 API 配置（Base URL、Model ID、API Key、Temperature、超时时长）恢复为默认值吗？\n'
+            'API Key 将被清空，Prompt 模板不受影响。此操作不可撤销。',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        from config_manager import DEFAULT_CONFIG
+        llm = DEFAULT_CONFIG['llm']
+        self._mark('llm.base_url',    llm['base_url'])
+        self._mark('llm.model_id',    llm['model_id'])
+        self._mark('llm.api_key',     llm['api_key'])
+        self._mark('llm.temperature', llm['temperature'])
+        self._mark('llm.timeout',     llm['timeout'])
+        # Refresh UI widgets
+        self._le_base_url.blockSignals(True)
+        self._le_base_url.setText(llm['base_url'])
+        self._le_base_url.blockSignals(False)
+        self._le_model_id.blockSignals(True)
+        self._le_model_id.setText(llm['model_id'])
+        self._le_model_id.blockSignals(False)
+        self._le_apikey.blockSignals(True)
+        self._le_apikey.setText(llm['api_key'])
+        self._le_apikey.blockSignals(False)
+        self._sld_temp.blockSignals(True)
+        self._sld_temp.setValue(int(llm['temperature'] * 10))
+        self._sld_temp.blockSignals(False)
+        self._lbl_temp_val.setText(f'{llm["temperature"]:.1f}')
+        self._spin_timeout.blockSignals(True)
+        self._spin_timeout.setValue(llm['timeout'])
+        self._spin_timeout.blockSignals(False)
+        self._do_save()
+
+    def _refresh_wheel_all_list(self):
+        self._wheel_all_list.blockSignals(True)
+        self._wheel_all_list.clear()
+        prompts = self._config.get('llm.prompts') or []
+        for p in prompts:
+            item = QListWidgetItem(p['name'])
+            item.setData(Qt.ItemDataRole.UserRole, p['id'])
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(
+                Qt.CheckState.Checked if p.get('visible_in_wheel', True)
+                else Qt.CheckState.Unchecked
+            )
+            self._wheel_all_list.addItem(item)
+        self._wheel_all_list.blockSignals(False)
+
+    def _refresh_wheel_selected_list(self):
+        self._wheel_selected_list.clear()
+        prompts = self._config.get('llm.prompts') or []
+        selected = [p for p in prompts if p.get('visible_in_wheel', True)]
+        for i, p in enumerate(selected[:self.MAX_WHEEL_PROMPTS], start=1):
+            item = QListWidgetItem(f'{i}. {p["name"]}')
+            item.setData(Qt.ItemDataRole.UserRole, p['id'])
+            self._wheel_selected_list.addItem(item)
+
+    def _on_wheel_all_item_changed(self, item: QListWidgetItem):
+        checked_count = sum(
+            1 for i in range(self._wheel_all_list.count())
+            if self._wheel_all_list.item(i).checkState() == Qt.CheckState.Checked
+        )
+        if checked_count > self.MAX_WHEEL_PROMPTS:
+            self._wheel_all_list.blockSignals(True)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            self._wheel_all_list.blockSignals(False)
+            self._status_lbl.setText(f'轮盘最多显示{self.MAX_WHEEL_PROMPTS}个 Prompt')
+            QTimer.singleShot(2000, lambda: self._status_lbl.setText(''))
+            return
+
+        prompts = list(self._config.get('llm.prompts') or [])
+        for i in range(self._wheel_all_list.count()):
+            list_item = self._wheel_all_list.item(i)
+            pid = list_item.data(Qt.ItemDataRole.UserRole)
+            visible = list_item.checkState() == Qt.CheckState.Checked
+            for p in prompts:
+                if p['id'] == pid:
+                    p['visible_in_wheel'] = visible
+        self._mark('llm.prompts', prompts)
+        self._refresh_wheel_selected_list()
+
+    def _show_wheel_modal(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle('管理轮盘 Prompt')
+        dlg.resize(420, 360)
+        v = QVBoxLayout(dlg)
+
+        columns = QHBoxLayout()
+        c = ColorPalette.get(self._theme)
+
+        # Left: available templates
+        left_lay = QVBoxLayout()
+        lbl_left = QLabel('可用模板')
+        lbl_left.setStyleSheet(f"color: {c['fg']}; font-weight: 600;")
+        left_lay.addWidget(lbl_left)
+        modal_all = QListWidget()
+        modal_all.setMinimumHeight(200)
+        prompts = self._config.get('llm.prompts') or []
+        for p in prompts:
+            mi = QListWidgetItem(p['name'])
+            mi.setData(Qt.ItemDataRole.UserRole, p['id'])
+            mi.setFlags(mi.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            mi.setCheckState(
+                Qt.CheckState.Checked if p.get('visible_in_wheel', True)
+                else Qt.CheckState.Unchecked
+            )
+            modal_all.addItem(mi)
+        left_lay.addWidget(modal_all)
+        columns.addLayout(left_lay, 1)
+
+        # Right: selected templates
+        right_lay = QVBoxLayout()
+        lbl_right = QLabel(f'轮盘模板（最多{self.MAX_WHEEL_PROMPTS}个）')
+        lbl_right.setStyleSheet(f"color: {c['fg']}; font-weight: 600;")
+        right_lay.addWidget(lbl_right)
+        modal_selected = QListWidget()
+        modal_selected.setMinimumHeight(200)
+
+        def _refresh_modal_selected():
+            modal_selected.clear()
+            checked = []
+            for j in range(modal_all.count()):
+                ai = modal_all.item(j)
+                if ai.checkState() == Qt.CheckState.Checked:
+                    checked.append(ai.text())
+            for idx, name in enumerate(checked[:self.MAX_WHEEL_PROMPTS], 1):
+                si = QListWidgetItem(f'{idx}. {name}')
+                modal_selected.addItem(si)
+
+        modal_all.itemChanged.connect(_refresh_modal_selected)
+        _refresh_modal_selected()
+        right_lay.addWidget(modal_selected)
+        columns.addLayout(right_lay, 1)
+
+        v.addLayout(columns)
+
+        tip = QLabel('提示：勾选左侧模板添加到轮盘')
+        tip.setStyleSheet(f"color: {c['muted']}; font-size: 11px;")
+        v.addWidget(tip)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_ok = QPushButton('保存')
+        btn_ok.clicked.connect(dlg.accept)
+        btn_row.addWidget(btn_ok)
+        btn_cancel = QPushButton('取消')
+        btn_cancel.clicked.connect(dlg.reject)
+        btn_row.addWidget(btn_cancel)
+        v.addLayout(btn_row)
+
+        if dlg.exec():
+            # Collect check states and sync
+            updated_prompts = list(self._config.get('llm.prompts') or [])
+            for j in range(modal_all.count()):
+                mi = modal_all.item(j)
+                pid = mi.data(Qt.ItemDataRole.UserRole)
+                visible = mi.checkState() == Qt.CheckState.Checked
+                for p in updated_prompts:
+                    if p['id'] == pid:
+                        p['visible_in_wheel'] = visible
+            self._mark('llm.prompts', updated_prompts)
+            self._do_save()
+            self._refresh_wheel_all_list()
+            self._refresh_wheel_selected_list()
 
     def _build_about_page(self) -> QScrollArea:
         scroll = QScrollArea()
