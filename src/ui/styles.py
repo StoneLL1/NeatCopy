@@ -387,7 +387,7 @@ def get_settings_stylesheet(theme: str) -> str:
 
         /* ── Scrollbar ── */
         QScrollBar:vertical {{
-            width: 6px;
+            width: 4px;
             background: {c['scrollbar_bg']};
         }}
 
@@ -634,7 +634,7 @@ def get_history_stylesheet(theme: str) -> str:
 
         /* ── Scrollbar ── */
         QScrollBar:vertical {{
-            width: 6px;
+            width: 4px;
             background: {c['scrollbar_bg']};
         }}
 

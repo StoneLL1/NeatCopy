@@ -11,7 +11,7 @@ from PyQt6.QtGui import QCursor
 
 from ui.styles import (
     get_history_stylesheet, ColorPalette,
-    FONT_MONO, FONT_SIZE_XS, FONT_FAMILY, RADIUS_SM
+    FONT_MONO, FONT_SIZE_XS, FONT_SIZE_SM, FONT_FAMILY, RADIUS_SM
 )
 
 
@@ -61,7 +61,7 @@ class HistoryWindow(QWidget):
         self.title_label.setStyleSheet(f"""
             QLabel {{
                 color: {c['fg']};
-                font-size: 13px;
+                font-size: {FONT_SIZE_SM};
                 font-weight: 600;
                 padding: 0 4px;
                 background: transparent;
@@ -88,7 +88,7 @@ class HistoryWindow(QWidget):
         self.toolbar_title.setStyleSheet(f"""
             QLabel {{
                 color: {c['fg']};
-                font-size: {FONT_SIZE_XS};
+                font-size: {FONT_SIZE_SM};
                 font-weight: 600;
                 background: transparent;
             }}
@@ -105,8 +105,7 @@ class HistoryWindow(QWidget):
                 font-family: {FONT_FAMILY};
             }}
             QLineEdit:focus {{
-                border: 1.5px solid {c['accent']};
-                padding: 5px 9px;
+                border: 1px solid {c['accent']};
             }}
         """)
 
@@ -116,13 +115,14 @@ class HistoryWindow(QWidget):
                 background: transparent;
                 border: 1px solid {c['border']};
                 border-radius: {RADIUS_SM};
-                padding: 5px 12px;
-                color: {c['danger']};
+                padding: 4px 12px;
+                color: {c['muted']};
                 font-size: {FONT_SIZE_XS};
             }}
             QPushButton:hover {{
-                background: {c['danger_soft']};
-                border-color: {c['danger']};
+                background: {c['fg_soft']};
+                border-color: {c['border_strong']};
+                color: {c['fg']};
             }}
         """)
 
@@ -167,13 +167,12 @@ class HistoryWindow(QWidget):
                 background: {c['surface_alt']};
                 border: 1px solid {c['border']};
                 border-radius: {RADIUS_SM};
-                padding: 8px;
+                padding: 12px;
                 color: {c['fg']};
-                font-size: 13px;
+                font-size: {FONT_SIZE_SM};
             }}
             QTextEdit:focus {{
-                border: 1.5px solid {c['accent']};
-                padding: 7px;
+                border: 1px solid {c['accent']};
             }}
         """
         self.original_edit.setStyleSheet(edit_style)
@@ -185,7 +184,7 @@ class HistoryWindow(QWidget):
                 background: transparent;
                 border: 1px solid {c['border']};
                 border-radius: {RADIUS_SM};
-                padding: 5px 12px;
+                padding: 4px 12px;
                 color: {c['fg']};
                 font-size: {FONT_SIZE_XS};
             }}
@@ -203,7 +202,7 @@ class HistoryWindow(QWidget):
                 background: transparent;
                 border: 1px solid {c['border']};
                 border-radius: {RADIUS_SM};
-                padding: 5px 12px;
+                padding: 4px 12px;
                 color: {c['danger']};
                 font-size: {FONT_SIZE_XS};
             }}
@@ -245,6 +244,11 @@ class HistoryWindow(QWidget):
             }}
         """)
 
+        # 操作按钮分隔线
+        if hasattr(self, 'action_separator'):
+            self.action_separator.setStyleSheet(
+                f"background: {c['border']}; max-height: 1px; border: none;")
+
         # 重新刷新列表以更新自定义 item widget 颜色
         self._refresh_list()
 
@@ -265,9 +269,9 @@ class HistoryWindow(QWidget):
         # === 标题栏 ===
         titlebar = QWidget()
         titlebar.setObjectName("titlebar")
-        titlebar.setFixedHeight(36)
+        titlebar.setFixedHeight(40)
         titlebar_layout = QHBoxLayout(titlebar)
-        titlebar_layout.setContentsMargins(12, 0, 8, 0)
+        titlebar_layout.setContentsMargins(16, 0, 16, 0)
         titlebar_layout.setSpacing(0)
 
         self.title_label = QLabel("历史记录")
@@ -328,8 +332,8 @@ class HistoryWindow(QWidget):
         # 详情内容（有选中条目时显示）
         self.detail_content = QWidget()
         detail_inner = QVBoxLayout(self.detail_content)
-        detail_inner.setContentsMargins(16, 12, 16, 12)
-        detail_inner.setSpacing(8)
+        detail_inner.setContentsMargins(16, 16, 16, 16)
+        detail_inner.setSpacing(12)
 
         # 元信息行: 时间 + 模式徽章
         meta_row = QHBoxLayout()
@@ -360,6 +364,11 @@ class HistoryWindow(QWidget):
         detail_inner.addWidget(self.result_edit, stretch=1)
 
         # 操作按钮行
+        self.action_separator = QFrame()
+        self.action_separator.setFrameShape(QFrame.Shape.HLine)
+        self.action_separator.setStyleSheet(f"background: {ColorPalette.get(self._theme)['border']}; max-height: 1px; border: none;")
+        detail_inner.addWidget(self.action_separator)
+
         action_row = QHBoxLayout()
         action_row.setSpacing(8)
         self.copy_original_btn = QPushButton("复制原文")
