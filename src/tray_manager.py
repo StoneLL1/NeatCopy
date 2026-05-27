@@ -1,9 +1,9 @@
 # 托盘管理：图标三态变色、右键菜单、Toast 通知。
 from PyQt6.QtWidgets import (
     QSystemTrayIcon, QMenu, QApplication, QLabel, QWidget, QVBoxLayout,
-    QGraphicsOpacityEffect, QWidgetAction, QPushButton,
+    QGraphicsOpacityEffect, QGraphicsDropShadowEffect, QWidgetAction, QPushButton,
 )
-from PyQt6.QtGui import QIcon, QAction
+from PyQt6.QtGui import QIcon, QAction, QColor
 from PyQt6.QtCore import (
     QTimer, pyqtSignal, QObject, QPropertyAnimation, QPoint, QEasingCurve,
     Qt,
@@ -62,6 +62,13 @@ class ToastWidget(QWidget):
         label = QLabel(text)
         label.setStyleSheet('background: transparent; border: none;')
         inner.addWidget(label)
+
+        # Shadow matching design spec shadow-md
+        shadow = QGraphicsDropShadowEffect(self._container)
+        shadow.setBlurRadius(8)
+        shadow.setOffset(0, 2)
+        shadow.setColor(QColor(0, 0, 0, 20))
+        self._container.setGraphicsEffect(shadow)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)

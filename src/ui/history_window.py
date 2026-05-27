@@ -119,7 +119,9 @@ class HistoryWindow(QWidget):
                 font-family: {FONT_FAMILY};
             }}
             QLineEdit:focus {{
-                border: 1px solid {c['accent']};
+                border: 2px solid {c['accent']};
+                padding: 5px 9px 5px 27px;
+                background: {c['surface_alt']};
             }}
         """)
 
@@ -187,7 +189,8 @@ class HistoryWindow(QWidget):
                 font-size: {FONT_SIZE_SM};
             }}
             QTextEdit:focus {{
-                border: 1px solid {c['accent']};
+                border: 2px solid {c['accent']};
+                padding: 11px;
             }}
         """
         self.original_edit.setStyleSheet(edit_style)
@@ -460,7 +463,7 @@ class HistoryWindow(QWidget):
         c = ColorPalette.get(self._theme)
         widget = QWidget()
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(16, 10, 16, 10)
+        layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(4)
 
         # 格式化时间

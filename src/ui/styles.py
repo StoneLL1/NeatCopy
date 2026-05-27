@@ -232,9 +232,9 @@ def get_settings_stylesheet(theme: str) -> str:
 
         /* ── Checkbox ── */
         QCheckBox {{
-            spacing: 6px;
+            spacing: 8px;
             font-weight: normal;
-            padding: 3px 0;
+            padding: 8px 0;
             color: {c['fg']};
         }}
 
@@ -315,8 +315,9 @@ def get_settings_stylesheet(theme: str) -> str:
         }}
 
         QLineEdit:focus {{
-            border: 1px solid {c['accent']};
-            padding: 8px 12px;
+            border: 2px solid {c['accent']};
+            padding: 7px 11px;
+            background: {c['bg']};
         }}
 
         QTextEdit {{
@@ -328,8 +329,8 @@ def get_settings_stylesheet(theme: str) -> str:
         }}
 
         QTextEdit:focus {{
-            border: 1px solid {c['accent']};
-            padding: 8px 12px;
+            border: 2px solid {c['accent']};
+            padding: 7px 11px;
         }}
 
         /* ── List widgets ── */
@@ -560,8 +561,9 @@ def get_history_stylesheet(theme: str) -> str:
         }}
 
         QLineEdit:focus {{
-            border: 1px solid {c['accent']};
-            padding: 8px 12px;
+            border: 2px solid {c['accent']};
+            padding: 7px 11px;
+            background: {c['bg']};
         }}
 
         QTextEdit {{
@@ -573,8 +575,8 @@ def get_history_stylesheet(theme: str) -> str:
         }}
 
         QTextEdit:focus {{
-            border: 1px solid {c['accent']};
-            padding: 8px 12px;
+            border: 2px solid {c['accent']};
+            padding: 7px 11px;
         }}
 
         /* ── Buttons ── */

@@ -195,7 +195,7 @@ class PreviewWindow(QWidget):
             #closeBtn {{
                 background: transparent;
                 border: none;
-                font-size: 12px;
+                font-size: 14px;
                 color: {styles['close_text']};
                 border-radius: 6px;
             }}
