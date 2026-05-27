@@ -162,13 +162,13 @@ def get_settings_stylesheet(theme: str) -> str:
         QPushButton#hotkey_btn {{
             background: {c['surface_alt']};
             border: 1px solid {c['border']};
-            border-radius: {RADIUS_MD};
+            border-radius: {RADIUS_SM};
             padding: 4px 12px;
             min-height: 24px;
             min-width: 100px;
             color: {c['muted']};
             font-family: {FONT_MONO};
-            font-size: {FONT_SIZE_SM};
+            font-size: {FONT_SIZE_XS};
         }}
 
         QPushButton#hotkey_btn:hover {{
@@ -256,10 +256,11 @@ def get_settings_stylesheet(theme: str) -> str:
         QPushButton {{
             background: {c['surface_alt']};
             border: 1px solid {c['border']};
-            border-radius: {RADIUS_MD};
-            padding: 5px 14px;
+            border-radius: {RADIUS_SM};
+            padding: 8px 16px;
             min-height: 28px;
             color: {c['fg']};
+            font-weight: 500;
         }}
 
         QPushButton:hover {{
@@ -276,9 +277,9 @@ def get_settings_stylesheet(theme: str) -> str:
             background: {c['accent']};
             border: none;
             color: {c['accent_on']};
-            font-weight: bold;
-            padding: 6px 28px;
-            border-radius: {RADIUS_MD};
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: {RADIUS_SM};
         }}
 
         QPushButton#btn_save:hover {{
@@ -289,8 +290,8 @@ def get_settings_stylesheet(theme: str) -> str:
         QPushButton#btn_reset {{
             background: {c['bg']};
             border: 1px solid {c['border']};
-            border-radius: {RADIUS_MD};
-            padding: 5px 14px;
+            border-radius: {RADIUS_SM};
+            padding: 8px 16px;
             min-height: 28px;
             color: {c['fg']};
         }}
@@ -303,29 +304,29 @@ def get_settings_stylesheet(theme: str) -> str:
         /* ── Input fields ── */
         QLineEdit {{
             border: 1px solid {c['border']};
-            border-radius: {RADIUS_MD};
-            padding: 5px 8px;
+            border-radius: {RADIUS_SM};
+            padding: 8px 12px;
             background: {c['bg']};
             selection-background-color: {c['accent']};
             color: {c['fg']};
         }}
 
         QLineEdit:focus {{
-            border: 1.5px solid {c['accent']};
-            padding: 4px 7px;
+            border: 1px solid {c['accent']};
+            padding: 8px 12px;
         }}
 
         QTextEdit {{
             border: 1px solid {c['border']};
-            border-radius: {RADIUS_MD};
-            padding: 5px;
+            border-radius: {RADIUS_SM};
+            padding: 8px 12px;
             background: {c['bg']};
             color: {c['fg']};
         }}
 
         QTextEdit:focus {{
-            border: 1.5px solid {c['accent']};
-            padding: 4px;
+            border: 1px solid {c['accent']};
+            padding: 8px 12px;
         }}
 
         /* ── List widgets ── */
@@ -354,23 +355,23 @@ def get_settings_stylesheet(theme: str) -> str:
 
         /* ── Slider ── */
         QSlider::groove:horizontal {{
-            height: 3px;
+            height: 4px;
             background: {c['border']};
-            border-radius: 1px;
+            border-radius: 2px;
         }}
 
         QSlider::handle:horizontal {{
-            width: 14px;
-            height: 14px;
-            margin: -5px 0;
-            background: {c['bg']};
-            border: 1.5px solid {c['accent']};
-            border-radius: 7px;
+            width: 16px;
+            height: 16px;
+            margin: -6px 0;
+            background: #ffffff;
+            border: 2px solid {c['accent']};
+            border-radius: 8px;
         }}
 
         QSlider::sub-page:horizontal {{
             background: {c['accent']};
-            border-radius: 1px;
+            border-radius: 2px;
         }}
 
         /* ── Labels ── */
@@ -409,12 +410,12 @@ def get_settings_stylesheet(theme: str) -> str:
         QMenu {{
             background: {c['bg']};
             border: 1px solid {c['border']};
-            border-radius: {RADIUS_LG};
-            padding: 4px;
+            border-radius: {RADIUS_MD};
+            padding: 4px 0;
         }}
 
         QMenu::item {{
-            padding: 5px 20px 5px 10px;
+            padding: 8px 12px;
             border-radius: {RADIUS_SM};
         }}
 
@@ -453,6 +454,7 @@ def get_sidebar_stylesheet(theme: str) -> str:
             font-family: {FONT_FAMILY};
             font-size: {FONT_SIZE_BASE};
             font-weight: bold;
+            letter-spacing: -0.02em;
         }}
 
         QListWidget#sidebarNav {{
@@ -468,7 +470,7 @@ def get_sidebar_stylesheet(theme: str) -> str:
             font-family: {FONT_FAMILY};
             font-size: {FONT_SIZE_SM};
             font-weight: normal;
-            padding: 8px 14px;
+            padding: 8px 16px 8px 19px;
             height: 36px;
             border: none;
             border-left: 3px solid transparent;
@@ -547,39 +549,40 @@ def get_history_stylesheet(theme: str) -> str:
         /* ── Input fields ── */
         QLineEdit {{
             border: 1px solid {c['border']};
-            border-radius: {RADIUS_MD};
-            padding: 5px 8px;
+            border-radius: {RADIUS_SM};
+            padding: 8px 12px;
             background: {c['bg']};
             selection-background-color: {c['accent']};
             color: {c['fg']};
         }}
 
         QLineEdit:focus {{
-            border: 1.5px solid {c['accent']};
-            padding: 4px 7px;
+            border: 1px solid {c['accent']};
+            padding: 8px 12px;
         }}
 
         QTextEdit {{
             border: 1px solid {c['border']};
-            border-radius: {RADIUS_MD};
-            padding: 5px;
+            border-radius: {RADIUS_SM};
+            padding: 8px 12px;
             background: {c['bg']};
             color: {c['fg']};
         }}
 
         QTextEdit:focus {{
-            border: 1.5px solid {c['accent']};
-            padding: 4px;
+            border: 1px solid {c['accent']};
+            padding: 8px 12px;
         }}
 
         /* ── Buttons ── */
         QPushButton {{
             background: {c['surface_alt']};
             border: 1px solid {c['border']};
-            border-radius: {RADIUS_MD};
-            padding: 5px 14px;
+            border-radius: {RADIUS_SM};
+            padding: 8px 16px;
             min-height: 28px;
             color: {c['fg']};
+            font-weight: 500;
         }}
 
         QPushButton:hover {{
