@@ -28,6 +28,9 @@ class HistoryWindow(QWidget):
         self._theme = config.get('ui.theme', 'light')
         self._drag_pos = None
         self._resize_timer = None
+        self._search_timer = QTimer()  # 搜索防抖定时器
+        self._search_timer.setSingleShot(True)
+        self._search_timer.timeout.connect(self._do_search)
 
         self._setup_window_properties()
         self._create_ui()
@@ -445,9 +448,10 @@ class HistoryWindow(QWidget):
     # ================================================================
 
     def _create_list_item_widget(self, entry):
-        """为列表项创建两行格式的自定义 widget。"""
+        """为列表项创建两行格式的自定义 widget（优化版本）。"""
         c = ColorPalette.get(self._theme)
         widget = QWidget()
+        widget.setObjectName("list_item")
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(6)
@@ -479,45 +483,19 @@ class HistoryWindow(QWidget):
         top = QHBoxLayout()
         top.setSpacing(4)
         time_label = QLabel(time_str)
-        time_label.setStyleSheet(f"""
-            color: {c['muted']};
-            font-family: {FONT_MONO};
-            font-size: 11px;
-            background: transparent;
-        """)
+        time_label.setObjectName("time_label")
         top.addWidget(time_label)
         top.addStretch()
 
         mode_badge = QLabel(mode_str)
+        mode_badge.setObjectName("mode_badge_rules" if mode == 'rules' else "mode_badge_llm")
         mode_badge.setFixedHeight(20)
-        if mode == 'rules':
-            mode_badge.setStyleSheet(f"""
-                background: {c['surface_alt']};
-                color: {c['muted']};
-                border-radius: 9999px;
-                padding: 2px 8px;
-                font-size: 10px;
-                font-weight: bold;
-            """)
-        else:
-            mode_badge.setStyleSheet(f"""
-                background: {c['accent_soft']};
-                color: {c['accent']};
-                border-radius: 9999px;
-                padding: 2px 8px;
-                font-size: 10px;
-                font-weight: bold;
-            """)
         top.addWidget(mode_badge)
         layout.addLayout(top)
 
         # 底行：摘要
         summary_label = QLabel(summary)
-        summary_label.setStyleSheet(f"""
-            color: {c['fg']};
-            font-size: {FONT_SIZE_XS};
-            background: transparent;
-        """)
+        summary_label.setObjectName("summary_label")
         summary_label.setWordWrap(False)
         summary_label.setFixedHeight(18)
         layout.addWidget(summary_label)
@@ -529,7 +507,7 @@ class HistoryWindow(QWidget):
     # ================================================================
 
     def _refresh_list(self, keyword: str = ''):
-        """刷新列表显示。"""
+        """刷新列表显示（优化版本：批量添加）。"""
         self.list_widget.clear()
 
         if keyword:
@@ -546,12 +524,17 @@ class HistoryWindow(QWidget):
         self.global_empty.hide()
         self.list_widget.show()
 
-        for entry in entries:
-            item = QListWidgetItem()
-            item.setData(Qt.ItemDataRole.UserRole, entry.get('id'))
-            item.setSizeHint(self._calc_item_size(entry))
-            self.list_widget.addItem(item)
-            self.list_widget.setItemWidget(item, self._create_list_item_widget(entry))
+        # 批量添加：先禁用更新，添加完后再启用
+        self.list_widget.setUpdatesEnabled(False)
+        try:
+            for entry in entries:
+                item = QListWidgetItem()
+                item.setData(Qt.ItemDataRole.UserRole, entry.get('id'))
+                item.setSizeHint(self._calc_item_size(entry))
+                self.list_widget.addItem(item)
+                self.list_widget.setItemWidget(item, self._create_list_item_widget(entry))
+        finally:
+            self.list_widget.setUpdatesEnabled(True)
 
     def _calc_item_size(self, entry):
         """计算列表项的推荐大小（两行布局固定高度）。"""
@@ -628,7 +611,13 @@ class HistoryWindow(QWidget):
         self.result_edit.clear()
 
     def _on_search_changed(self, keyword: str):
-        """搜索框内容变化时刷新列表。"""
+        """搜索框内容变化时，启动防抖定时器。"""
+        self._search_timer.stop()
+        self._search_timer.start(300)  # 300ms 防抖延迟
+
+    def _do_search(self):
+        """执行实际的搜索操作。"""
+        keyword = self.search_input.text()
         self._refresh_list(keyword)
 
     def _on_copy_original(self):

@@ -688,4 +688,40 @@ def get_history_stylesheet(theme: str) -> str:
             font-size: {FONT_SIZE_XS};
             font-weight: bold;
         }}
+
+        /* ── List item components ── */
+        QWidget#list_item {{
+            background: transparent;
+        }}
+
+        QLabel#time_label {{
+            color: {c['muted']};
+            font-family: {FONT_MONO};
+            font-size: 11px;
+            background: transparent;
+        }}
+
+        QLabel#mode_badge_rules {{
+            background: {c['surface_alt']};
+            color: {c['muted']};
+            border-radius: {RADIUS_PILL};
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: bold;
+        }}
+
+        QLabel#mode_badge_llm {{
+            background: {c['accent_soft']};
+            color: {c['accent']};
+            border-radius: {RADIUS_PILL};
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: bold;
+        }}
+
+        QLabel#summary_label {{
+            color: {c['fg']};
+            font-size: {FONT_SIZE_XS};
+            background: transparent;
+        }}
     """
