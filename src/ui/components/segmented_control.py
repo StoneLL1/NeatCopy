@@ -108,6 +108,7 @@ class SegmentedControl(QWidget):
         self.setStyleSheet(f"""
             QWidget#segmentedContainer {{
                 background: {c['surface_alt']};
+                border: 1px solid {c['border']};
                 border-radius: {RADIUS_SM};
             }}
         """)
@@ -119,6 +120,7 @@ class SegmentedControl(QWidget):
     def _apply_button_styles(self):
         """Refresh per-button QSS based on current selection and theme."""
         c = ColorPalette.get(self._theme)
+        selected_bg = c.get('card_bg', c['bg'])
 
         checked_id = self._button_group.checkedId()
 
@@ -135,7 +137,7 @@ class SegmentedControl(QWidget):
             if is_selected:
                 btn.setStyleSheet(f"""
                     QPushButton {{
-                        background: {c['bg']};
+                        background: {selected_bg};
                         color: {c['fg']};
                         border: none;
                         border-radius: 4px;
@@ -146,7 +148,7 @@ class SegmentedControl(QWidget):
                         font-weight: 500;
                     }}
                     QPushButton:hover {{
-                        background: {c['bg']};
+                        background: {selected_bg};
                         color: {c['fg']};
                     }}
                 """)

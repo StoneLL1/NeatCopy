@@ -71,10 +71,11 @@ class Card(QFrame):
         """Re-apply styling for the given theme."""
         self._theme = theme
         c = ColorPalette.get(theme)
+        card_bg = c.get('card_bg', c['bg'])
 
         self.setStyleSheet(f"""
             QFrame#card {{
-                background: {c['bg']};
+                background: {card_bg};
                 border: 1px solid {c['border']};
                 border-radius: {RADIUS_MD};
             }}

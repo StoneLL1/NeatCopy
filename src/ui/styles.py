@@ -22,6 +22,8 @@ class ColorPalette:
     LIGHT = {
         # Backgrounds
         'bg':               '#ffffff',
+        'card_bg':          '#ffffff',
+        'input_bg':         '#ffffff',
         'surface_alt':      '#f9fafb',
         'fg':               '#111827',
         'fg_2':             '#334155',
@@ -29,6 +31,7 @@ class ColorPalette:
 
         # Soft overlays
         'fg_soft':          'rgba(17,24,39,0.05)',
+        'selected_bg':      'rgba(17,24,39,0.08)',
         'border':           '#e5e7eb',
         'border_strong':    '#cbd5e1',
 
@@ -56,22 +59,25 @@ class ColorPalette:
 
     DARK = {
         # Backgrounds
-        'bg':               '#18181b',
-        'surface_alt':      '#27272a',
-        'fg':               '#fafafa',
-        'fg_2':             '#d4d4d8',
-        'muted':            '#a1a1aa',
+        'bg':               '#0f1117',
+        'card_bg':          '#171a22',
+        'input_bg':         '#111827',
+        'surface_alt':      '#202532',
+        'fg':               '#f8fafc',
+        'fg_2':             '#e2e8f0',
+        'muted':            '#cbd5e1',
 
         # Soft overlays
-        'fg_soft':          'rgba(250,250,250,0.05)',
-        'border':           '#3f3f46',
-        'border_strong':    '#52525b',
+        'fg_soft':          'rgba(248,250,252,0.09)',
+        'selected_bg':      'rgba(148,163,184,0.16)',
+        'border':           '#334155',
+        'border_strong':    '#64748b',
 
         # Accent (CTA)
-        'accent':           '#fafafa',
-        'accent_on':        '#18181b',
-        'accent_hover':     '#e4e4e7',
-        'accent_soft':      'rgba(250,250,250,0.08)',
+        'accent':           '#e5e7eb',
+        'accent_on':        '#0f1117',
+        'accent_hover':     '#f8fafc',
+        'accent_soft':      'rgba(226,232,240,0.16)',
 
         # Semantic colors
         'success':          '#4ade80',
@@ -85,8 +91,8 @@ class ColorPalette:
 
         # Scrollbar
         'scrollbar_bg':         'transparent',
-        'scrollbar_handle':     '#52525b',
-        'scrollbar_handle_hover': '#71717a',
+        'scrollbar_handle':     '#475569',
+        'scrollbar_handle_hover': '#94a3b8',
     }
 
     @classmethod
@@ -107,6 +113,9 @@ def get_settings_stylesheet(theme: str) -> str:
     """Generate the main stylesheet for SettingsWindow based on theme."""
     c = ColorPalette.get(theme)
     check_path = get_checkbox_image_path(theme)
+    card_bg = c.get('card_bg', c['bg'])
+    input_bg = c.get('input_bg', c['bg'])
+    selected_bg = c.get('selected_bg', c['accent_soft'])
 
     return f"""
         /* ── Dialog ── */
@@ -211,7 +220,7 @@ def get_settings_stylesheet(theme: str) -> str:
 
         /* ── GroupBox (legacy fallback, matches Card) ── */
         QGroupBox {{
-            background: {c['bg']};
+            background: {card_bg};
             border: 1px solid {c['border']};
             border-radius: {RADIUS_MD};
             margin-top: 16px;
@@ -224,7 +233,7 @@ def get_settings_stylesheet(theme: str) -> str:
             left: 10px;
             top: 0px;
             padding: 0 6px;
-            background: {c['bg']};
+            background: {card_bg};
             color: {c['fg']};
             font-size: {FONT_SIZE_SM};
             font-weight: 600;
@@ -243,7 +252,7 @@ def get_settings_stylesheet(theme: str) -> str:
             height: 16px;
             border: 1.5px solid {c['border_strong']};
             border-radius: {RADIUS_SM};
-            background: {c['bg']};
+            background: {input_bg};
         }}
 
         QCheckBox::indicator:checked {{
@@ -290,7 +299,7 @@ def get_settings_stylesheet(theme: str) -> str:
 
         /* ── Reset button ── */
         QPushButton#btn_reset {{
-            background: {c['bg']};
+            background: {input_bg};
             border: 1px solid {c['border']};
             border-radius: {RADIUS_SM};
             padding: 4px 12px;
@@ -309,7 +318,7 @@ def get_settings_stylesheet(theme: str) -> str:
             border: 1px solid {c['border']};
             border-radius: {RADIUS_SM};
             padding: 8px 12px;
-            background: {c['bg']};
+            background: {input_bg};
             selection-background-color: {c['accent']};
             color: {c['fg']};
         }}
@@ -317,14 +326,39 @@ def get_settings_stylesheet(theme: str) -> str:
         QLineEdit:focus {{
             border: 2px solid {c['accent']};
             padding: 7px 11px;
-            background: {c['bg']};
+            background: {input_bg};
+        }}
+
+        QSpinBox {{
+            border: 1px solid {c['border']};
+            border-radius: {RADIUS_SM};
+            padding: 4px 8px;
+            background: {input_bg};
+            color: {c['fg']};
+            selection-background-color: {c['accent']};
+        }}
+
+        QSpinBox:focus {{
+            border: 2px solid {c['accent']};
+            padding: 3px 7px;
+            background: {input_bg};
+        }}
+
+        QSpinBox::up-button, QSpinBox::down-button {{
+            width: 14px;
+            border: none;
+            background: {c['surface_alt']};
+        }}
+
+        QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
+            background: {c['fg_soft']};
         }}
 
         QTextEdit {{
             border: 1px solid {c['border']};
             border-radius: {RADIUS_SM};
             padding: 8px 12px;
-            background: {c['bg']};
+            background: {card_bg};
             color: {c['fg']};
         }}
 
@@ -337,7 +371,7 @@ def get_settings_stylesheet(theme: str) -> str:
         QListWidget {{
             border: 1px solid {c['border']};
             border-radius: {RADIUS_MD};
-            background: {c['bg']};
+            background: {input_bg};
             padding: 3px;
             outline: none;
         }}
@@ -353,7 +387,7 @@ def get_settings_stylesheet(theme: str) -> str:
         }}
 
         QListWidget::item:selected {{
-            background: {c['accent_soft']};
+            background: {selected_bg};
             color: {c['fg']};
         }}
 
@@ -368,7 +402,7 @@ def get_settings_stylesheet(theme: str) -> str:
             width: 16px;
             height: 16px;
             margin: -6px 0;
-            background: {c['bg']};
+            background: {card_bg};
             border: 2px solid {c['accent']};
             border-radius: 8px;
         }}
@@ -412,7 +446,7 @@ def get_settings_stylesheet(theme: str) -> str:
 
         /* ── Menu ── */
         QMenu {{
-            background: {c['bg']};
+            background: {card_bg};
             border: 1px solid {c['border']};
             border-radius: {RADIUS_MD};
             padding: 4px 0;
@@ -424,7 +458,7 @@ def get_settings_stylesheet(theme: str) -> str:
         }}
 
         QMenu::item:selected {{
-            background: {c['accent_soft']};
+            background: {selected_bg};
         }}
 
         QMenu::item:disabled {{
@@ -433,7 +467,7 @@ def get_settings_stylesheet(theme: str) -> str:
 
         /* ── Tooltip ── */
         QToolTip {{
-            background: {c['bg']};
+            background: {card_bg};
             border: 1px solid {c['border']};
             border-radius: {RADIUS_SM};
             padding: 4px 8px;
@@ -446,10 +480,12 @@ def get_settings_stylesheet(theme: str) -> str:
 def get_sidebar_stylesheet(theme: str) -> str:
     """Generate stylesheet for SidebarWidget based on theme."""
     c = ColorPalette.get(theme)
+    sidebar_bg = c.get('card_bg', c['bg'])
+    selected_bg = c.get('selected_bg', c['accent_soft'])
 
     return f"""
         QWidget#sidebar {{
-            background: {c['bg']};
+            background: {sidebar_bg};
             border-right: 1px solid {c['border']};
         }}
 
@@ -486,7 +522,7 @@ def get_sidebar_stylesheet(theme: str) -> str:
         }}
 
         QListWidget#sidebarNav::item:selected {{
-            background: {c['accent_soft']};
+            background: {selected_bg};
             border-left: 3px solid {c['accent']};
             color: {c['fg']};
             font-weight: 500;
@@ -498,6 +534,9 @@ def get_history_stylesheet(theme: str) -> str:
     """Generate stylesheet for HistoryWindow based on theme."""
     c = ColorPalette.get(theme)
     check_path = get_checkbox_image_path(theme)
+    card_bg = c.get('card_bg', c['bg'])
+    input_bg = c.get('input_bg', c['bg'])
+    selected_bg = c.get('selected_bg', c['accent_soft'])
 
     return f"""
         /* ── Dialog ── */
@@ -510,7 +549,7 @@ def get_history_stylesheet(theme: str) -> str:
 
         /* ── Main panel ── */
         QWidget#panel {{
-            background: {c['bg']};
+            background: {card_bg};
             border: 1px solid {c['border']};
             border-radius: {RADIUS_LG};
         }}
@@ -523,7 +562,7 @@ def get_history_stylesheet(theme: str) -> str:
 
         /* ── Toolbar ── */
         QWidget#toolbar {{
-            background: {c['bg']};
+            background: {card_bg};
             border-bottom: 1px solid {c['border']};
         }}
 
@@ -546,7 +585,7 @@ def get_history_stylesheet(theme: str) -> str:
         }}
 
         QListWidget::item:selected {{
-            background: {c['accent_soft']};
+            background: {selected_bg};
             color: {c['fg']};
         }}
 
@@ -555,7 +594,7 @@ def get_history_stylesheet(theme: str) -> str:
             border: 1px solid {c['border']};
             border-radius: {RADIUS_SM};
             padding: 8px 12px;
-            background: {c['bg']};
+            background: {input_bg};
             selection-background-color: {c['accent']};
             color: {c['fg']};
         }}
@@ -563,14 +602,14 @@ def get_history_stylesheet(theme: str) -> str:
         QLineEdit:focus {{
             border: 2px solid {c['accent']};
             padding: 7px 11px;
-            background: {c['bg']};
+            background: {input_bg};
         }}
 
         QTextEdit {{
             border: 1px solid {c['border']};
             border-radius: {RADIUS_SM};
             padding: 8px 12px;
-            background: {c['bg']};
+            background: {input_bg};
             color: {c['fg']};
         }}
 
@@ -681,7 +720,7 @@ def get_history_stylesheet(theme: str) -> str:
 
         /* ── Mode badge ── */
         QLabel#mode_badge {{
-            background: {c['accent_soft']};
+            background: {selected_bg};
             color: {c['accent']};
             border-radius: {RADIUS_PILL};
             padding: 2px 8px;
@@ -711,7 +750,7 @@ def get_history_stylesheet(theme: str) -> str:
         }}
 
         QLabel#mode_badge_llm {{
-            background: {c['accent_soft']};
+            background: {selected_bg};
             color: {c['accent']};
             border-radius: {RADIUS_PILL};
             padding: 2px 8px;

@@ -210,10 +210,10 @@ class SettingsWindow(QDialog):
         self._make_setting_row(card_appearance.content_layout(), '界面主题', self._seg_theme)
 
         # Row 2: Preview panel theme
-        self._seg_preview_theme = SegmentedControl(['深色', '浅色'], parent=self)
+        self._seg_preview_theme = SegmentedControl(['浅色', '深色'], parent=self)
         self._segmented_controls.append(self._seg_preview_theme)
         preview_theme_val = self._config.get('preview.theme', 'dark')
-        self._seg_preview_theme.setCurrentIndex(0 if preview_theme_val == 'dark' else 1)
+        self._seg_preview_theme.setCurrentIndex(0 if preview_theme_val == 'light' else 1)
         self._seg_preview_theme.selectionChanged.connect(self._on_preview_theme_changed)
         self._make_setting_row(card_appearance.content_layout(), '预览面板主题', self._seg_preview_theme, separator=False)
 
@@ -291,7 +291,7 @@ class SettingsWindow(QDialog):
 
         # Row 3: 间隔阈值 — QSlider + QLabel (indented, disabled when double-click off)
         interval_row = QHBoxLayout()
-        interval_row.setContentsMargins(16, 12, 0, 12)
+        interval_row.setContentsMargins(0, 12, 0, 12)
 
         interval_label = QLabel('间隔阈值')
         c = ColorPalette.get(self._theme)
@@ -731,11 +731,12 @@ class SettingsWindow(QDialog):
 
         # Row 4: Temperature slider + label
         temp_row = QHBoxLayout()
-        temp_row.setContentsMargins(0, 8, 0, 8)
+        temp_row.setContentsMargins(0, 12, 0, 12)
+        temp_row.setSpacing(24)
         lbl_temp = QLabel('Temperature')
-        lbl_temp.setStyleSheet(f"color: {c['fg']};")
+        lbl_temp.setStyleSheet(f"color: {c['fg']}; font-size: {FONT_SIZE_XS}; background: transparent;")
+        lbl_temp.setFixedWidth(92)
         temp_row.addWidget(lbl_temp)
-        temp_row.addStretch()
 
         self._sld_temp = QSlider(Qt.Orientation.Horizontal)
         self._sld_temp.setRange(0, 20)
@@ -747,7 +748,8 @@ class SettingsWindow(QDialog):
 
         self._lbl_temp_val = QLabel(f'{temp_val:.1f}')
         self._lbl_temp_val.setStyleSheet(f"color: {c['muted']}; font-family: {FONT_MONO}; font-size: {FONT_SIZE_XS}; background: transparent;")
-        self._lbl_temp_val.setFixedWidth(40)
+        self._lbl_temp_val.setFixedWidth(56)
+        self._lbl_temp_val.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         temp_row.addWidget(self._lbl_temp_val)
         cl.addLayout(temp_row)
 
@@ -797,6 +799,8 @@ class SettingsWindow(QDialog):
         pl.addWidget(self._prompt_list)
 
         prompt_btn_row = QHBoxLayout()
+        prompt_btn_row.setContentsMargins(0, 12, 0, 0)
+        prompt_btn_row.setSpacing(12)
         btn_add = QPushButton('+ 新增模板')
         btn_add.clicked.connect(self._on_add_prompt)
         prompt_btn_row.addWidget(btn_add)
@@ -1359,6 +1363,7 @@ class SettingsWindow(QDialog):
     def _apply_theme(self):
         """Apply the current theme to the window and all child widgets."""
         c = ColorPalette.get(self._theme)
+        card_bg = c.get('card_bg', c['bg'])
         self.setStyleSheet(get_settings_stylesheet(self._theme))
 
         # Title bar styling
@@ -1366,7 +1371,7 @@ class SettingsWindow(QDialog):
         if titlebar:
             titlebar.setStyleSheet(f"""
                 QWidget#titlebar {{
-                    background: {c['bg']};
+                    background: {card_bg};
                     border-bottom: 1px solid {c['border']};
                 }}
                 QLabel#titlebar_title {{
@@ -1413,7 +1418,7 @@ class SettingsWindow(QDialog):
 
     def _on_preview_theme_changed(self, index: int):
         """Handle preview panel theme segmented control change."""
-        theme = 'dark' if index == 0 else 'light'
+        theme = 'light' if index == 0 else 'dark'
         self._mark('preview.theme', theme)
 
     # ── Startup ─────────────────────────────────────────────────────
