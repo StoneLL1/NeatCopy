@@ -654,6 +654,7 @@ class SettingsWindow(QDialog):
         lbl_url = QLabel('Base URL')
         lbl_url.setStyleSheet(f"color: {c['fg']}; font-size: {FONT_SIZE_XS}; background: transparent;")
         lbl_url.setFixedWidth(92)
+        lbl_url.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         row_url.addWidget(lbl_url)
         self._le_base_url = QLineEdit(
             str(self._config.get('llm.base_url', 'https://api.openai.com/v1')))
@@ -675,6 +676,7 @@ class SettingsWindow(QDialog):
         lbl_model = QLabel('Model ID')
         lbl_model.setStyleSheet(f"color: {c['fg']}; font-size: {FONT_SIZE_XS}; background: transparent;")
         lbl_model.setFixedWidth(92)
+        lbl_model.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         row_model.addWidget(lbl_model)
         self._le_model_id = QLineEdit(
             str(self._config.get('llm.model_id', 'gpt-4o-mini')))
@@ -696,6 +698,7 @@ class SettingsWindow(QDialog):
         lbl_key = QLabel('API Key')
         lbl_key.setStyleSheet(f"color: {c['fg']}; font-size: {FONT_SIZE_XS};")
         lbl_key.setFixedWidth(92)
+        lbl_key.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         key_row.addWidget(lbl_key)
 
         self._le_apikey = QLineEdit(self._config.get('llm.api_key', ''))
@@ -736,15 +739,16 @@ class SettingsWindow(QDialog):
         lbl_temp = QLabel('Temperature')
         lbl_temp.setStyleSheet(f"color: {c['fg']}; font-size: {FONT_SIZE_XS}; background: transparent;")
         lbl_temp.setFixedWidth(92)
+        lbl_temp.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         temp_row.addWidget(lbl_temp)
 
         self._sld_temp = QSlider(Qt.Orientation.Horizontal)
         self._sld_temp.setRange(0, 20)
         temp_val = self._config.get('llm.temperature', 0.2)
         self._sld_temp.setValue(int(temp_val * 10))
-        self._sld_temp.setFixedWidth(200)
+        self._sld_temp.setMinimumWidth(200)
         self._sld_temp.valueChanged.connect(self._on_temp_changed)
-        temp_row.addWidget(self._sld_temp)
+        temp_row.addWidget(self._sld_temp, 1)
 
         self._lbl_temp_val = QLabel(f'{temp_val:.1f}')
         self._lbl_temp_val.setStyleSheet(f"color: {c['muted']}; font-family: {FONT_MONO}; font-size: {FONT_SIZE_XS}; background: transparent;")
