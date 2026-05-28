@@ -78,7 +78,8 @@ class SettingsWindow(QDialog):
         root.setSpacing(0)
 
         # 1. Title bar
-        root.addWidget(self._build_titlebar())
+        self._titlebar = self._build_titlebar()
+        root.addWidget(self._titlebar)
 
         # 2. Body: sidebar + separator + stacked pages
         body = QHBoxLayout()
@@ -1424,14 +1425,22 @@ class SettingsWindow(QDialog):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            pos = event.position().toPoint()
+            if self._titlebar.geometry().contains(pos):
+                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                return
+        self._drag_pos = None
+        super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
         if event.buttons() & Qt.MouseButton.LeftButton and hasattr(self, '_drag_pos') and self._drag_pos is not None:
             self.move(event.globalPosition().toPoint() - self._drag_pos)
+            return
+        super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
         self._drag_pos = None
+        super().mouseReleaseEvent(event)
 
     # ── Save ────────────────────────────────────────────────────────
 

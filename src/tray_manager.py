@@ -193,6 +193,7 @@ def _make_exit_action(menu: QMenu, theme: str) -> QWidgetAction:
             color: #ffffff;
         }}
     """)
+    exit_btn.clicked.connect(action.trigger)
     action.setDefaultWidget(exit_btn)
 
     return action

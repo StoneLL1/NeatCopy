@@ -249,6 +249,16 @@ class WheelWindow(QWidget):
         idx = int(angle / sector_size) % n
         return idx
 
+    def _map_from_scaled_view(self, x: int, y: int) -> tuple[float, float]:
+        """Map widget coordinates back to the wheel's scaled drawing space."""
+        if self._scale_value == 0:
+            return x, y
+        cx = cy = self._WINDOW_SIZE / 2
+        return (
+            cx + (x - cx) / self._scale_value,
+            cy + (y - cy) / self._scale_value,
+        )
+
     # ── 事件 ──────────────────────────────────────────────────
 
     def paintEvent(self, event):
@@ -360,10 +370,11 @@ class WheelWindow(QWidget):
         painter.drawText(cx - fw // 2, cy + fh // 4, esc_txt)
 
     def mouseMoveEvent(self, event):
-        new_hovered = self._index_at(event.pos().x(), event.pos().y())
+        mx, my = self._map_from_scaled_view(event.pos().x(), event.pos().y())
+        new_hovered = self._index_at(mx, my)
         cx = cy = self._WINDOW_SIZE // 2
-        dx = event.pos().x() - cx
-        dy = event.pos().y() - cy
+        dx = mx - cx
+        dy = my - cy
         new_center = math.hypot(dx, dy) <= self._INNER_R
         if new_hovered != self._hovered or new_center != self._center_hovered:
             self._hovered = new_hovered
@@ -372,14 +383,15 @@ class WheelWindow(QWidget):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            idx = self._index_at(event.pos().x(), event.pos().y())
+            mx, my = self._map_from_scaled_view(event.pos().x(), event.pos().y())
+            idx = self._index_at(mx, my)
             if idx >= 0:
                 self._select(idx)
             else:
                 # 点击中心圆等同 ESC
                 cx = cy = self._WINDOW_SIZE // 2
-                dx = event.pos().x() - cx
-                dy = event.pos().y() - cy
+                dx = mx - cx
+                dy = my - cy
                 if math.hypot(dx, dy) <= self._INNER_R:
                     self._close_wheel(cancelled=True)
 

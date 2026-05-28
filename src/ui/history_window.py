@@ -4,9 +4,9 @@ from datetime import datetime
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTextEdit, QPushButton, QListWidget, QListWidgetItem,
-    QLineEdit, QMessageBox, QSizePolicy, QSplitter, QFrame
+    QLineEdit, QMessageBox, QSizePolicy, QSplitter, QFrame, QStackedWidget
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize
 from PyQt6.QtGui import QCursor, QIcon, QPixmap, QPainter, QColor, QPen, QAction
 
 from ui.styles import (
@@ -28,6 +28,8 @@ class HistoryWindow(QWidget):
         self._theme = config.get('ui.theme', 'light')
         self._drag_pos = None
         self._resize_timer = None
+        self._displayed_entries_by_id = {}
+        self._list_item_size = QSize(0, 62)
         self._search_timer = QTimer()  # 搜索防抖定时器
         self._search_timer.setSingleShot(True)
         self._search_timer.timeout.connect(self._do_search)
@@ -73,17 +75,6 @@ class HistoryWindow(QWidget):
         self._theme = theme
         c = ColorPalette.get(theme)
         self.setStyleSheet(get_history_stylesheet(theme))
-
-        # 工具栏标题
-        self.toolbar_title.setStyleSheet(f"""
-            QLabel {{
-                color: {c['fg']};
-                font-size: {FONT_SIZE_SM};
-                font-weight: 600;
-                padding: 0 4px;
-                background: transparent;
-            }}
-        """)
 
         # 关闭按钮
         self.close_btn.setStyleSheet(f"""
@@ -422,8 +413,6 @@ class HistoryWindow(QWidget):
 
         splitter.addWidget(detail_container)
         splitter.setSizes([240, 480])
-        root.addWidget(splitter, stretch=1)
-
         # 全局空状态（无任何记录时显示，覆盖整个窗口）
         self.global_empty = QWidget()
         self.global_empty.setObjectName("panel")
@@ -438,8 +427,10 @@ class HistoryWindow(QWidget):
         global_empty_layout.addWidget(self.empty_icon)
         global_empty_layout.addWidget(self.empty_label)
 
-        self.global_empty.hide()
-        root.addWidget(self.global_empty)
+        self._main_stack = QStackedWidget()
+        self._main_stack.addWidget(splitter)
+        self._main_stack.addWidget(self.global_empty)
+        root.addWidget(self._main_stack, stretch=1)
 
         self._refresh_list()
 
@@ -514,15 +505,18 @@ class HistoryWindow(QWidget):
             entries = self._history.search(keyword)
         else:
             entries = self._history.get_all()
+        self._displayed_entries_by_id = {
+            entry.get('id'): entry
+            for entry in entries
+            if entry.get('id')
+        }
 
         if not entries:
-            self.global_empty.show()
-            self.list_widget.hide()
+            self._main_stack.setCurrentWidget(self.global_empty)
             self._clear_detail()
             return
 
-        self.global_empty.hide()
-        self.list_widget.show()
+        self._main_stack.setCurrentIndex(0)
 
         # 批量添加：先禁用更新，添加完后再启用
         self.list_widget.setUpdatesEnabled(False)
@@ -530,21 +524,18 @@ class HistoryWindow(QWidget):
             for entry in entries:
                 item = QListWidgetItem()
                 item.setData(Qt.ItemDataRole.UserRole, entry.get('id'))
-                item.setSizeHint(self._calc_item_size(entry))
+                item.setSizeHint(self._list_item_size)
                 self.list_widget.addItem(item)
                 self.list_widget.setItemWidget(item, self._create_list_item_widget(entry))
         finally:
             self.list_widget.setUpdatesEnabled(True)
 
-    def _calc_item_size(self, entry):
-        """计算列表项的推荐大小（两行布局固定高度）。"""
-        from PyQt6.QtCore import QSize
-        return QSize(0, 62)
-
     def _on_item_clicked(self, item: QListWidgetItem):
         """点击列表项，显示详情。"""
         entry_id = item.data(Qt.ItemDataRole.UserRole)
-        entry = self._history.get_by_id(entry_id)
+        entry = self._displayed_entries_by_id.get(entry_id)
+        if entry is None:
+            entry = self._history.get_by_id(entry_id)
 
         if not entry:
             self._clear_detail()
