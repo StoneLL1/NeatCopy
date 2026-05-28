@@ -29,6 +29,7 @@ class ToggleSwitch(QWidget):
     # Geometry constants
     _TRACK_W = 36
     _TRACK_H = 20
+    _PAINT_PAD = 1
     _THUMB_SIZE = 16
     _THUMB_MARGIN = 2  # (TRACK_H - THUMB_SIZE) / 2
     _THUMB_X_OFF = 2
@@ -77,7 +78,8 @@ class ToggleSwitch(QWidget):
         self.update()
 
     def sizeHint(self) -> QSize:  # noqa: N802 – Qt naming convention
-        return QSize(self._TRACK_W, self._TRACK_H)
+        return QSize(self._TRACK_W + self._PAINT_PAD * 2,
+                     self._TRACK_H + self._PAINT_PAD * 2)
 
     # ── Painting ────────────────────────────────────────────────────────
 
@@ -91,15 +93,16 @@ class ToggleSwitch(QWidget):
         thumb_color = QColor(self._colors['bg'])
 
         # Track (pill shape)
-        track_rect = QRectF(0, 0, self._TRACK_W, self._TRACK_H)
+        pad = self._PAINT_PAD
+        track_rect = QRectF(pad, pad, self._TRACK_W, self._TRACK_H)
         painter.setPen(QPen(track_color, 0))
         painter.setBrush(QBrush(track_color))
         painter.drawRoundedRect(track_rect, self._TRACK_H / 2, self._TRACK_H / 2)
 
         # Thumb shadow (soft dark ellipse behind the thumb)
         shadow_rect = QRectF(
-            self._thumb_x,
-            self._THUMB_MARGIN + 0.5,
+            pad + self._thumb_x,
+            pad + self._THUMB_MARGIN + 0.5,
             self._THUMB_SIZE,
             self._THUMB_SIZE,
         )
@@ -110,8 +113,8 @@ class ToggleSwitch(QWidget):
 
         # Thumb (white circle)
         thumb_rect = QRectF(
-            self._thumb_x,
-            self._THUMB_MARGIN,
+            pad + self._thumb_x,
+            pad + self._THUMB_MARGIN,
             self._THUMB_SIZE,
             self._THUMB_SIZE,
         )

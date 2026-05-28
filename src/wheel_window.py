@@ -37,26 +37,25 @@ class WheelWindow(QWidget):
     _INNER_R = 32
 
     # ── 调色板（Design Spec） ───────────────────────
-    # 扇区基底 rgba(255,255,255,0.06)
-    _SECTOR_BASE   = QColor(255, 255, 255,  15)
-    # 悬停/选中 rgba(255,255,255,0.2)
-    _HOVER_TINT    = QColor(255, 255, 255,  51)
-    _HOVER_BORDER  = QColor(255, 255, 255,  20)
-    _HOVER_TEXT    = QColor(255, 255, 255, 178)
-    _HOVER_NUM     = QColor(255, 255, 255,  77)
-    # 上次使用 last-used mark rgba(255,255,255,0.1)
-    _LAST_TINT     = QColor(255, 255, 255,  26)
-    _LAST_BORDER   = QColor(255, 255, 255,  20)
-    _LAST_TEXT     = QColor(255, 255, 255, 178)
+    # 扇区基底：与中心 ESC 保持同一深色系，保证弹出时清晰可读。
+    _SECTOR_BASE   = QColor(30, 30, 46, 236)
+    _HOVER_TINT    = QColor(255, 255, 255,  34)
+    _HOVER_BORDER  = QColor(255, 255, 255,  96)
+    _HOVER_TEXT    = QColor(255, 255, 255, 236)
+    _HOVER_NUM     = QColor(255, 255, 255, 180)
+    # 上次使用 last-used mark
+    _LAST_TINT     = QColor(255, 255, 255,  18)
+    _LAST_BORDER   = QColor(255, 255, 255,  72)
+    _LAST_TEXT     = QColor(255, 255, 255, 224)
     # 普通状态
-    _BORDER_NORMAL = QColor(255, 255, 255,  20)
-    _TEXT_NORMAL   = QColor(255, 255, 255, 179)
-    _NUM_NORMAL    = QColor(255, 255, 255,  77)
+    _BORDER_NORMAL = QColor(255, 255, 255,  56)
+    _TEXT_NORMAL   = QColor(255, 255, 255, 220)
+    _NUM_NORMAL    = QColor(255, 255, 255, 150)
     # 中心圆 fill rgba(30,30,46,0.95) + stroke rgba(255,255,255,0.1)
     _CENTER_FILL   = QColor( 30,  30,  46, 242)
     _CENTER_HOVER  = QColor( 30,  30,  46, 204)  # rgba(30,30,46,0.8)
-    _CENTER_BORDER = QColor(255, 255, 255,  26)
-    _CENTER_TEXT   = QColor(255, 255, 255, 102)
+    _CENTER_BORDER = QColor(255, 255, 255,  56)
+    _CENTER_TEXT   = QColor(255, 255, 255, 190)
 
     def __init__(self, parent=None):
         super().__init__(parent)

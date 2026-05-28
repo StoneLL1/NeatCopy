@@ -29,7 +29,7 @@ class HistoryWindow(QWidget):
         self._drag_pos = None
         self._resize_timer = None
         self._displayed_entries_by_id = {}
-        self._list_item_size = QSize(0, 62)
+        self._list_item_size = QSize(0, 76)
         self._search_timer = QTimer()  # 搜索防抖定时器
         self._search_timer.setSingleShot(True)
         self._search_timer.timeout.connect(self._do_search)
@@ -75,22 +75,6 @@ class HistoryWindow(QWidget):
         self._theme = theme
         c = ColorPalette.get(theme)
         self.setStyleSheet(get_history_stylesheet(theme))
-
-        # 关闭按钮
-        self.close_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent;
-                color: {c['muted']};
-                border: none;
-                border-radius: {RADIUS_SM};
-                font-size: 16px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background: {c['danger_soft']};
-                color: {c['danger']};
-            }}
-        """)
 
         # 工具栏标题
         self.toolbar_title.setStyleSheet(f"""
@@ -310,12 +294,6 @@ class HistoryWindow(QWidget):
         toolbar_layout.addWidget(self.clear_all_btn)
         self.clear_all_btn.clicked.connect(self._on_clear_all)
 
-        self.close_btn = QPushButton("✕")
-        self.close_btn.setFixedSize(28, 28)
-        self.close_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.close_btn.clicked.connect(self.close)
-        toolbar_layout.addWidget(self.close_btn)
-
         root.addWidget(toolbar)
 
         # === 双栏主体 ===
@@ -444,8 +422,8 @@ class HistoryWindow(QWidget):
         widget = QWidget()
         widget.setObjectName("list_item")
         layout = QVBoxLayout(widget)
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(6)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(8)
 
         # 格式化时间
         timestamp = entry.get('timestamp', '')
@@ -488,7 +466,7 @@ class HistoryWindow(QWidget):
         summary_label = QLabel(summary)
         summary_label.setObjectName("summary_label")
         summary_label.setWordWrap(False)
-        summary_label.setFixedHeight(18)
+        summary_label.setFixedHeight(20)
         layout.addWidget(summary_label)
 
         return widget

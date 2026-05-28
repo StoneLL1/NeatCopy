@@ -43,7 +43,7 @@ class SegmentedControl(QWidget):
 
         # Layout -----------------------------------------------------------
         self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(3, 3, 3, 3)
+        self._layout.setContentsMargins(5, 5, 5, 5)
         self._layout.setSpacing(2)
 
         # Button group (exclusive) -----------------------------------------
@@ -140,6 +140,7 @@ class SegmentedControl(QWidget):
                         border: none;
                         border-radius: 4px;
                         padding: 4px 12px;
+                        min-height: 22px;
                         font-family: {FONT_FAMILY};
                         font-size: {FONT_SIZE_XS};
                         font-weight: 500;
@@ -157,6 +158,7 @@ class SegmentedControl(QWidget):
                         border: none;
                         border-radius: 4px;
                         padding: 4px 12px;
+                        min-height: 22px;
                         font-family: {FONT_FAMILY};
                         font-size: {FONT_SIZE_XS};
                         font-weight: 500;
