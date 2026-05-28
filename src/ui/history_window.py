@@ -1,21 +1,22 @@
-"""历史记录窗口组件：双栏布局，左侧列表右侧详情，支持搜索、复制、删除。"""
-import ctypes
-import sys
+"""历史记录窗口组件：标准窗口 + 自定义标题栏，双栏布局，支持搜索、复制、删除。"""
 from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QTextEdit, QPushButton, QListWidget, QListWidgetItem,
-    QLineEdit, QMessageBox, QSizePolicy, QSplitter
+    QLineEdit, QMessageBox, QSizePolicy, QSplitter, QFrame
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QCursor
+from PyQt6.QtGui import QCursor, QIcon, QPixmap, QPainter, QColor, QPen, QAction
 
-from ui.styles import ColorPalette
+from ui.styles import (
+    get_history_stylesheet, ColorPalette,
+    FONT_MONO, FONT_SIZE_XS, FONT_SIZE_SM, FONT_FAMILY, RADIUS_SM
+)
 
 
 class HistoryWindow(QWidget):
-    """历史记录窗口，置顶悬浮窗，双栏布局。"""
+    """历史记录窗口，标准窗口 + 自定义标题栏，Shadcn 风格双栏布局。"""
 
     copy_to_clipboard = pyqtSignal(str)  # 请求写入剪贴板
 
@@ -27,219 +28,60 @@ class HistoryWindow(QWidget):
         self._theme = config.get('ui.theme', 'light')
         self._drag_pos = None
         self._resize_timer = None
+        self._search_timer = QTimer()  # 搜索防抖定时器
+        self._search_timer.setSingleShot(True)
+        self._search_timer.timeout.connect(self._do_search)
 
         self._setup_window_properties()
         self._create_ui()
         self._apply_theme(self._theme)
-        self._apply_acrylic_effect()
 
     # ================================================================
     #  窗口属性
     # ================================================================
 
     def _setup_window_properties(self):
-        """设置窗口属性：无边框、置顶、透明背景、尺寸。"""
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint
-        )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        """设置窗口属性：标准窗口框、尺寸。"""
+        self.setWindowTitle("历史记录 - NeatCopy")
 
         self.resize(
-            self._config.get('history.window_width', 600),
-            self._config.get('history.window_height', 400)
+            self._config.get('history.window_width', 720),
+            self._config.get('history.window_height', 520)
         )
         self.setMinimumSize(400, 300)
+
+    @staticmethod
+    def _create_search_icon() -> QIcon:
+        """Create a 14x14 magnifying glass icon programmatically."""
+        pm = QPixmap(14, 14)
+        pm.fill(QColor(0, 0, 0, 0))
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(QPen(QColor(0, 0, 0, 120), 1.5))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawEllipse(2, 2, 7, 7)
+        p.drawLine(9, 9, 13, 13)
+        p.end()
+        return QIcon(pm)
 
     # ================================================================
     #  主题样式
     # ================================================================
 
-    def _get_theme_styles(self, theme: str) -> dict:
-        """返回指定主题的样式配置字典。基于 ColorPalette 基础色。"""
-        c = ColorPalette.get(theme)
-
-        # 基础变量：简洁统一
-        panel_bg = 'rgba(255, 255, 255, 230)' if theme == 'light' else 'rgba(25, 25, 25, 210)'
-        panel_border = 'rgba(220, 220, 220, 180)' if theme == 'light' else 'rgba(55, 53, 47, 140)'
-        surface_bg = 'rgba(248, 248, 248, 200)' if theme == 'light' else 'rgba(32, 32, 32, 200)'
-        input_bg = 'rgba(255, 255, 255, 240)' if theme == 'light' else 'rgba(36, 36, 36, 220)'
-        scrollbar = 'rgba(160, 160, 160, 100)' if theme == 'light' else 'rgba(74, 74, 74, 100)'
-
-        return {
-            'panel_bg': panel_bg,
-            'panel_border': panel_border,
-            'header_bg': surface_bg,
-            'list_bg': surface_bg,
-            'list_item_hover': 'rgba(240, 240, 240, 200)' if theme == 'light' else 'rgba(47, 47, 47, 200)',
-            'list_item_selected': 'rgba(230, 230, 230, 240)' if theme == 'light' else 'rgba(55, 55, 55, 240)',
-            'detail_bg': surface_bg,
-            'text_primary': c['text_primary'],
-            'text_secondary': c['text_secondary'],
-            'text_meta': '#888888' if theme == 'light' else '#A0A0A0',
-            'mode_rules': '#5cb85c',
-            'mode_llm': '#0275d8',
-            'edit_bg': input_bg,
-            'scrollbar_bg': c['scrollbar_bg'],
-            'scrollbar_handle': scrollbar,
-            'search_bg': input_bg,
-            'search_border': 'rgba(200, 200, 200, 140)' if theme == 'light' else 'rgba(61, 60, 58, 100)',
-            'btn_bg': 'rgba(250, 250, 250, 200)' if theme == 'light' else 'rgba(47, 47, 47, 160)',
-            'btn_border': 'rgba(200, 200, 200, 140)' if theme == 'light' else 'rgba(61, 60, 58, 100)',
-            'btn_hover': 'rgba(240, 240, 240, 220)' if theme == 'light' else 'rgba(55, 55, 55, 180)',
-            'btn_danger_text': '#d9534f',
-            'btn_danger_hover': 'rgba(217, 83, 79, 180)',
-            'close_hover': 'rgba(0, 0, 0, 15)' if theme == 'light' else 'rgba(255, 255, 255, 25)',
-            'empty_text': c['text_secondary'],
-        }
-
     def _apply_theme(self, theme: str):
         """应用指定主题的样式到所有组件。"""
         self._theme = theme
-        styles = self._get_theme_styles(theme)
+        c = ColorPalette.get(theme)
+        self.setStyleSheet(get_history_stylesheet(theme))
 
-        # 面板容器
-        self.container.setStyleSheet(f"""
-            #panel {{
-                background: {styles['panel_bg']};
-                border: 1px solid {styles['panel_border']};
-                border-radius: 8px;
-            }}
-        """)
-
-        # 标题栏
-        self.title_label.setStyleSheet(f"""
+        # 工具栏标题
+        self.toolbar_title.setStyleSheet(f"""
             QLabel {{
-                color: {styles['text_primary']};
-                font-size: 13px;
+                color: {c['fg']};
+                font-size: {FONT_SIZE_SM};
                 font-weight: 600;
                 padding: 0 4px;
-            }}
-        """)
-
-        # 搜索框
-        self.search_input.setStyleSheet(f"""
-            QLineEdit {{
-                background: {styles['search_bg']};
-                border: 1px solid {styles['search_border']};
-                border-radius: 4px;
-                padding: 4px 8px;
-                color: {styles['text_primary']};
-                font-size: 13px;
-            }}
-            QLineEdit::placeholder {{
-                color: {styles['text_secondary']};
-            }}
-        """)
-
-        # 清空按钮
-        self.clear_all_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {styles['btn_bg']};
-                color: {styles['btn_danger_text']};
-                border: 1px solid {styles['btn_border']};
-                border-radius: 4px;
-                padding: 4px 10px;
-                font-size: 12px;
-            }}
-            QPushButton:hover {{
-                background: {styles['btn_danger_hover']};
-                color: #fff;
-            }}
-        """)
-
-        # 列表区域
-        scrollbar_style = f"""
-            QScrollBar:vertical {{
-                background: {styles['scrollbar_bg']};
-                width: 5px;
-                margin: 1px;
-            }}
-            QScrollBar::handle:vertical {{
-                background: {styles['scrollbar_handle']};
-                border-radius: 2px;
-                min-height: 16px;
-            }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-                height: 0;
-            }}
-        """
-        self.list_widget.setStyleSheet(f"""
-            QListWidget {{
-                background: {styles['list_bg']};
-                border: none;
-                border-radius: 4px;
-                padding: 2px;
-                outline: none;
-            }}
-            QListWidget::item {{
-                padding: 6px 8px;
-                margin: 1px 0;
-                border-radius: 3px;
-            }}
-            QListWidget::item:hover {{
-                background: {styles['list_item_hover']};
-            }}
-            QListWidget::item:selected {{
-                background: {styles['list_item_selected']};
-            }}
-            {scrollbar_style}
-        """)
-
-        # 元信息
-        meta_style = f"QLabel {{ color: {styles['text_meta']}; font-size: 12px; }}"
-        self.time_label.setStyleSheet(meta_style)
-        self.mode_label.setStyleSheet(meta_style)
-
-        # 文本编辑区（统一样式）
-        edit_style = f"""
-            QTextEdit {{
-                background: {styles['edit_bg']};
-                border: none;
-                border-radius: 4px;
-                padding: 6px 8px;
-                color: {styles['text_primary']};
-                font-size: 13px;
-            }}
-            {scrollbar_style}
-        """
-        self.original_edit.setStyleSheet(edit_style)
-        self.result_edit.setStyleSheet(edit_style)
-
-        # 区标签（简洁）
-        section_style = f"QLabel {{ color: {styles['text_secondary']}; font-size: 11px; padding: 2px 0; }}"
-        self.original_section.setStyleSheet(section_style)
-        self.result_section.setStyleSheet(section_style)
-
-        # 操作按钮
-        btn_style = f"""
-            QPushButton {{
-                background: {styles['btn_bg']};
-                color: {styles['text_primary']};
-                border: 1px solid {styles['btn_border']};
-                border-radius: 4px;
-                padding: 4px 12px;
-                font-size: 12px;
-            }}
-            QPushButton:hover {{
-                background: {styles['btn_hover']};
-            }}
-        """
-        self.copy_original_btn.setStyleSheet(btn_style)
-        self.copy_result_btn.setStyleSheet(btn_style)
-
-        self.delete_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: {styles['btn_bg']};
-                color: {styles['btn_danger_text']};
-                border: 1px solid {styles['btn_border']};
-                border-radius: 4px;
-                padding: 4px 12px;
-                font-size: 12px;
-            }}
-            QPushButton:hover {{
-                background: {styles['btn_danger_hover']};
-                color: #fff;
+                background: transparent;
             }}
         """)
 
@@ -247,23 +89,190 @@ class HistoryWindow(QWidget):
         self.close_btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
-                color: {styles['text_secondary']};
+                color: {c['muted']};
                 border: none;
-                border-radius: 3px;
-                font-size: 12px;
+                border-radius: {RADIUS_SM};
+                font-size: 16px;
+                font-weight: bold;
             }}
             QPushButton:hover {{
-                background: {styles['close_hover']};
+                background: {c['danger_soft']};
+                color: {c['danger']};
+            }}
+        """)
+
+        # 工具栏标题
+        self.toolbar_title.setStyleSheet(f"""
+            QLabel {{
+                color: {c['fg']};
+                font-size: {FONT_SIZE_SM};
+                font-weight: 600;
+                background: transparent;
+            }}
+        """)
+
+        # 搜索框（额外覆盖 objectName 已在 stylesheet 中）
+        self.search_input.setStyleSheet(f"""
+            QLineEdit {{
+                border: 1px solid {c['border']};
+                border-radius: {RADIUS_SM};
+                padding: 8px 12px 8px 24px;
+                background: {c['surface_alt']};
+                color: {c['fg']};
+                font-family: {FONT_FAMILY};
+            }}
+            QLineEdit:focus {{
+                border: 2px solid {c['accent']};
+                padding: 7px 11px 7px 23px;
+                background: {c['surface_alt']};
+            }}
+        """)
+
+        # 清空按钮（ghost 样式 btn-sm）
+        self.clear_all_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                border: 1px solid {c['border']};
+                border-radius: {RADIUS_SM};
+                padding: 4px 12px;
+                min-height: 24px;
+                color: {c['muted']};
+                font-size: {FONT_SIZE_XS};
+            }}
+            QPushButton:hover {{
+                background: {c['fg_soft']};
+                border-color: {c['border_strong']};
+                color: {c['fg']};
+            }}
+        """)
+
+        # 元信息行
+        self.time_label.setStyleSheet(f"""
+            QLabel {{
+                color: {c['muted']};
+                font-family: {FONT_MONO};
+                font-size: 11px;
+                background: transparent;
+            }}
+        """)
+
+        # 模式徽章
+        self.mode_badge.setStyleSheet(f"""
+            QLabel {{
+                background: {c['accent_soft']};
+                color: {c['accent']};
+                border-radius: 9999px;
+                padding: 2px 8px;
+                font-size: 11px;
+                font-weight: bold;
+            }}
+        """)
+
+        # 区标签
+        section_style = f"""
+            QLabel {{
+                color: {c['muted']};
+                font-size: {FONT_SIZE_XS};
+                font-weight: 600;
+                padding: 2px 0;
+                background: transparent;
+            }}
+        """
+        self.original_section.setStyleSheet(section_style)
+        self.result_section.setStyleSheet(section_style)
+
+        # 文本编辑区
+        edit_style = f"""
+            QTextEdit {{
+                background: {c['surface_alt']};
+                border: 1px solid {c['border']};
+                border-radius: {RADIUS_SM};
+                padding: 12px;
+                color: {c['fg']};
+                font-size: {FONT_SIZE_SM};
+            }}
+            QTextEdit:focus {{
+                border: 2px solid {c['accent']};
+                padding: 11px;
+            }}
+        """
+        self.original_edit.setStyleSheet(edit_style)
+        self.result_edit.setStyleSheet(edit_style)
+
+        # 复制按钮（btn-sm ghost）
+        ghost_btn = f"""
+            QPushButton {{
+                background: transparent;
+                border: 1px solid {c['border']};
+                border-radius: {RADIUS_SM};
+                padding: 4px 12px;
+                min-height: 24px;
+                color: {c['fg']};
+                font-size: {FONT_SIZE_XS};
+            }}
+            QPushButton:hover {{
+                background: {c['fg_soft']};
+                border-color: {c['border_strong']};
+            }}
+        """
+        self.copy_original_btn.setStyleSheet(ghost_btn)
+        self.copy_result_btn.setStyleSheet(ghost_btn)
+
+        # 删除按钮（danger btn-sm, no border per design btn-danger）
+        self.delete_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                border: none;
+                border-radius: {RADIUS_SM};
+                padding: 4px 12px;
+                min-height: 24px;
+                color: {c['danger']};
+                font-size: {FONT_SIZE_XS};
+            }}
+            QPushButton:hover {{
+                background: {c['danger_soft']};
             }}
         """)
 
         # 空状态
-        self.empty_label.setStyleSheet(f"""
+        self.empty_icon.setStyleSheet(f"""
             QLabel {{
-                color: {styles['empty_text']};
-                font-size: 13px;
+                color: {c['muted']};
+                font-size: 32px;
+                background: transparent;
             }}
         """)
+        self.empty_label.setStyleSheet(f"""
+            QLabel {{
+                color: {c['muted']};
+                font-size: {FONT_SIZE_XS};
+                background: transparent;
+            }}
+        """)
+
+        # 详情空状态
+        self.detail_empty_icon.setStyleSheet(f"""
+            QLabel {{
+                color: {c['border_strong']};
+                font-size: 36px;
+                background: transparent;
+            }}
+        """)
+        self.detail_empty_text.setStyleSheet(f"""
+            QLabel {{
+                color: {c['muted']};
+                font-size: {FONT_SIZE_XS};
+                background: transparent;
+            }}
+        """)
+
+        # 操作按钮分隔线
+        if hasattr(self, 'action_separator'):
+            self.action_separator.setStyleSheet(
+                f"background: {c['border']}; max-height: 1px; border: none;")
+
+        # 重新刷新列表以更新自定义 item widget 颜色
+        self._refresh_list()
 
     def set_theme(self, theme: str):
         """公共方法：动态切换主题。"""
@@ -274,74 +283,81 @@ class HistoryWindow(QWidget):
     # ================================================================
 
     def _create_ui(self):
-        """构建完整的 UI 布局：简洁、对齐。"""
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
+        """构建完整的 UI 布局：标题栏 + 工具栏 + 双栏主体。"""
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        self.container = QWidget()
-        self.container.setObjectName("panel")
-        layout = QVBoxLayout(self.container)
-        layout.setContentsMargins(12, 8, 12, 10)
-        layout.setSpacing(8)
+        # === 工具栏（含标题和关闭按钮）===
+        toolbar = QWidget()
+        toolbar.setObjectName("toolbar")
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(16, 12, 16, 12)
+        toolbar_layout.setSpacing(12)
 
-        # === 顶部栏：标题 + 关闭 ===
-        top_bar = QHBoxLayout()
-        top_bar.setSpacing(8)
-        self.title_label = QLabel("历史记录")
-        top_bar.addWidget(self.title_label)
-        top_bar.addStretch()
-        self.close_btn = QPushButton("关闭")
-        self.close_btn.setFixedSize(48, 26)
-        self.close_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.close_btn.clicked.connect(self.hide)
-        top_bar.addWidget(self.close_btn)
-        layout.addLayout(top_bar)
+        self.toolbar_title = QLabel("历史记录")
+        toolbar_layout.addWidget(self.toolbar_title)
+        toolbar_layout.addStretch()
 
-        # === 工具栏：搜索 + 清空 ===
-        toolbar = QHBoxLayout()
-        toolbar.setSpacing(8)
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("搜索...")
-        self.search_input.setFixedHeight(28)
+        self.search_input.setObjectName("search_input")
+        self.search_input.setPlaceholderText("搜索原文或结果...")
+        self.search_input.setFixedHeight(32)
+        self.search_input.setMaximumWidth(280)
+        self.search_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.search_input.textChanged.connect(self._on_search_changed)
-        toolbar.addWidget(self.search_input, stretch=1)
+
+        # Search icon (14x14 magnifying glass drawn programmatically)
+        search_icon = self._create_search_icon()
+        search_action = QAction(search_icon, '', self.search_input)
+        self.search_input.addAction(search_action, QLineEdit.ActionPosition.LeadingPosition)
+
+        toolbar_layout.addWidget(self.search_input)
+
         self.clear_all_btn = QPushButton("清空")
-        self.clear_all_btn.setFixedSize(56, 28)
         self.clear_all_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        toolbar_layout.addWidget(self.clear_all_btn)
         self.clear_all_btn.clicked.connect(self._on_clear_all)
-        toolbar.addWidget(self.clear_all_btn)
-        layout.addLayout(toolbar)
+
+        self.close_btn = QPushButton("✕")
+        self.close_btn.setFixedSize(28, 28)
+        self.close_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.close_btn.clicked.connect(self.close)
+        toolbar_layout.addWidget(self.close_btn)
+
+        root.addWidget(toolbar)
 
         # === 双栏主体 ===
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # 左栏：列表
-        list_container = QWidget()
-        list_layout = QVBoxLayout(list_container)
-        list_layout.setContentsMargins(0, 0, 0, 0)
-        list_layout.setSpacing(0)
         self.list_widget = QListWidget()
-        self.list_widget.setMinimumWidth(160)
+        self.list_widget.setMinimumWidth(200)
+        self.list_widget.setMaximumWidth(320)
         self.list_widget.itemClicked.connect(self._on_item_clicked)
-        list_layout.addWidget(self.list_widget)
-        splitter.addWidget(list_container)
+        splitter.addWidget(self.list_widget)
 
         # 右栏：详情
         detail_container = QWidget()
         detail_layout = QVBoxLayout(detail_container)
         detail_layout.setContentsMargins(0, 0, 0, 0)
-        detail_layout.setSpacing(8)
+        detail_layout.setSpacing(0)
 
-        # 元信息行
+        # 详情内容（有选中条目时显示）
+        self.detail_content = QWidget()
+        detail_inner = QVBoxLayout(self.detail_content)
+        detail_inner.setContentsMargins(16, 16, 16, 16)
+        detail_inner.setSpacing(12)
+
+        # 元信息行: 时间 + 模式徽章
         meta_row = QHBoxLayout()
-        meta_row.setSpacing(12)
+        meta_row.setSpacing(8)
         self.time_label = QLabel("--")
-        self.mode_label = QLabel("--")
         meta_row.addWidget(self.time_label)
-        meta_row.addWidget(self.mode_label)
+        self.mode_badge = QLabel("--")
+        meta_row.addWidget(self.mode_badge)
         meta_row.addStretch()
-        detail_layout.addLayout(meta_row)
+        detail_inner.addLayout(meta_row)
 
         # 原文区
         self.original_section = QLabel("原文")
@@ -349,8 +365,8 @@ class HistoryWindow(QWidget):
         self.original_edit.setReadOnly(True)
         self.original_edit.setPlaceholderText("选择条目查看")
         self.original_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        detail_layout.addWidget(self.original_section)
-        detail_layout.addWidget(self.original_edit, stretch=1)
+        detail_inner.addWidget(self.original_section)
+        detail_inner.addWidget(self.original_edit, stretch=1)
 
         # 结果区
         self.result_section = QLabel("结果")
@@ -358,88 +374,140 @@ class HistoryWindow(QWidget):
         self.result_edit.setReadOnly(True)
         self.result_edit.setPlaceholderText("选择条目查看")
         self.result_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        detail_layout.addWidget(self.result_section)
-        detail_layout.addWidget(self.result_edit, stretch=1)
+        detail_inner.addWidget(self.result_section)
+        detail_inner.addWidget(self.result_edit, stretch=1)
 
         # 操作按钮行
+        self.action_separator = QFrame()
+        self.action_separator.setFrameShape(QFrame.Shape.HLine)
+        self.action_separator.setStyleSheet(f"background: {ColorPalette.get(self._theme)['border']}; max-height: 1px; border: none;")
+        detail_inner.addWidget(self.action_separator)
+
         action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, 8, 0, 0)
         action_row.setSpacing(8)
         self.copy_original_btn = QPushButton("复制原文")
-        self.copy_original_btn.setFixedSize(72, 28)
         self.copy_original_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.copy_original_btn.clicked.connect(self._on_copy_original)
         self.copy_result_btn = QPushButton("复制结果")
-        self.copy_result_btn.setFixedSize(72, 28)
         self.copy_result_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.copy_result_btn.clicked.connect(self._on_copy_result)
         self.delete_btn = QPushButton("删除")
-        self.delete_btn.setFixedSize(56, 28)
+        self.delete_btn.setObjectName("btn_delete")
         self.delete_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.delete_btn.clicked.connect(self._on_delete_entry)
         action_row.addWidget(self.copy_original_btn)
         action_row.addWidget(self.copy_result_btn)
         action_row.addStretch()
         action_row.addWidget(self.delete_btn)
-        detail_layout.addLayout(action_row)
+        detail_inner.addLayout(action_row)
+
+        # 详情空状态（无选中条目时显示）
+        self.detail_empty = QWidget()
+        empty_layout = QVBoxLayout(self.detail_empty)
+        empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_layout.setSpacing(8)
+        self.detail_empty_icon = QLabel("H")
+        self.detail_empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.detail_empty_icon.setStyleSheet("font-size: 36px; font-weight: bold;")
+        self.detail_empty_text = QLabel("选择一条记录查看详情")
+        self.detail_empty_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_layout.addWidget(self.detail_empty_icon)
+        empty_layout.addWidget(self.detail_empty_text)
+
+        # 使用 stacked 方式切换：detail_empty 默认显示
+        detail_layout.addWidget(self.detail_empty)
+        detail_layout.addWidget(self.detail_content)
+        self.detail_content.hide()
 
         splitter.addWidget(detail_container)
-        splitter.setSizes([180, 380])
-        layout.addWidget(splitter, stretch=1)
+        splitter.setSizes([240, 480])
+        root.addWidget(splitter, stretch=1)
 
-        # 空状态
+        # 全局空状态（无任何记录时显示，覆盖整个窗口）
+        self.global_empty = QWidget()
+        self.global_empty.setObjectName("panel")
+        global_empty_layout = QVBoxLayout(self.global_empty)
+        global_empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        global_empty_layout.setSpacing(8)
+        self.empty_icon = QLabel("H")
+        self.empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_icon.setStyleSheet("font-size: 32px; font-weight: bold;")
         self.empty_label = QLabel("暂无记录")
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.empty_label.hide()
-        layout.addWidget(self.empty_label)
+        global_empty_layout.addWidget(self.empty_icon)
+        global_empty_layout.addWidget(self.empty_label)
 
-        outer.addWidget(self.container)
+        self.global_empty.hide()
+        root.addWidget(self.global_empty)
+
         self._refresh_list()
 
-    def _apply_acrylic_effect(self):
-        """应用 Windows 11 Acrylic 毛玻璃效果。"""
-        if sys.platform != 'win32':
-            return
+    # ================================================================
+    #  列表项 Widget 工厂
+    # ================================================================
 
-        version = sys.getwindowsversion()
-        if version.major < 10 or (version.major == 10 and version.build < 22000):
-            # Win10 降级：根据主题设置背景
-            styles = self._get_theme_styles(self._theme)
-            self.container.setStyleSheet(f"""
-                #panel {{
-                    background: {styles['panel_bg'].replace('210', '235') if self._theme == 'dark' else styles['panel_bg'].replace('230', '245')};
-                    border: 1px solid {styles['panel_border']};
-                    border-radius: 8px;
-                }}
-            """)
-            return
+    def _create_list_item_widget(self, entry):
+        """为列表项创建两行格式的自定义 widget（优化版本）。"""
+        c = ColorPalette.get(self._theme)
+        widget = QWidget()
+        widget.setObjectName("list_item")
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(6)
 
-        hwnd = int(self.winId())
-        DWMWA_SYSTEMBACKDROP_TYPE = 38
-        value = 3  # Acrylic
-
+        # 格式化时间
+        timestamp = entry.get('timestamp', '')
         try:
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                hwnd,
-                DWMWA_SYSTEMBACKDROP_TYPE,
-                ctypes.byref(ctypes.c_int(value)),
-                4
-            )
+            dt = datetime.fromisoformat(timestamp)
+            time_str = dt.strftime('%H:%M')
         except Exception:
-            styles = self._get_theme_styles(self._theme)
-            self.container.setStyleSheet(f"""
-                #panel {{
-                    background: {styles['panel_bg'].replace('210', '235') if self._theme == 'dark' else styles['panel_bg'].replace('230', '245')};
-                    border: 1px solid {styles['panel_border']};
-                    border-radius: 8px;
-                }}
-            """)
+            time_str = '--:--'
+
+        # 模式
+        mode = entry.get('mode', 'rules')
+        if mode == 'rules':
+            mode_str = '规则'
+        else:
+            prompt_name = entry.get('prompt_name', '')
+            mode_str = f'LLM: {prompt_name}' if prompt_name else 'LLM'
+
+        # 摘要（仅显示第一行）
+        original = entry.get('original', '')
+        first_line = original.split('\n')[0] if original else ''
+        summary = first_line[:30] if len(first_line) > 30 else first_line
+        if len(first_line) > 30:
+            summary += '...'
+
+        # 顶行：时间 + 模式徽章
+        top = QHBoxLayout()
+        top.setSpacing(4)
+        time_label = QLabel(time_str)
+        time_label.setObjectName("time_label")
+        top.addWidget(time_label)
+        top.addStretch()
+
+        mode_badge = QLabel(mode_str)
+        mode_badge.setObjectName("mode_badge_rules" if mode == 'rules' else "mode_badge_llm")
+        mode_badge.setFixedHeight(20)
+        top.addWidget(mode_badge)
+        layout.addLayout(top)
+
+        # 底行：摘要
+        summary_label = QLabel(summary)
+        summary_label.setObjectName("summary_label")
+        summary_label.setWordWrap(False)
+        summary_label.setFixedHeight(18)
+        layout.addWidget(summary_label)
+
+        return widget
 
     # ================================================================
     #  数据操作
     # ================================================================
 
     def _refresh_list(self, keyword: str = ''):
-        """刷新列表显示。"""
+        """刷新列表显示（优化版本：批量添加）。"""
         self.list_widget.clear()
 
         if keyword:
@@ -448,42 +516,30 @@ class HistoryWindow(QWidget):
             entries = self._history.get_all()
 
         if not entries:
-            self.empty_label.show()
+            self.global_empty.show()
             self.list_widget.hide()
             self._clear_detail()
             return
 
-        self.empty_label.hide()
+        self.global_empty.hide()
         self.list_widget.show()
 
-        for entry in entries:
-            # 格式化显示：HH:MM [模式] 原文摘要
-            timestamp = entry.get('timestamp', '')
-            try:
-                # 解析 ISO 格式时间，只显示 HH:MM
-                dt = datetime.fromisoformat(timestamp)
-                time_str = dt.strftime('%H:%M')
-            except Exception:
-                time_str = '--:--'
+        # 批量添加：先禁用更新，添加完后再启用
+        self.list_widget.setUpdatesEnabled(False)
+        try:
+            for entry in entries:
+                item = QListWidgetItem()
+                item.setData(Qt.ItemDataRole.UserRole, entry.get('id'))
+                item.setSizeHint(self._calc_item_size(entry))
+                self.list_widget.addItem(item)
+                self.list_widget.setItemWidget(item, self._create_list_item_widget(entry))
+        finally:
+            self.list_widget.setUpdatesEnabled(True)
 
-            mode = entry.get('mode', 'rules')
-            if mode == 'rules':
-                mode_str = '[规则]'
-            else:
-                prompt_name = entry.get('prompt_name', '')
-                mode_str = f'[LLM-{prompt_name}]' if prompt_name else '[LLM]'
-
-            original = entry.get('original', '')
-            # 取前 30 字符作为摘要
-            summary = original[:30].replace('\n', ' ') if len(original) > 30 else original.replace('\n', ' ')
-            if len(original) > 30:
-                summary += '...'
-
-            display_text = f"{time_str} {mode_str} {summary}"
-
-            item = QListWidgetItem(display_text)
-            item.setData(Qt.ItemDataRole.UserRole, entry.get('id'))
-            self.list_widget.addItem(item)
+    def _calc_item_size(self, entry):
+        """计算列表项的推荐大小（两行布局固定高度）。"""
+        from PyQt6.QtCore import QSize
+        return QSize(0, 62)
 
     def _on_item_clicked(self, item: QListWidgetItem):
         """点击列表项，显示详情。"""
@@ -495,6 +551,11 @@ class HistoryWindow(QWidget):
             return
 
         self._current_entry_id = entry_id
+        c = ColorPalette.get(self._theme)
+
+        # 显示详情内容，隐藏空状态
+        self.detail_empty.hide()
+        self.detail_content.show()
 
         # 显示时间
         timestamp = entry.get('timestamp', '')
@@ -508,10 +569,30 @@ class HistoryWindow(QWidget):
         # 显示模式
         mode = entry.get('mode', 'rules')
         if mode == 'rules':
-            self.mode_label.setText("规则")
+            self.mode_badge.setText("规则")
+            self.mode_badge.setStyleSheet(f"""
+                QLabel {{
+                    background: {c['surface_alt']};
+                    color: {c['muted']};
+                    border-radius: 9999px;
+                    padding: 2px 8px;
+                    font-size: 11px;
+                    font-weight: bold;
+                }}
+            """)
         else:
             prompt_name = entry.get('prompt_name', '')
-            self.mode_label.setText(f"LLM: {prompt_name}" if prompt_name else "LLM")
+            self.mode_badge.setText(f"LLM: {prompt_name}" if prompt_name else "LLM")
+            self.mode_badge.setStyleSheet(f"""
+                QLabel {{
+                    background: {c['accent_soft']};
+                    color: {c['accent']};
+                    border-radius: 9999px;
+                    padding: 2px 8px;
+                    font-size: 11px;
+                    font-weight: bold;
+                }}
+            """)
 
         # 显示原文
         self.original_edit.setPlainText(entry.get('original', ''))
@@ -522,13 +603,21 @@ class HistoryWindow(QWidget):
     def _clear_detail(self):
         """清空详情面板。"""
         self._current_entry_id = None
+        self.detail_content.hide()
+        self.detail_empty.show()
         self.time_label.setText("--")
-        self.mode_label.setText("--")
+        self.mode_badge.setText("--")
         self.original_edit.clear()
         self.result_edit.clear()
 
     def _on_search_changed(self, keyword: str):
-        """搜索框内容变化时刷新列表。"""
+        """搜索框内容变化时，启动防抖定时器。"""
+        self._search_timer.stop()
+        self._search_timer.start(300)  # 300ms 防抖延迟
+
+    def _do_search(self):
+        """执行实际的搜索操作。"""
+        keyword = self.search_input.text()
         self._refresh_list(keyword)
 
     def _on_copy_original(self):
@@ -591,7 +680,7 @@ class HistoryWindow(QWidget):
         if self.isVisible():
             self.hide()
         else:
-            # 显示前刷新主题（列表刷新由 showEvent 处理，避免重复）
+            # 显示前刷新主题
             new_theme = self._config.get('ui.theme', 'light')
             if new_theme != self._theme:
                 self._apply_theme(new_theme)
@@ -608,22 +697,21 @@ class HistoryWindow(QWidget):
         self._refresh_list()
 
     # ================================================================
-    #  拖动 + 尺寸保存
+    #  拖动（仅标题栏） + 尺寸保存
     # ================================================================
 
     def mousePressEvent(self, event):
-        """鼠标按下时记录拖动位置。"""
+        """鼠标按下时，仅在标题栏区域记录拖动位置。"""
         if event.button() == Qt.MouseButton.LeftButton:
-            # 点击容器非文本区域时允许拖动
-            child = self.childAt(event.position().toPoint())
-            if child is self.container or child is None:
+            titlebar = self.findChild(QWidget, 'titlebar')
+            if titlebar and titlebar.geometry().contains(event.pos()):
                 self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
                 return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
         """鼠标移动时拖动窗口。"""
-        if self._drag_pos is not None:
+        if hasattr(self, '_drag_pos') and self._drag_pos is not None:
             self.move(event.globalPosition().toPoint() - self._drag_pos)
             return
         super().mouseMoveEvent(event)

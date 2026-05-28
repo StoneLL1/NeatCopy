@@ -1,21 +1,24 @@
-# 设置界面：侧边栏导航 + GroupBox 分组布局
+# 设置界面：自定义标题栏 + 侧边栏导航 + Card 分组布局（Shadcn 风格）
 import uuid
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QCheckBox, QSlider, QPushButton, QGroupBox,
+    QLabel, QCheckBox, QSlider, QPushButton,
     QLineEdit, QListWidget, QListWidgetItem,
     QTextEdit, QInputDialog, QMessageBox, QMenu,
     QStackedWidget, QFrame, QScrollArea, QSpinBox,
 )
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtGui import QDesktopServices
 
 from version import VERSION
 from assets import asset as _asset
 from autostart_manager import enable as _autostart_enable, disable as _autostart_disable
-from ui.styles import get_settings_stylesheet, get_sidebar_stylesheet, ColorPalette
-from ui.components.sidebar import Sidebar
+from ui.styles import get_settings_stylesheet, ColorPalette, FONT_MONO, FONT_SIZE_XS
+from ui.components.sidebar import SidebarWidget
+from ui.components.card import Card
+from ui.components.toggle_switch import ToggleSwitch
+from ui.components.segmented_control import SegmentedControl
 
 
 RULE_LABELS = {
@@ -31,8 +34,6 @@ RULE_LABELS = {
 
 
 class SettingsWindow(QDialog):
-    # 导航项定义
-    NAV_ITEMS = ['通用', '清洗规则', '大模型', '关于']
     MAX_WHEEL_PROMPTS = 5
 
     def __init__(self, config, hotkey_manager=None, parent=None):
@@ -41,86 +42,129 @@ class SettingsWindow(QDialog):
         self._hotkey_manager = hotkey_manager
         self._pending: dict = {}
         self._theme = config.get('ui.theme', 'light')
+        self._drag_pos = None
 
+        # Track themed widgets for propagation
+        self._cards: list[Card] = []
+        self._toggles: list[ToggleSwitch] = []
+        self._segmented_controls: list[SegmentedControl] = []
+
+        # Hotkey recording state
+        self._recording_target = None
+        self._recording_timer = QTimer()
+        self._recording_timer.setSingleShot(True)
+        self._recording_timer.timeout.connect(self._on_recording_timeout)
+        self._hotkey_buttons = {}  # maps 'clean'/'wheel'/'preview'/'history' -> QPushButton
+
+        # Window setup
         self.setWindowTitle('NeatCopy 设置')
-        # 可调整大小的窗口
-        self.resize(700, 550)
+        self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
+        self.resize(780, 580)
         self.setMinimumSize(550, 400)
-        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, False)
         self.setWindowIcon(QIcon(_asset('idle.ico')))
 
-        # 应用主题样式
+        # Build layout
+        self._build_layout()
+
+        # Apply theme after all widgets are created
         self._apply_theme()
 
-        # 主布局：侧边栏 + 内容区
-        self._build_main_layout()
+    # ── Layout construction ─────────────────────────────────────────
 
-    def _build_main_layout(self):
-        """构建主布局：左侧导航栏 + 右侧内容区 + 底部操作栏"""
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+    def _build_layout(self):
+        """Build the main layout: titlebar + body(sidebar + pages) + footer."""
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        # 上部区域：侧边栏 + 内容区
-        top_layout = QHBoxLayout()
-        top_layout.setContentsMargins(0, 0, 0, 0)
-        top_layout.setSpacing(0)
+        # 1. Title bar
+        root.addWidget(self._build_titlebar())
 
-        # 侧边栏
-        self._sidebar = Sidebar(
-            items=self.NAV_ITEMS,
-            theme=self._theme,
-        )
+        # 2. Body: sidebar + separator + stacked pages
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+
+        self._sidebar = SidebarWidget(theme=self._theme)
         self._sidebar.currentChanged.connect(self._on_nav_select)
-        top_layout.addWidget(self._sidebar)
+        body.addWidget(self._sidebar)
 
-        # 侧边栏与内容区的分隔线
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.VLine)
         separator.setObjectName('sidebar_separator')
-        top_layout.addWidget(separator)
+        body.addWidget(separator)
 
-        # 内容区（使用 QStackedWidget）
         self._content_stack = QStackedWidget()
         self._content_stack.addWidget(self._build_general_page())
+        self._content_stack.addWidget(self._build_hotkeys_page())
         self._content_stack.addWidget(self._build_rules_page())
         self._content_stack.addWidget(self._build_llm_page())
         self._content_stack.addWidget(self._build_about_page())
-        top_layout.addWidget(self._content_stack, 1)
+        body.addWidget(self._content_stack, 1)
 
-        main_layout.addLayout(top_layout, 1)
+        root.addLayout(body, 1)
 
-        # 底部操作栏
-        self._build_bottom_bar(main_layout)
+        # 3. Footer
+        root.addWidget(self._build_footer())
 
-    def _build_bottom_bar(self, parent_layout: QVBoxLayout):
-        """构建底部操作栏：状态文字 + 保存按钮"""
-        bottom_bar = QWidget()
-        bottom_bar.setObjectName('bottom_bar')
-        bottom_layout = QHBoxLayout(bottom_bar)
-        bottom_layout.setContentsMargins(24, 12, 24, 12)
-        bottom_layout.setSpacing(12)
+    def _build_titlebar(self) -> QWidget:
+        """Build custom title bar (40px) with title and close button."""
+        titlebar = QWidget()
+        titlebar.setObjectName('titlebar')
+        titlebar.setFixedHeight(40)
+
+        layout = QHBoxLayout(titlebar)
+        layout.setContentsMargins(16, 0, 16, 0)
+        layout.setSpacing(0)
+
+        title_label = QLabel('设置')
+        title_label.setObjectName('titlebar_title')
+        layout.addWidget(title_label)
+        layout.addStretch()
+
+        close_btn = QPushButton('✕')
+        close_btn.setObjectName('titlebar_close')
+        close_btn.setFixedSize(28, 28)
+        close_btn.clicked.connect(self.close)
+        layout.addWidget(close_btn)
+
+        return titlebar
+
+    def _build_footer(self) -> QWidget:
+        """Build footer bar (52px) with status label, reset and save buttons."""
+        footer = QWidget()
+        footer.setObjectName('bottom_bar')
+        footer.setFixedHeight(52)
+
+        layout = QHBoxLayout(footer)
+        layout.setContentsMargins(24, 0, 24, 0)
+        layout.setSpacing(12)
 
         self._status_lbl = QLabel('')
         self._status_lbl.setObjectName('status_label')
-        bottom_layout.addWidget(self._status_lbl)
-        bottom_layout.addStretch()
+        layout.addWidget(self._status_lbl)
+        layout.addStretch()
 
-        save_btn = QPushButton('保存')
-        save_btn.setObjectName('btn_save')
-        save_btn.clicked.connect(self._do_save)
-        bottom_layout.addWidget(save_btn)
+        self._btn_reset = QPushButton('重置全部')
+        self._btn_reset.setObjectName('btn_reset')
+        self._btn_reset.clicked.connect(self._on_reset_all)
+        layout.addWidget(self._btn_reset)
 
-        parent_layout.addWidget(bottom_bar)
+        self._btn_save = QPushButton('保存')
+        self._btn_save.setObjectName('btn_save')
+        self._btn_save.clicked.connect(self._do_save)
+        layout.addWidget(self._btn_save)
+
+        return footer
 
     def _on_nav_select(self, index: int):
-        """导航项选择回调"""
+        """Sidebar navigation callback: switch stacked page."""
         self._content_stack.setCurrentIndex(index)
 
-    # ── 通用页面 ──────────────────────────────────────────────
+    # ── General page (Page 0) ───────────────────────────────────────
 
-    def _build_general_page(self) -> QWidget:
-        """构建通用设置页面（GroupBox 分组布局）"""
+    def _build_general_page(self) -> QScrollArea:
+        """Build the General settings page with Cards."""
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -130,686 +174,345 @@ class SettingsWindow(QDialog):
         page.setObjectName('content_page')
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(12)
+        layout.setSpacing(16)
 
-        # ── 通知 GroupBox ──
-        notify_box = QGroupBox('通知')
-        notify_lay = QVBoxLayout(notify_box)
-        self._chk_toast = QCheckBox('显示清洗完成通知（Toast）')
-        self._chk_toast.setChecked(self._config.get('general.toast_notification', True))
-        self._chk_toast.stateChanged.connect(
-            lambda v: self._mark('general.toast_notification', bool(v)))
-        notify_lay.addWidget(self._chk_toast)
-        layout.addWidget(notify_box)
+        # Card 1: Notifications
+        card_notify = Card('通知')
+        self._cards.append(card_notify)
+        self._toggle_toast = ToggleSwitch(
+            parent=self, checked=self._config.get('general.toast_notification', True))
+        self._toggles.append(self._toggle_toast)
+        self._toggle_toast.toggled.connect(
+            lambda v: self._mark('general.toast_notification', v))
+        self._make_setting_row(card_notify.content_layout(), '显示清洗完成通知', self._toggle_toast, separator=False)
+        layout.addWidget(card_notify)
 
-        # ── 启动 GroupBox ──
-        startup_box = QGroupBox('启动')
-        startup_lay = QVBoxLayout(startup_box)
-        self._chk_startup = QCheckBox('开机自动启动')
-        self._chk_startup.setChecked(self._config.get('general.startup_with_windows', False))
-        self._chk_startup.stateChanged.connect(self._on_startup_changed)
-        startup_lay.addWidget(self._chk_startup)
-        layout.addWidget(startup_box)
+        # Card 2: Startup
+        card_startup = Card('启动')
+        self._cards.append(card_startup)
+        self._toggle_startup = ToggleSwitch(
+            parent=self, checked=self._config.get('general.startup_with_windows', False))
+        self._toggles.append(self._toggle_startup)
+        self._toggle_startup.toggled.connect(self._on_startup_changed)
+        self._make_setting_row(card_startup.content_layout(), '开机自动启动', self._toggle_startup, separator=False)
+        layout.addWidget(card_startup)
 
-        # ── 界面主题 GroupBox ──
-        theme_box = QGroupBox('界面主题')
-        theme_lay = QHBoxLayout(theme_box)
-        theme_lay.setSpacing(8)
-        self._btn_theme_light = QPushButton('浅色')
-        self._btn_theme_light.setCheckable(True)
-        self._btn_theme_light.setObjectName('theme_btn')
-        self._btn_theme_dark = QPushButton('深色')
-        self._btn_theme_dark.setCheckable(True)
-        self._btn_theme_dark.setObjectName('theme_btn')
-        self._btn_theme_light.setChecked(self._theme == 'light')
-        self._btn_theme_dark.setChecked(self._theme == 'dark')
-        self._btn_theme_light.clicked.connect(self._on_theme_light_clicked)
-        self._btn_theme_dark.clicked.connect(self._on_theme_dark_clicked)
-        theme_lay.addWidget(QLabel('主题：'))
-        theme_lay.addWidget(self._btn_theme_light)
-        theme_lay.addWidget(self._btn_theme_dark)
-        theme_lay.addStretch()
-        layout.addWidget(theme_box)
+        # Card 3: Appearance
+        card_appearance = Card('外观')
+        self._cards.append(card_appearance)
 
-        # ── 独立热键 GroupBox ──
-        hk_box = QGroupBox('独立热键')
-        hk_lay = QHBoxLayout(hk_box)
-        self._chk_hotkey = QCheckBox('启用')
-        self._chk_hotkey.setChecked(self._config.get('general.custom_hotkey.enabled', True))
-        self._chk_hotkey.stateChanged.connect(
-            lambda v: self._mark('general.custom_hotkey.enabled', bool(v)))
-        self._btn_record = QPushButton(
+        # Row 1: UI theme
+        self._seg_theme = SegmentedControl(['浅色', '深色'], parent=self)
+        self._segmented_controls.append(self._seg_theme)
+        self._seg_theme.setCurrentIndex(0 if self._theme == 'light' else 1)
+        self._seg_theme.selectionChanged.connect(self._on_theme_changed)
+        self._make_setting_row(card_appearance.content_layout(), '界面主题', self._seg_theme)
+
+        # Row 2: Preview panel theme
+        self._seg_preview_theme = SegmentedControl(['深色', '浅色'], parent=self)
+        self._segmented_controls.append(self._seg_preview_theme)
+        preview_theme_val = self._config.get('preview.theme', 'dark')
+        self._seg_preview_theme.setCurrentIndex(0 if preview_theme_val == 'dark' else 1)
+        self._seg_preview_theme.selectionChanged.connect(self._on_preview_theme_changed)
+        self._make_setting_row(card_appearance.content_layout(), '预览面板主题', self._seg_preview_theme, separator=False)
+
+        layout.addWidget(card_appearance)
+
+        layout.addStretch()
+        scroll.setWidget(page)
+        return scroll
+
+    def _make_setting_row(self, parent_layout, label_text, *widgets, separator=True):
+        """Create a horizontal row: label on left (stretch), widgets on right."""
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 12, 0, 12)
+        row.setSpacing(16)
+        label = QLabel(label_text)
+        label.setStyleSheet(f"color: {ColorPalette.get(self._theme)['fg']}; background: transparent;")
+        row.addWidget(label)
+        row.addStretch()
+        for w in widgets:
+            row.addWidget(w)
+        parent_layout.addLayout(row)
+
+        # Separator line (only between rows, not after the last)
+        if separator:
+            line = QFrame()
+            line.setFrameShape(QFrame.Shape.HLine)
+            line.setStyleSheet(
+                f"background: {ColorPalette.get(self._theme)['border']}; "
+                f"max-height: 1px; border: none;"
+            )
+            parent_layout.addWidget(line)
+        return row
+
+    # ── Hotkeys page (Page 1) ───────────────────────────────────────
+
+    def _build_hotkeys_page(self) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setObjectName('content_scroll')
+        page = QWidget()
+        page.setObjectName('content_page')
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        # ── Card 1: 清洗触发 ──────────────────────────────────────────
+        card_clean = Card('清洗触发')
+        self._cards.append(card_clean)
+
+        # Row 1: 独立热键 — ToggleSwitch + HotkeyBtn
+        self._toggle_clean_hotkey = ToggleSwitch(
+            parent=self, checked=self._config.get('general.custom_hotkey.enabled', True))
+        self._toggles.append(self._toggle_clean_hotkey)
+        self._toggle_clean_hotkey.toggled.connect(
+            lambda v: self._mark('general.custom_hotkey.enabled', v))
+
+        self._btn_clean_hotkey = QPushButton(
             self._config.get('general.custom_hotkey.keys', 'ctrl+shift+c'))
-        self._btn_record.setCheckable(True)
-        self._btn_record.setObjectName('hotkey_btn')
-        self._btn_record.clicked.connect(self._on_clean_hotkey_btn)
-        hk_lay.addWidget(self._chk_hotkey)
-        hk_lay.addWidget(QLabel('热键：'))
-        hk_lay.addWidget(self._btn_record)
-        layout.addWidget(hk_box)
+        self._btn_clean_hotkey.setObjectName('hotkey_btn')
+        self._btn_clean_hotkey.setCheckable(True)
+        self._btn_clean_hotkey.clicked.connect(self._on_clean_hotkey_btn)
+        self._hotkey_buttons['clean'] = self._btn_clean_hotkey
 
-        # ── 双击 Ctrl+C GroupBox ──
-        dbl_box = QGroupBox('双击 Ctrl+C')
-        dbl_lay = QVBoxLayout(dbl_box)
-        self._chk_dbl = QCheckBox('启用（注意：可能与部分应用冲突）')
-        self._chk_dbl.setChecked(self._config.get('general.double_ctrl_c.enabled', False))
-        self._chk_dbl.stateChanged.connect(
-            lambda v: self._mark('general.double_ctrl_c.enabled', bool(v)))
-        interval = self._config.get('general.double_ctrl_c.interval_ms', 300)
-        self._lbl_interval = QLabel(f'间隔阈值：{interval} ms')
+        self._make_setting_row(card_clean.content_layout(), '独立热键',
+                               self._toggle_clean_hotkey, self._btn_clean_hotkey)
+
+        # Row 2: 双击 Ctrl+C — ToggleSwitch
+        self._toggle_double_ctrl_c = ToggleSwitch(
+            parent=self, checked=self._config.get('general.double_ctrl_c.enabled', False))
+        self._toggles.append(self._toggle_double_ctrl_c)
+        self._toggle_double_ctrl_c.toggled.connect(self._on_double_click_changed)
+        self._make_setting_row(card_clean.content_layout(), '双击 Ctrl+C',
+                               self._toggle_double_ctrl_c, separator=False)
+
+        # Row 3: 间隔阈值 — QSlider + QLabel (indented, disabled when double-click off)
+        interval_row = QHBoxLayout()
+        interval_row.setContentsMargins(16, 12, 0, 12)
+
+        interval_label = QLabel('间隔阈值')
+        c = ColorPalette.get(self._theme)
+        interval_label.setStyleSheet(f"color: {c['fg']};")
+        interval_row.addWidget(interval_label)
+        interval_row.addStretch()
+
         self._sld_interval = QSlider(Qt.Orientation.Horizontal)
         self._sld_interval.setRange(100, 500)
-        self._sld_interval.setValue(interval)
-        self._sld_interval.setTickInterval(50)
+        self._sld_interval.setSingleStep(50)
+        self._sld_interval.setPageStep(50)
+        self._sld_interval.setValue(self._config.get('general.double_ctrl_c.interval_ms', 300))
+        self._sld_interval.setFixedWidth(200)
+        interval_row.addWidget(self._sld_interval)
+
+        self._lbl_interval = QLabel(f"{self._sld_interval.value()} ms")
+        self._lbl_interval.setStyleSheet(
+            f"color: {c['muted']}; font-family: {FONT_MONO}; font-size: {FONT_SIZE_XS}; background: transparent;")
+        self._lbl_interval.setFixedWidth(40)
+        interval_row.addWidget(self._lbl_interval)
+
         self._sld_interval.valueChanged.connect(self._on_interval_changed)
-        dbl_lay.addWidget(self._chk_dbl)
-        dbl_lay.addWidget(self._lbl_interval)
-        dbl_lay.addWidget(self._sld_interval)
-        layout.addWidget(dbl_box)
+        card_clean.content_layout().addLayout(interval_row)
 
-        # ── 轮盘 Prompt 选择器 GroupBox ──
-        layout.addWidget(self._build_wheel_basic_group())
+        # Disable interval row when double-click is off
+        double_enabled = self._config.get('general.double_ctrl_c.enabled', False)
+        self._sld_interval.setEnabled(double_enabled)
+        self._lbl_interval.setEnabled(double_enabled)
 
-        # ── 预览面板 GroupBox ──
-        layout.addWidget(self._build_preview_group())
+        layout.addWidget(card_clean)
 
-        # ── 历史记录 GroupBox ──
-        layout.addWidget(self._build_history_group())
+        # ── Card 2: 功能快捷键 ────────────────────────────────────────
+        card_features = Card('功能快捷键')
+        self._cards.append(card_features)
 
-        layout.addStretch()
-        btn_reset_general = QPushButton('恢复通用默认设置')
-        btn_reset_general.setObjectName('btn_reset')
-        btn_reset_general.clicked.connect(self._confirm_and_reset_general)
-        layout.addWidget(btn_reset_general)
+        # Row 1: 轮盘选择器 — ToggleSwitch + HotkeyBtn
+        self._toggle_wheel = ToggleSwitch(
+            parent=self, checked=self._config.get('wheel.enabled', True))
+        self._toggles.append(self._toggle_wheel)
+        self._toggle_wheel.toggled.connect(self._on_wheel_enabled_changed)
 
-        scroll.setWidget(page)
-        return scroll
-
-    def _build_wheel_basic_group(self) -> QGroupBox:
-        """构建轮盘基本设置分组（开关与热键）。"""
-        wheel_box = QGroupBox('轮盘 Prompt 选择器')
-        wheel_lay = QVBoxLayout(wheel_box)
-        wheel_lay.setSpacing(6)
-
-        # 启用开关
-        self._chk_wheel = QCheckBox('启用轮盘 Prompt 选择器')
-        self._chk_wheel.setChecked(self._config.get('wheel.enabled', True))
-        self._chk_wheel.stateChanged.connect(self._on_wheel_enabled_changed)
-        wheel_lay.addWidget(self._chk_wheel)
-
-        # 随清洗触发
-        self._chk_wheel_trigger = QCheckBox('随清洗热键触发（弹出轮盘后执行清洗）')
-        self._chk_wheel_trigger.setChecked(self._config.get('wheel.trigger_with_clean', True))
-        self._chk_wheel_trigger.stateChanged.connect(
-            lambda v: self._mark('wheel.trigger_with_clean', bool(v)))
-        wheel_lay.addWidget(self._chk_wheel_trigger)
-
-        # 独立切换热键
-        sw_hk_lay = QHBoxLayout()
-        sw_hk_lay.addWidget(QLabel('切换热键：'))
         self._btn_wheel_hotkey = QPushButton(
             self._config.get('wheel.switch_hotkey', 'ctrl+shift+p'))
-        self._btn_wheel_hotkey.setCheckable(True)
         self._btn_wheel_hotkey.setObjectName('hotkey_btn')
+        self._btn_wheel_hotkey.setCheckable(True)
         self._btn_wheel_hotkey.clicked.connect(self._on_wheel_hotkey_btn)
-        sw_hk_lay.addWidget(self._btn_wheel_hotkey)
-        sw_hk_lay.addStretch()
-        wheel_lay.addLayout(sw_hk_lay)
+        self._hotkey_buttons['wheel'] = self._btn_wheel_hotkey
 
-        self._update_wheel_subwidgets()
-        return wheel_box
+        self._make_setting_row(card_features.content_layout(), '轮盘选择器',
+                               self._toggle_wheel, self._btn_wheel_hotkey)
 
-    def _build_preview_group(self) -> QGroupBox:
-        """构建预览面板设置分组。"""
-        preview_box = QGroupBox('预览面板')
-        preview_lay = QVBoxLayout(preview_box)
-        preview_lay.setSpacing(6)
+        # Row 2: QCheckBox — 随清洗热键触发时弹出轮盘 (indented)
+        chk_row = QHBoxLayout()
+        chk_row.setContentsMargins(16, 12, 0, 12)
+        self._chk_wheel_trigger = QCheckBox('随清洗热键触发时弹出轮盘')
+        self._chk_wheel_trigger.setChecked(
+            self._config.get('wheel.trigger_with_clean', True))
+        self._chk_wheel_trigger.toggled.connect(
+            lambda v: self._mark('wheel.trigger_with_clean', v))
+        wheel_enabled = self._config.get('wheel.enabled', True)
+        self._chk_wheel_trigger.setEnabled(wheel_enabled)
+        chk_row.addWidget(self._chk_wheel_trigger)
+        chk_row.addStretch()
+        card_features.content_layout().addLayout(chk_row)
 
-        # 启用开关
-        self._chk_preview = QCheckBox('启用预览面板（LLM 处理后查看结果）')
-        self._chk_preview.setChecked(self._config.get('preview.enabled', True))
-        self._chk_preview.stateChanged.connect(
-            lambda v: self._mark('preview.enabled', bool(v)))
-        preview_lay.addWidget(self._chk_preview)
+        chk_sep = QFrame()
+        chk_sep.setFrameShape(QFrame.Shape.HLine)
+        chk_sep.setStyleSheet(
+            f"background: {c['border']}; max-height: 1px; border: none;")
+        card_features.content_layout().addWidget(chk_sep)
 
-        # 快捷键录制
-        hk_lay = QHBoxLayout()
-        hk_lay.addWidget(QLabel('快捷键：'))
+        # Row 3: 预览面板 — ToggleSwitch + HotkeyBtn
+        self._toggle_preview = ToggleSwitch(
+            parent=self, checked=self._config.get('preview.enabled', True))
+        self._toggles.append(self._toggle_preview)
+        self._toggle_preview.toggled.connect(
+            lambda v: self._mark('preview.enabled', v))
+
         self._btn_preview_hotkey = QPushButton(
             self._config.get('preview.hotkey', 'ctrl+q'))
-        self._btn_preview_hotkey.setCheckable(True)
         self._btn_preview_hotkey.setObjectName('hotkey_btn')
+        self._btn_preview_hotkey.setCheckable(True)
         self._btn_preview_hotkey.clicked.connect(self._on_preview_hotkey_btn)
-        hk_lay.addWidget(self._btn_preview_hotkey)
-        hk_lay.addStretch()
-        preview_lay.addLayout(hk_lay)
+        self._hotkey_buttons['preview'] = self._btn_preview_hotkey
 
-        # 主题切换按钮
-        theme_lay = QHBoxLayout()
-        theme_lay.addWidget(QLabel('面板主题：'))
-        self._btn_preview_theme_dark = QPushButton('深色')
-        self._btn_preview_theme_dark.setCheckable(True)
-        self._btn_preview_theme_dark.setObjectName('theme_btn')
-        self._btn_preview_theme_light = QPushButton('浅色')
-        self._btn_preview_theme_light.setCheckable(True)
-        self._btn_preview_theme_light.setObjectName('theme_btn')
-        current_theme = self._config.get('preview.theme', 'dark')
-        self._btn_preview_theme_dark.setChecked(current_theme == 'dark')
-        self._btn_preview_theme_light.setChecked(current_theme == 'light')
-        self._btn_preview_theme_dark.clicked.connect(self._on_preview_theme_dark_clicked)
-        self._btn_preview_theme_light.clicked.connect(self._on_preview_theme_light_clicked)
-        theme_lay.addWidget(self._btn_preview_theme_dark)
-        theme_lay.addWidget(self._btn_preview_theme_light)
-        theme_lay.addStretch()
-        preview_lay.addLayout(theme_lay)
+        self._make_setting_row(card_features.content_layout(), '预览面板',
+                               self._toggle_preview, self._btn_preview_hotkey)
 
-        return preview_box
+        # Row 4: 历史记录 — ToggleSwitch + HotkeyBtn
+        self._toggle_history = ToggleSwitch(
+            parent=self, checked=self._config.get('history.enabled', True))
+        self._toggles.append(self._toggle_history)
+        self._toggle_history.toggled.connect(
+            lambda v: self._mark('history.enabled', v))
 
-    def _build_history_group(self) -> QGroupBox:
-        """构建历史记录设置分组。"""
-        history_box = QGroupBox('历史记录')
-        history_lay = QVBoxLayout(history_box)
-        history_lay.setSpacing(6)
-
-        # 启用开关
-        self._chk_history = QCheckBox('启用历史记录（记录清洗前后文本）')
-        self._chk_history.setChecked(self._config.get('history.enabled', True))
-        self._chk_history.stateChanged.connect(
-            lambda v: self._mark('history.enabled', bool(v)))
-        history_lay.addWidget(self._chk_history)
-
-        # 条数上限
-        count_row = QHBoxLayout()
-        count_row.addWidget(QLabel('最大条数：'))
-        self._spin_history_count = QSpinBox()
-        self._spin_history_count.setRange(50, 2000)
-        self._spin_history_count.setValue(self._config.get('history.max_count', 500))
-        self._spin_history_count.setToolTip('超出时自动删除最旧记录')
-        self._spin_history_count.valueChanged.connect(
-            lambda v: self._mark('history.max_count', v))
-        count_row.addWidget(self._spin_history_count)
-        count_row.addWidget(QLabel('条'))
-        count_row.addStretch()
-        history_lay.addLayout(count_row)
-
-        # 快捷键录制
-        hk_row = QHBoxLayout()
-        hk_row.addWidget(QLabel('快捷键：'))
         self._btn_history_hotkey = QPushButton(
             self._config.get('history.hotkey', 'ctrl+h'))
-        self._btn_history_hotkey.setCheckable(True)
         self._btn_history_hotkey.setObjectName('hotkey_btn')
+        self._btn_history_hotkey.setCheckable(True)
         self._btn_history_hotkey.clicked.connect(self._on_history_hotkey_btn)
-        hk_row.addWidget(self._btn_history_hotkey)
-        hk_row.addStretch()
-        history_lay.addLayout(hk_row)
+        self._hotkey_buttons['history'] = self._btn_history_hotkey
 
-        return history_box
+        self._make_setting_row(card_features.content_layout(), '历史记录',
+                               self._toggle_history, self._btn_history_hotkey, separator=False)
 
-    def _confirm_and_reset_general(self):
-        reply = QMessageBox.question(
-            self, '确认恢复默认',
-            '确定要将通用设置（热键、双击 Ctrl+C、Toast 通知等）恢复为默认值吗？\n此操作不可撤销。',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        from config_manager import DEFAULT_CONFIG
-        g = DEFAULT_CONFIG['general']
-        # 写入待保存列表
-        self._mark('general.toast_notification',         g['toast_notification'])
-        self._mark('general.startup_with_windows',       g['startup_with_windows'])
-        self._mark('general.double_ctrl_c.enabled',      g['double_ctrl_c']['enabled'])
-        self._mark('general.double_ctrl_c.interval_ms',  g['double_ctrl_c']['interval_ms'])
-        self._mark('general.custom_hotkey.enabled',      g['custom_hotkey']['enabled'])
-        self._mark('general.custom_hotkey.keys',         g['custom_hotkey']['keys'])
-        # 刷新 UI（阻断信号，避免触发二次 _mark）
-        for widget, value in [
-            (self._chk_toast,    g['toast_notification']),
-            (self._chk_startup,  g['startup_with_windows']),
-            (self._chk_hotkey,   g['custom_hotkey']['enabled']),
-            (self._chk_dbl,      g['double_ctrl_c']['enabled']),
-        ]:
-            widget.blockSignals(True)
-            widget.setChecked(value)
-            widget.blockSignals(False)
-        self._btn_record.blockSignals(True)
-        self._btn_record.setText(g['custom_hotkey']['keys'])
-        self._btn_record.blockSignals(False)
-        self._sld_interval.blockSignals(True)
-        self._sld_interval.setValue(g['double_ctrl_c']['interval_ms'])
-        self._sld_interval.blockSignals(False)
-        self._lbl_interval.setText(f'间隔阈值：{g["double_ctrl_c"]["interval_ms"]} ms')
-        self._do_save()
+        layout.addWidget(card_features)
 
-    # ── 规则页面 ──────────────────────────────────────────────
+        # ── Card 3: 历史记录 ──────────────────────────────────────────
+        card_history = Card('历史记录')
+        self._cards.append(card_history)
 
-    def _build_rules_page(self) -> QWidget:
-        """构建规则设置页面"""
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setObjectName('content_scroll')
+        # Row: 最大条数 — QSpinBox + "条" label
+        spn_max = QSpinBox()
+        spn_max.setRange(50, 2000)
+        spn_max.setFixedWidth(80)
+        spn_max.setValue(self._config.get('history.max_count', 500))
+        spn_max.valueChanged.connect(
+            lambda v: self._mark('history.max_count', v))
+        lbl_suffix = QLabel('条')
+        lbl_suffix.setStyleSheet(f"color: {c['muted']};")
+        self._make_setting_row(card_history.content_layout(), '最大条数',
+                               spn_max, lbl_suffix, separator=False)
 
-        page = QWidget()
-        page.setObjectName('content_page')
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(12)
-
-        # ── 清洗模式 GroupBox ──
-        mode_box = QGroupBox('清洗模式')
-        mode_lay = QHBoxLayout(mode_box)
-        current = self._config.get('rules.mode', 'rules')
-        self._rb_rules = QCheckBox('规则模式')
-        self._rb_llm = QCheckBox('大模型模式')
-        self._rb_rules.setChecked(current == 'rules')
-        self._rb_llm.setChecked(current == 'llm')
-        self._rb_rules.stateChanged.connect(self._on_mode_checkbox_changed)
-        self._rb_llm.stateChanged.connect(self._on_mode_checkbox_changed)
-        mode_lay.addWidget(self._rb_rules)
-        mode_lay.addWidget(self._rb_llm)
-        layout.addWidget(mode_box)
-
-        # ── 规则开关 GroupBox ──
-        rules_box = QGroupBox('规则开关（规则模式下生效）')
-        rules_lay = QVBoxLayout(rules_box)
-        rules_lay.setSpacing(2)
-        self._rule_chks: dict[str, QCheckBox] = {}
-        for key, (label, tip) in RULE_LABELS.items():
-            chk = QCheckBox(label)
-            chk.setToolTip(tip)
-            chk.setChecked(self._config.get(f'rules.{key}', True))
-            chk.stateChanged.connect(
-                lambda v, k=key: self._mark(f'rules.{k}', bool(v)))
-            self._rule_chks[key] = chk
-            rules_lay.addWidget(chk)
-        layout.addWidget(rules_box)
+        layout.addWidget(card_history)
 
         layout.addStretch()
         scroll.setWidget(page)
         return scroll
 
-    def _on_mode_checkbox_changed(self):
-        sender = self.sender()
-        if sender == self._rb_rules and self._rb_rules.isChecked():
-            mode = 'rules'
-        elif sender == self._rb_llm and self._rb_llm.isChecked():
-            mode = 'llm'
-        else:
-            # 不允许两个都取消，恢复发送者为选中
-            sender.blockSignals(True)
-            sender.setChecked(True)
-            sender.blockSignals(False)
-            return
-        self._mark('rules.mode', mode)
-        # 互斥：取消另一个
-        other = self._rb_llm if sender == self._rb_rules else self._rb_rules
-        other.blockSignals(True)
-        other.setChecked(False)
-        other.blockSignals(False)
-        # 同步 LLM 页面的 Checkbox
-        self._chk_llm.blockSignals(True)
-        self._chk_llm.setChecked(mode == 'llm')
-        self._chk_llm.blockSignals(False)
-
-    # ── 大模型页面 ────────────────────────────────────────────
-
-    def _build_llm_page(self) -> QWidget:
-        """构建大模型设置页面"""
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setObjectName('content_scroll')
-
-        page = QWidget()
-        page.setObjectName('content_page')
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(12)
-
-        # ── 启用 ──
-        self._chk_llm = QCheckBox('启用大模型模式（与规则模式互斥）')
-        self._chk_llm.setChecked(self._config.get('rules.mode') == 'llm')
-        self._chk_llm.stateChanged.connect(self._on_llm_checkbox_toggled)
-        layout.addWidget(self._chk_llm)
-
-        # ── API 配置 GroupBox ──
-        api_box = QGroupBox('API 配置')
-        api_lay = QVBoxLayout(api_box)
-        self._le_base_url: QLineEdit | None = None
-        self._le_model_id: QLineEdit | None = None
-
-        _api_fields = [
-            ('Base URL', 'llm.base_url', 'https://api.openai.com/v1'),
-            ('Model ID', 'llm.model_id', 'gpt-4o-mini'),
-        ]
-        for label, key, placeholder in _api_fields:
-            row = QHBoxLayout()
-            row.addWidget(QLabel(f'{label}：'))
-            le = QLineEdit(str(self._config.get(key, placeholder)))
-            le.setPlaceholderText(placeholder)
-            le.textChanged.connect(lambda t, k=key: self._mark(k, t))
-            row.addWidget(le)
-            api_lay.addLayout(row)
-            if key == 'llm.base_url':
-                self._le_base_url = le
-            elif key == 'llm.model_id':
-                self._le_model_id = le
-
-        key_row = QHBoxLayout()
-        key_row.addWidget(QLabel('API Key：'))
-        self._le_apikey = QLineEdit(self._config.get('llm.api_key', ''))
-        self._le_apikey.setEchoMode(QLineEdit.EchoMode.Password)
-        self._le_apikey.setPlaceholderText('sk-...')
-        self._le_apikey.textChanged.connect(lambda t: self._mark('llm.api_key', t))
-        btn_show = QPushButton('显示')
-        btn_show.setCheckable(True)
-        btn_show.setStyleSheet('padding: 0 10px;')
-        btn_show.toggled.connect(
-            lambda on: self._le_apikey.setEchoMode(
-                QLineEdit.EchoMode.Normal if on else QLineEdit.EchoMode.Password))
-        key_row.addWidget(self._le_apikey, stretch=1)  # 输入框占剩余空间
-        key_row.addWidget(btn_show)
-        api_lay.addLayout(key_row)
-
-        temp_row = QHBoxLayout()
-        temp_val = self._config.get('llm.temperature', 0.2)
-        self._lbl_temp = QLabel('Temperature：')
-        self._lbl_temp_val = QLabel(f'{temp_val:.1f}')
-        self._sld_temp = QSlider(Qt.Orientation.Horizontal)
-        self._sld_temp.setRange(0, 20)
-        self._sld_temp.setValue(int(temp_val * 10))
-        self._sld_temp.valueChanged.connect(self._on_temp_changed)
-        # 左侧：Temperature label + slider + 数值
-        temp_row.addWidget(self._lbl_temp)
-        temp_row.addWidget(self._sld_temp, stretch=1)
-        temp_row.addWidget(self._lbl_temp_val)
-        # 右侧：超时时长靠右对齐
-        temp_row.addStretch()
-        temp_row.addWidget(QLabel('超时时长：'))
-        self._spin_timeout = QSpinBox()
-        self._spin_timeout.setRange(10, 300)
-        self._spin_timeout.setValue(int(self._config.get('llm.timeout', 30)))
-        self._spin_timeout.setToolTip('LLM 请求最大等待时间（10-300 秒）')
-        self._spin_timeout.valueChanged.connect(lambda v: self._mark('llm.timeout', v))
-        temp_row.addWidget(self._spin_timeout)
-        temp_row.addWidget(QLabel('秒'))
-        api_lay.addLayout(temp_row)
-
-        layout.addWidget(api_box)
-
-        # ── 测试连接按钮 ──
-        btn_row = QHBoxLayout()
-        self._btn_test = QPushButton('测试连接')
-        self._btn_test.clicked.connect(self._on_test_connection)
-        btn_row.addWidget(self._btn_test)
-        btn_reset_llm = QPushButton('恢复 API 默认配置')
-        btn_reset_llm.setObjectName('btn_reset')
-        btn_reset_llm.clicked.connect(self._confirm_and_reset_llm_api)
-        btn_row.addWidget(btn_reset_llm)
-        layout.addLayout(btn_row)
-
-        # ── Prompt 模板 GroupBox ──
-        prompt_box = QGroupBox('Prompt 模板')
-        prompt_lay = QVBoxLayout(prompt_box)
-        self._prompt_list = QListWidget()
-        self._prompt_list.setMinimumHeight(150)  # 显示约5个模板
-        self._prompt_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self._prompt_list.customContextMenuRequested.connect(self._show_prompt_menu)
-        self._prompt_list.itemDoubleClicked.connect(
-            lambda item: self._edit_prompt_by_id(item.data(Qt.ItemDataRole.UserRole)))
-        self._refresh_prompts()
-        prompt_lay.addWidget(self._prompt_list)
-
-        btn_add = QPushButton('+ 新增模板')
-        btn_add.clicked.connect(self._on_add_prompt)
-        prompt_lay.addWidget(btn_add)
-        layout.addWidget(prompt_box)
-
-        # ── 轮盘 Prompt 选择 GroupBox ──
-        layout.addWidget(self._build_wheel_prompt_selector_group())
-
-        layout.addStretch()
-        scroll.setWidget(page)
-        return scroll
-
-    def _confirm_and_reset_llm_api(self):
-        reply = QMessageBox.question(
-            self, '确认恢复默认',
-            '确定要将 API 配置（Base URL、Model ID、API Key、Temperature、超时时长）恢复为默认值吗？\n'
-            'API Key 将被清空，Prompt 模板不受影响。此操作不可撤销。',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        from config_manager import DEFAULT_CONFIG
-        llm = DEFAULT_CONFIG['llm']
-        self._mark('llm.base_url',    llm['base_url'])
-        self._mark('llm.model_id',    llm['model_id'])
-        self._mark('llm.api_key',     llm['api_key'])
-        self._mark('llm.temperature', llm['temperature'])
-        self._mark('llm.timeout',     llm['timeout'])
-        # 刷新 UI
-        if self._le_base_url:
-            self._le_base_url.blockSignals(True)
-            self._le_base_url.setText(llm['base_url'])
-            self._le_base_url.blockSignals(False)
-        if self._le_model_id:
-            self._le_model_id.blockSignals(True)
-            self._le_model_id.setText(llm['model_id'])
-            self._le_model_id.blockSignals(False)
-        self._le_apikey.blockSignals(True)
-        self._le_apikey.setText(llm['api_key'])
-        self._le_apikey.blockSignals(False)
-        self._sld_temp.blockSignals(True)
-        self._sld_temp.setValue(int(llm['temperature'] * 10))
-        self._sld_temp.blockSignals(False)
-        self._lbl_temp_val.setText(f'{llm["temperature"]:.1f}')
-        self._spin_timeout.blockSignals(True)
-        self._spin_timeout.setValue(llm['timeout'])
-        self._spin_timeout.blockSignals(False)
-        self._do_save()
-
-    def _on_llm_checkbox_toggled(self, checked):
-        mode = 'llm' if checked else 'rules'
-        self._mark('rules.mode', mode)
-        # 同步规则页面的 Checkbox（不触发信号避免循环）
-        self._rb_rules.blockSignals(True)
-        self._rb_llm.blockSignals(True)
-        self._rb_rules.setChecked(mode == 'rules')
-        self._rb_llm.setChecked(mode == 'llm')
-        self._rb_rules.blockSignals(False)
-        self._rb_llm.blockSignals(False)
-
-    # ── 关于页面 ──────────────────────────────────────────────
-
-    def _build_about_page(self) -> QWidget:
-        """构建关于页面"""
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setObjectName('content_scroll')
-
-        page = QWidget()
-        page.setObjectName('content_page')
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(12)
-
-        # ── 版本信息 GroupBox ──
-        version_box = QGroupBox('版本信息')
-        version_lay = QVBoxLayout(version_box)
-        version_lay.addWidget(QLabel(f'当前版本：v{VERSION}'))
-        btn_check = QPushButton('检查更新')
-        btn_check.clicked.connect(self._on_check_update)
-        version_lay.addWidget(btn_check)
-        layout.addWidget(version_box)
-
-        # ── 作者 GroupBox ──
-        author_box = QGroupBox('作者')
-        author_lay = QVBoxLayout(author_box)
-        author_lay.addWidget(QLabel('StoneLL1'))
-        layout.addWidget(author_box)
-
-        # ── 项目地址 GroupBox ──
-        github_box = QGroupBox('项目地址')
-        github_lay = QVBoxLayout(github_box)
-        github_link = QLabel(
-            '<a href="https://github.com/StoneLL1/NeatCopy" style="color:#2383E2;">'
-            'github.com/StoneLL1/NeatCopy</a>')
-        github_link.setTextFormat(Qt.TextFormat.RichText)
-        github_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-        github_link.linkActivated.connect(self._open_github)
-        github_lay.addWidget(github_link)
-        github_lay.addWidget(QLabel('欢迎 Star ⭐'))
-        layout.addWidget(github_box)
-
-        layout.addStretch()
-        scroll.setWidget(page)
-        return scroll
-
-    # ── 事件处理 ──────────────────────────────────────────────
-
-    def _on_check_update(self):
-        for b in self.findChildren(QPushButton):
-            if b.text() in ('检查更新', '检查中...'):
-                b.setEnabled(False)
-                b.setText('检查中...')
-                break
-
-        from PyQt6.QtCore import QThread as _QT
-        from PyQt6.QtCore import pyqtSignal as _sig
-
-        class _UpdateWorker(_QT):
-            result = _sig(str, str)  # latest_version, download_url
-
-            def run(self):
-                try:
-                    import httpx
-                    with httpx.Client(timeout=10.0) as client:
-                        resp = client.get('https://api.github.com/repos/StoneLL1/NeatCopy/releases/latest')
-                        resp.raise_for_status()
-                        data = resp.json()
-                        latest = data.get('tag_name', '').lstrip('v')
-                        download_url = data.get('html_url', '')
-                        self.result.emit(latest, download_url)
-                except Exception as e:
-                    self.result.emit('', str(e))
-
-        worker = _UpdateWorker()
-        worker.result.connect(self._on_update_result)
-        worker.start()
-        self._update_worker = worker
-
-    def _on_update_result(self, latest: str, url_or_error: str):
-        for b in self.findChildren(QPushButton):
-            if b.text() in ('检查更新', '检查中...'):
-                b.setEnabled(True)
-                b.setText('检查更新')
-                break
-
-        if not latest:
-            QMessageBox.warning(self, '检查失败', f'无法获取最新版本信息：{url_or_error}')
-            return
-
-        if latest == VERSION:
-            QMessageBox.information(self, '已是最新', f'当前版本 v{VERSION} 已是最新版本。')
-        else:
-            msg = f'发现新版本：v{latest}\n当前版本：v{VERSION}\n\n是否前往下载页面？'
-            reply = QMessageBox.question(
-                self, '发现新版本', msg,
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.Yes,
-            )
-            if reply == QMessageBox.StandardButton.Yes:
-                QDesktopServices.openUrl(QUrl(url_or_error))
-
-    def _open_github(self, url: str):
-        QDesktopServices.openUrl(QUrl(url))
-
-    # ── 热键录制 ──────────────────────────────────────────────
+    # ── Hotkey recording ────────────────────────────────────────────
 
     def _on_clean_hotkey_btn(self, checked: bool):
         if checked:
-            self._btn_record.setText('请按下热键组合...')
-            self._btn_wheel_hotkey.setChecked(False)
-            self._btn_preview_hotkey.setChecked(False)
-            self._btn_history_hotkey.setChecked(False)
+            self._cancel_other_recording('clean')
+            self._btn_clean_hotkey.setText('请按下快捷键组合...')
             self.grabKeyboard()
             self._recording_target = 'clean'
+            self._recording_timer.start(5000)
         else:
-            self.releaseKeyboard()
-            self._recording_target = None
+            self._release_recording()
 
     def _on_wheel_hotkey_btn(self, checked: bool):
         if checked:
-            self._btn_wheel_hotkey.setText('请按下热键组合...')
-            self._btn_record.setChecked(False)
-            self._btn_preview_hotkey.setChecked(False)
-            self._btn_history_hotkey.setChecked(False)
+            self._cancel_other_recording('wheel')
+            self._btn_wheel_hotkey.setText('请按下快捷键组合...')
             self.grabKeyboard()
             self._recording_target = 'wheel'
+            self._recording_timer.start(5000)
         else:
-            self.releaseKeyboard()
-            self._recording_target = None
+            self._release_recording()
 
     def _on_preview_hotkey_btn(self, checked: bool):
         if checked:
-            self._btn_preview_hotkey.setText('请按下热键组合...')
-            self._btn_record.setChecked(False)
-            self._btn_wheel_hotkey.setChecked(False)
-            self._btn_history_hotkey.setChecked(False)
+            self._cancel_other_recording('preview')
+            self._btn_preview_hotkey.setText('请按下快捷键组合...')
             self.grabKeyboard()
             self._recording_target = 'preview'
+            self._recording_timer.start(5000)
         else:
-            self.releaseKeyboard()
-            self._recording_target = None
+            self._release_recording()
 
     def _on_history_hotkey_btn(self, checked: bool):
-        """历史快捷键录制按钮回调。"""
         if checked:
-            self._btn_history_hotkey.setText('请按下热键组合...')
-            # 取消其他录制按钮的 checked 状态
-            self._btn_record.setChecked(False)
-            self._btn_wheel_hotkey.setChecked(False)
-            self._btn_preview_hotkey.setChecked(False)
+            self._cancel_other_recording('history')
+            self._btn_history_hotkey.setText('请按下快捷键组合...')
             self.grabKeyboard()
             self._recording_target = 'history'
+            self._recording_timer.start(5000)
         else:
-            self.releaseKeyboard()
-            self._recording_target = None
+            self._release_recording()
+
+    def _cancel_other_recording(self, current: str):
+        """Uncheck all hotkey buttons except the one being activated."""
+        for name, btn in self._hotkey_buttons.items():
+            if name != current:
+                btn.setChecked(False)
+
+    def _release_recording(self):
+        """Release keyboard and clear recording state."""
+        self.releaseKeyboard()
+        self._recording_target = None
+        self._recording_timer.stop()
+
+    def _on_recording_timeout(self):
+        """Cancel hotkey recording after timeout."""
+        target = self._recording_target
+        if target and target in self._hotkey_buttons:
+            config_map = {
+                'clean': ('general.custom_hotkey.keys', 'ctrl+shift+c'),
+                'wheel': ('wheel.switch_hotkey', 'ctrl+shift+p'),
+                'preview': ('preview.hotkey', 'ctrl+q'),
+                'history': ('history.hotkey', 'ctrl+h'),
+            }
+            key, default = config_map[target]
+            self._hotkey_buttons[target].setText(self._config.get(key, default))
+            self._hotkey_buttons[target].setChecked(False)
+        self._release_recording()
 
     def keyPressEvent(self, event):
-        """捕获热键录制"""
+        """Capture hotkey recording."""
         target = getattr(self, '_recording_target', None)
         if target is None:
             return super().keyPressEvent(event)
 
-        from PyQt6.QtCore import Qt as _Qt
         key = event.key()
         mods = event.modifiers()
 
-        # 忽略纯修饰键
-        if key in (
-            _Qt.Key.Key_Control, _Qt.Key.Key_Shift, _Qt.Key.Key_Alt,
-            _Qt.Key.Key_Meta, _Qt.Key.Key_unknown
-        ):
+        # Ignore pure modifier keys
+        if key in (Qt.Key.Key_Control, Qt.Key.Key_Shift,
+                   Qt.Key.Key_Alt, Qt.Key.Key_Meta, Qt.Key.Key_unknown):
             return
 
         parts = []
-        if mods & _Qt.KeyboardModifier.ControlModifier:
+        if mods & Qt.KeyboardModifier.ControlModifier:
             parts.append('ctrl')
-        if mods & _Qt.KeyboardModifier.ShiftModifier:
+        if mods & Qt.KeyboardModifier.ShiftModifier:
             parts.append('shift')
-        if mods & _Qt.KeyboardModifier.AltModifier:
+        if mods & Qt.KeyboardModifier.AltModifier:
             parts.append('alt')
 
         try:
-            key_str = _Qt.Key(key).name
-            key_name = key_str.replace('Key_', '').lower()
+            key_name = Qt.Key(key).name.replace('Key_', '').lower()
         except (ValueError, KeyError):
             key_name = ''
         if key_name:
@@ -817,164 +520,365 @@ class SettingsWindow(QDialog):
 
         if len(parts) >= 2:
             hotkey_str = '+'.join(parts)
-            if target == 'clean':
-                self._btn_record.setText(hotkey_str)
-                self._mark('general.custom_hotkey.keys', hotkey_str)
-            elif target == 'wheel':
-                self._btn_wheel_hotkey.setText(hotkey_str)
-                self._mark('wheel.switch_hotkey', hotkey_str)
-            elif target == 'preview':
-                self._btn_preview_hotkey.setText(hotkey_str)
-                self._mark('preview.hotkey', hotkey_str)
-            elif target == 'history':
-                self._btn_history_hotkey.setText(hotkey_str)
-                self._mark('history.hotkey', hotkey_str)
+            config_map = {
+                'clean': 'general.custom_hotkey.keys',
+                'wheel': 'wheel.switch_hotkey',
+                'preview': 'preview.hotkey',
+                'history': 'history.hotkey',
+            }
+            self._hotkey_buttons[target].setText(hotkey_str)
+            self._mark(config_map[target], hotkey_str)
 
-        self.releaseKeyboard()
-        self._recording_target = None
-        if target == 'clean':
-            self._btn_record.setChecked(False)
-        elif target == 'wheel':
-            self._btn_wheel_hotkey.setChecked(False)
-        elif target == 'preview':
-            self._btn_preview_hotkey.setChecked(False)
-        elif target == 'history':
-            self._btn_history_hotkey.setChecked(False)
+        self._hotkey_buttons[target].setChecked(False)
+        self._release_recording()
 
-    # ── 滑块事件 ──────────────────────────────────────────────
+    # ── Hotkey page toggles ────────────────────────────────────────
+
+    def _on_wheel_enabled_changed(self, checked: bool):
+        self._mark('wheel.enabled', checked)
+        self._chk_wheel_trigger.setEnabled(checked)
+
+    def _on_double_click_changed(self, checked: bool):
+        self._mark('general.double_ctrl_c.enabled', checked)
+        self._sld_interval.setEnabled(checked)
+        self._lbl_interval.setEnabled(checked)
 
     def _on_interval_changed(self, value: int):
-        self._lbl_interval.setText(f'间隔阈值：{value} ms')
+        self._lbl_interval.setText(f"{value} ms")
         self._mark('general.double_ctrl_c.interval_ms', value)
+
+    # ── Rules page (Page 2) ──────────────────────────────────────────
+
+    def _build_rules_page(self) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setObjectName('content_scroll')
+        page = QWidget()
+        page.setObjectName('content_page')
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        # Card 1: 清洗模式
+        card_mode = Card('清洗模式')
+        self._cards.append(card_mode)
+        self._seg_mode = SegmentedControl(
+            ['规则模式', '大模型模式'], parent=self, full_width=True)
+        self._segmented_controls.append(self._seg_mode)
+        current_mode = self._config.get('rules.mode', 'rules')
+        self._seg_mode.setCurrentIndex(0 if current_mode == 'rules' else 1)
+        self._seg_mode.selectionChanged.connect(self._on_mode_changed)
+        card_mode.content_layout().addWidget(self._seg_mode)
+        layout.addWidget(card_mode)
+
+        # Card 2: 规则开关
+        card_rules = Card('规则开关', description='规则模式下生效')
+        self._cards.append(card_rules)
+        for key, (label_text, hint_text) in RULE_LABELS.items():
+            chk = QCheckBox(label_text)
+            chk.setToolTip(hint_text)
+            chk.setChecked(self._config.get(f'rules.{key}', True))
+            chk.toggled.connect(lambda v, k=key: self._mark(f'rules.{k}', bool(v)))
+            card_rules.content_layout().addWidget(chk)
+            # Hint label below checkbox (visible, per design)
+            c = ColorPalette.get(self._theme)
+            hint_lbl = QLabel(hint_text)
+            hint_lbl.setStyleSheet(f"""
+                color: {c['muted']};
+                font-size: {FONT_SIZE_XS};
+                padding: 0 0 0 22px;
+                background: transparent;
+                border: none;
+            """)
+            card_rules.content_layout().addWidget(hint_lbl)
+            # Separator between rule checkboxes
+            sep = QFrame()
+            sep.setFrameShape(QFrame.Shape.HLine)
+            sep.setStyleSheet(
+                f"background: {ColorPalette.get(self._theme)['border']}; "
+                f"max-height: 1px; border: none;")
+            card_rules.content_layout().addWidget(sep)
+        layout.addWidget(card_rules)
+
+        layout.addStretch()
+        scroll.setWidget(page)
+        return scroll
+
+    def _on_mode_changed(self, index: int):
+        """Handle cleaning mode segmented control change."""
+        mode = 'rules' if index == 0 else 'llm'
+        self._mark('rules.mode', mode)
+        # If user selected LLM mode, switch to LLM page
+        if mode == 'llm':
+            self._sidebar.setCurrentIndex(3)  # LLM page
+
+    def _build_llm_page(self) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setObjectName('content_scroll')
+        page = QWidget()
+        page.setObjectName('content_page')
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        # ── Page-level: 启用大模型模式 (not in a card) ──
+        self._toggle_llm = ToggleSwitch(
+            parent=self, checked=self._config.get('rules.mode') == 'llm')
+        self._toggles.append(self._toggle_llm)
+        self._toggle_llm.toggled.connect(self._on_llm_toggled)
+
+        enable_row = QHBoxLayout()
+        enable_row.setContentsMargins(0, 0, 0, 16)
+        lbl_enable = QLabel('启用大模型模式')
+        c = ColorPalette.get(self._theme)
+        lbl_enable.setStyleSheet(f"color: {c['fg']}; font-weight: 600;")
+        enable_row.addWidget(lbl_enable)
+        enable_row.addStretch()
+        enable_row.addWidget(self._toggle_llm)
+        layout.addLayout(enable_row)
+
+        # ── Card 1: API配置 ──
+        card_api = Card('API配置')
+        self._cards.append(card_api)
+        cl = card_api.content_layout()
+
+        # Row 1: Base URL (label uses text-xs per design)
+        row_url = QHBoxLayout()
+        row_url.setContentsMargins(0, 12, 0, 0)
+        lbl_url = QLabel('Base URL')
+        lbl_url.setStyleSheet(f"color: {c['fg']}; font-size: {FONT_SIZE_XS}; background: transparent;")
+        row_url.addWidget(lbl_url)
+        row_url.addStretch()
+        self._le_base_url = QLineEdit(
+            str(self._config.get('llm.base_url', 'https://api.openai.com/v1')))
+        self._le_base_url.setPlaceholderText('https://api.openai.com/v1')
+        self._le_base_url.textChanged.connect(lambda t: self._mark('llm.base_url', t))
+        row_url.addWidget(self._le_base_url, 1)
+        cl.addLayout(row_url)
+
+        url_sep = QFrame()
+        url_sep.setFrameShape(QFrame.Shape.HLine)
+        url_sep.setStyleSheet(f"background: {c['border']}; max-height: 1px; border: none;")
+        cl.addWidget(url_sep)
+
+        # Row 2: Model ID (label uses text-xs per design)
+        row_model = QHBoxLayout()
+        row_model.setContentsMargins(0, 12, 0, 0)
+        lbl_model = QLabel('Model ID')
+        lbl_model.setStyleSheet(f"color: {c['fg']}; font-size: {FONT_SIZE_XS}; background: transparent;")
+        row_model.addWidget(lbl_model)
+        row_model.addStretch()
+        self._le_model_id = QLineEdit(
+            str(self._config.get('llm.model_id', 'gpt-4o-mini')))
+        self._le_model_id.setPlaceholderText('gpt-4o-mini')
+        self._le_model_id.textChanged.connect(lambda t: self._mark('llm.model_id', t))
+        row_model.addWidget(self._le_model_id, 1)
+        cl.addLayout(row_model)
+
+        model_sep = QFrame()
+        model_sep.setFrameShape(QFrame.Shape.HLine)
+        model_sep.setStyleSheet(f"background: {c['border']}; max-height: 1px; border: none;")
+        cl.addWidget(model_sep)
+
+        # Row 3: API Key (password + show/hide toggle)
+        key_row = QHBoxLayout()
+        key_row.setContentsMargins(0, 8, 0, 8)
+        lbl_key = QLabel('API Key')
+        lbl_key.setStyleSheet(f"color: {c['fg']}; font-size: {FONT_SIZE_XS};")
+        key_row.addWidget(lbl_key)
+        key_row.addStretch()
+
+        self._le_apikey = QLineEdit(self._config.get('llm.api_key', ''))
+        self._le_apikey.setEchoMode(QLineEdit.EchoMode.Password)
+        self._le_apikey.setPlaceholderText('sk-...')
+        self._le_apikey.textChanged.connect(lambda t: self._mark('llm.api_key', t))
+        key_row.addWidget(self._le_apikey, 1)
+
+        self._btn_show_key = QPushButton('显示')
+        self._btn_show_key.setCheckable(True)
+        self._btn_show_key.setFixedWidth(50)
+        self._btn_show_key.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self._btn_show_key.setStyleSheet(f"""
+            QPushButton {{
+                background: none;
+                border: none;
+                font-size: {FONT_SIZE_XS};
+                color: {c['muted']};
+            }}
+            QPushButton:hover {{
+                color: {c['fg']};
+            }}
+        """)
+        self._btn_show_key.toggled.connect(self._on_toggle_apikey_visibility)
+        key_row.addWidget(self._btn_show_key)
+        cl.addLayout(key_row)
+
+        key_sep = QFrame()
+        key_sep.setFrameShape(QFrame.Shape.HLine)
+        key_sep.setStyleSheet(f"background: {c['border']}; max-height: 1px; border: none;")
+        cl.addWidget(key_sep)
+
+        # Row 4: Temperature slider + label
+        temp_row = QHBoxLayout()
+        temp_row.setContentsMargins(0, 8, 0, 8)
+        lbl_temp = QLabel('Temperature')
+        lbl_temp.setStyleSheet(f"color: {c['fg']};")
+        temp_row.addWidget(lbl_temp)
+        temp_row.addStretch()
+
+        self._sld_temp = QSlider(Qt.Orientation.Horizontal)
+        self._sld_temp.setRange(0, 20)
+        temp_val = self._config.get('llm.temperature', 0.2)
+        self._sld_temp.setValue(int(temp_val * 10))
+        self._sld_temp.setFixedWidth(200)
+        self._sld_temp.valueChanged.connect(self._on_temp_changed)
+        temp_row.addWidget(self._sld_temp)
+
+        self._lbl_temp_val = QLabel(f'{temp_val:.1f}')
+        self._lbl_temp_val.setStyleSheet(f"color: {c['muted']}; font-family: {FONT_MONO}; font-size: {FONT_SIZE_XS}; background: transparent;")
+        self._lbl_temp_val.setFixedWidth(40)
+        temp_row.addWidget(self._lbl_temp_val)
+        cl.addLayout(temp_row)
+
+        temp_sep = QFrame()
+        temp_sep.setFrameShape(QFrame.Shape.HLine)
+        temp_sep.setStyleSheet(f"background: {c['border']}; max-height: 1px; border: none;")
+        cl.addWidget(temp_sep)
+
+        # Row 5: 超时时长 spinbox
+        self._spin_timeout = QSpinBox()
+        self._spin_timeout.setRange(10, 300)
+        self._spin_timeout.setFixedWidth(72)
+        self._spin_timeout.setValue(int(self._config.get('llm.timeout', 30)))
+        self._spin_timeout.setToolTip('LLM 请求最大等待时间（10-300 秒）')
+        self._spin_timeout.valueChanged.connect(lambda v: self._mark('llm.timeout', v))
+        lbl_sec = QLabel('秒')
+        lbl_sec.setStyleSheet(f"color: {c['muted']};")
+        self._make_setting_row(cl, '超时时长', self._spin_timeout, lbl_sec, separator=False)
+
+        layout.addWidget(card_api)
+
+        # ── Bottom row: 测试连接 + 恢复默认 (outside card) ──
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+        self._btn_test = QPushButton('测试连接')
+        self._btn_test.clicked.connect(self._on_test_connection)
+        btn_row.addWidget(self._btn_test)
+        btn_reset_llm = QPushButton('恢复默认')
+        btn_reset_llm.setObjectName('btn_reset')
+        btn_reset_llm.clicked.connect(self._confirm_and_reset_llm_api)
+        btn_row.addWidget(btn_reset_llm)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        # ── Card 2: Prompt模板 ──
+        card_prompts = Card('Prompt模板')
+        self._cards.append(card_prompts)
+        pl = card_prompts.content_layout()
+
+        self._prompt_list = QListWidget()
+        self._prompt_list.setMinimumHeight(150)
+        self._prompt_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._prompt_list.customContextMenuRequested.connect(self._show_prompt_menu)
+        self._prompt_list.itemDoubleClicked.connect(
+            lambda item: self._edit_prompt_by_id(item.data(Qt.ItemDataRole.UserRole)))
+        self._refresh_prompts()
+        pl.addWidget(self._prompt_list)
+
+        prompt_btn_row = QHBoxLayout()
+        btn_add = QPushButton('+ 新增模板')
+        btn_add.clicked.connect(self._on_add_prompt)
+        prompt_btn_row.addWidget(btn_add)
+        btn_wheel_mgmt = QPushButton('管理轮盘')
+        btn_wheel_mgmt.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                border: none;
+                padding: 4px 12px;
+                min-height: 24px;
+                color: {c['muted']};
+                font-size: {FONT_SIZE_XS};
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                color: {c['fg']};
+                background: {c['fg_soft']};
+            }}
+        """)
+        btn_wheel_mgmt.clicked.connect(self._show_wheel_modal)
+        prompt_btn_row.addWidget(btn_wheel_mgmt)
+        prompt_btn_row.addStretch()
+        pl.addLayout(prompt_btn_row)
+
+        layout.addWidget(card_prompts)
+
+        # ── Card 3: 轮盘 Prompt 选择 ──
+        card_wheel = Card('轮盘 Prompt 选择')
+        self._cards.append(card_wheel)
+        wl = card_wheel.content_layout()
+
+        columns = QHBoxLayout()
+
+        # Left column: available templates
+        left_lay = QVBoxLayout()
+        lbl_left = QLabel('可用模板')
+        lbl_left.setStyleSheet(f"color: {c['muted']}; font-size: {FONT_SIZE_XS}; font-weight: 600; background: transparent;")
+        left_lay.addWidget(lbl_left)
+        self._wheel_all_list = QListWidget()
+        self._wheel_all_list.setMinimumHeight(150)
+        self._wheel_all_list.itemChanged.connect(self._on_wheel_all_item_changed)
+        self._refresh_wheel_all_list()
+        left_lay.addWidget(self._wheel_all_list)
+        columns.addLayout(left_lay, 1)
+
+        # Right column: selected templates
+        right_lay = QVBoxLayout()
+        lbl_right = QLabel(f'轮盘模板（最多{self.MAX_WHEEL_PROMPTS}个）')
+        lbl_right.setStyleSheet(f"color: {c['muted']}; font-size: {FONT_SIZE_XS}; font-weight: 600; background: transparent;")
+        right_lay.addWidget(lbl_right)
+        self._wheel_selected_list = QListWidget()
+        self._wheel_selected_list.setMinimumHeight(150)
+        self._refresh_wheel_selected_list()
+        right_lay.addWidget(self._wheel_selected_list)
+        columns.addLayout(right_lay, 1)
+
+        wl.addLayout(columns)
+
+        tip = QLabel('提示：勾选左侧模板添加到轮盘')
+        tip.setStyleSheet(f"color: {c['muted']}; font-size: {FONT_SIZE_XS}; background: transparent;")
+        wl.addWidget(tip)
+
+        layout.addWidget(card_wheel)
+
+        layout.addStretch()
+        scroll.setWidget(page)
+        return scroll
+
+    # ── LLM page helpers ────────────────────────────────────────────
+
+    def _on_llm_toggled(self, checked: bool):
+        mode = 'llm' if checked else 'rules'
+        self._mark('rules.mode', mode)
+        if hasattr(self, '_seg_mode'):
+            self._seg_mode.blockSignals(True)
+            self._seg_mode.setCurrentIndex(0 if mode == 'rules' else 1)
+            self._seg_mode.blockSignals(False)
+
+    def _on_toggle_apikey_visibility(self, checked: bool):
+        if checked:
+            self._le_apikey.setEchoMode(QLineEdit.EchoMode.Normal)
+            self._btn_show_key.setText('隐藏')
+        else:
+            self._le_apikey.setEchoMode(QLineEdit.EchoMode.Password)
+            self._btn_show_key.setText('显示')
 
     def _on_temp_changed(self, value: int):
         temp = value / 10.0
         self._lbl_temp_val.setText(f'{temp:.1f}')
         self._mark('llm.temperature', temp)
-
-    # ── 轮盘相关 ──────────────────────────────────────────────
-
-    def _build_wheel_prompt_selector_group(self) -> QGroupBox:
-        """构建轮盘 Prompt 选择器（左右两栏设计）。"""
-        box = QGroupBox('轮盘 Prompt 选择')
-        lay = QVBoxLayout(box)
-        lay.setSpacing(6)
-
-        # 左右两栏
-        columns = QHBoxLayout()
-
-        # 左栏：可用模板
-        left_lay = QVBoxLayout()
-        left_title = QLabel('可用模板')
-        left_title.setStyleSheet('font-weight: bold;')
-        left_lay.addWidget(left_title)
-        self._wheel_all_list = QListWidget()
-        self._wheel_all_list.setMinimumHeight(150)  # 显示约5个模板
-        self._wheel_all_list.itemChanged.connect(self._on_wheel_all_item_changed)
-        self._refresh_wheel_all_list()
-        left_lay.addWidget(self._wheel_all_list)
-        columns.addLayout(left_lay, stretch=1)
-
-        # 右栏：轮盘模板
-        right_lay = QVBoxLayout()
-        right_title = QLabel(f'轮盘模板（最多{self.MAX_WHEEL_PROMPTS}个）')
-        right_title.setStyleSheet('font-weight: bold;')
-        right_lay.addWidget(right_title)
-        self._wheel_selected_list = QListWidget()
-        self._wheel_selected_list.setMinimumHeight(150)  # 显示约5个模板
-        self._refresh_wheel_selected_list()
-        right_lay.addWidget(self._wheel_selected_list)
-        columns.addLayout(right_lay, stretch=1)
-
-        lay.addLayout(columns)
-
-        # 提示文字
-        tip = QLabel('提示：勾选左侧模板添加到轮盘')
-        tip.setStyleSheet('color: #666; font-size: 11px;')
-        lay.addWidget(tip)
-
-        return box
-
-    def _refresh_wheel_all_list(self):
-        """刷新左栏：所有prompt带勾选框。"""
-        self._wheel_all_list.blockSignals(True)
-        self._wheel_all_list.clear()
-        prompts = self._config.get('llm.prompts') or []
-        for p in prompts:
-            item = QListWidgetItem(p['name'])
-            item.setData(Qt.ItemDataRole.UserRole, p['id'])
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(
-                Qt.CheckState.Checked if p.get('visible_in_wheel', True)
-                else Qt.CheckState.Unchecked
-            )
-            self._wheel_all_list.addItem(item)
-        self._wheel_all_list.blockSignals(False)
-
-    def _refresh_wheel_selected_list(self):
-        """刷新右栏：已勾选的prompt带序号。"""
-        self._wheel_selected_list.clear()
-        prompts = self._config.get('llm.prompts') or []
-        selected = [p for p in prompts if p.get('visible_in_wheel', True)]
-        for i, p in enumerate(selected[:self.MAX_WHEEL_PROMPTS], start=1):
-            item = QListWidgetItem(f'{i}. {p["name"]}')
-            item.setData(Qt.ItemDataRole.UserRole, p['id'])
-            self._wheel_selected_list.addItem(item)
-
-    def _on_wheel_all_item_changed(self, item: QListWidgetItem):
-        """处理勾选变化：同步两栏并保存配置。"""
-        # 检查勾选数量
-        checked_count = sum(
-            1 for i in range(self._wheel_all_list.count())
-            if self._wheel_all_list.item(i).checkState() == Qt.CheckState.Checked
-        )
-        if checked_count > self.MAX_WHEEL_PROMPTS:
-            self._wheel_all_list.blockSignals(True)
-            item.setCheckState(Qt.CheckState.Unchecked)
-            self._wheel_all_list.blockSignals(False)
-            self._status_lbl.setText(f'轮盘最多显示{self.MAX_WHEEL_PROMPTS}个 Prompt')
-            QTimer.singleShot(2000, lambda: self._status_lbl.setText(''))
-            return
-
-        # 更新配置
-        prompts = list(self._config.get('llm.prompts') or [])
-        for i in range(self._wheel_all_list.count()):
-            list_item = self._wheel_all_list.item(i)
-            pid = list_item.data(Qt.ItemDataRole.UserRole)
-            visible = list_item.checkState() == Qt.CheckState.Checked
-            for p in prompts:
-                if p['id'] == pid:
-                    p['visible_in_wheel'] = visible
-        self._mark('llm.prompts', prompts)
-
-        # 同步刷新右栏
-        self._refresh_wheel_selected_list()
-
-    def _on_wheel_enabled_changed(self, state):
-        enabled = bool(state)
-        self._mark('wheel.enabled', enabled)
-        self._update_wheel_subwidgets()
-
-    def _update_wheel_subwidgets(self):
-        enabled = self._chk_wheel.isChecked()
-        self._chk_wheel_trigger.setEnabled(enabled)
-        self._btn_wheel_hotkey.setEnabled(enabled)
-        if hasattr(self, '_wheel_all_list'):
-            self._wheel_all_list.setEnabled(enabled)
-
-    # ── 预览面板主题 ──────────────────────────────────────────────
-
-    def _on_preview_theme_dark_clicked(self):
-        self._btn_preview_theme_dark.setChecked(True)
-        self._btn_preview_theme_light.setChecked(False)
-        self._mark('preview.theme', 'dark')
-
-    def _on_preview_theme_light_clicked(self):
-        self._btn_preview_theme_dark.setChecked(False)
-        self._btn_preview_theme_light.setChecked(True)
-        self._mark('preview.theme', 'light')
-
-    # ── Prompt 模板管理 ──────────────────────────────────────────────
 
     def _refresh_prompts(self):
         self._prompt_list.clear()
@@ -1069,8 +973,6 @@ class SettingsWindow(QDialog):
             self._do_save()
             self._refresh_prompts()
 
-    # ── 测试连接 ──────────────────────────────────────────────
-
     def _on_test_connection(self):
         self._do_save()
         llm_cfg = self._config.get('llm') or {}
@@ -1113,57 +1015,458 @@ class SettingsWindow(QDialog):
                     self.error.emit(classify_error(e, timeout=int(self._cfg.get('timeout', 30))))
 
         worker = _TestWorker(llm_cfg)
-        worker.success.connect(lambda r: (
-            QMessageBox.information(self, '连接成功', f'模型回复：{r[:200]}'),
-            self._btn_test.setEnabled(True),
-            self._btn_test.setText('测试连接'),
-        ))
-        worker.error.connect(lambda e: (
-            QMessageBox.critical(self, '连接失败', e),
-            self._btn_test.setEnabled(True),
-            self._btn_test.setText('测试连接'),
-        ))
-        worker.finished.connect(lambda: (
-            self._btn_test.setEnabled(True),
-            self._btn_test.setText('测试连接'),
-        ))
+
+        def _on_success(r):
+            QMessageBox.information(self, '连接成功', f'模型回复：{r[:200]}')
+            self._btn_test.setEnabled(True)
+            self._btn_test.setText('测试连接')
+
+        def _on_error(e):
+            QMessageBox.critical(self, '连接失败', e)
+            self._btn_test.setEnabled(True)
+            self._btn_test.setText('测试连接')
+
+        worker.success.connect(_on_success)
+        worker.error.connect(_on_error)
         worker.start()
         self._test_worker = worker
 
-    # ── 主题切换 ──────────────────────────────────────────────
+    def _confirm_and_reset_llm_api(self):
+        reply = QMessageBox.question(
+            self, '确认恢复默认',
+            '确定要将 API 配置（Base URL、Model ID、API Key、Temperature、超时时长）恢复为默认值吗？\n'
+            'API Key 将被清空，Prompt 模板不受影响。此操作不可撤销。',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        from config_manager import DEFAULT_CONFIG
+        llm = DEFAULT_CONFIG['llm']
+        self._mark('llm.base_url',    llm['base_url'])
+        self._mark('llm.model_id',    llm['model_id'])
+        self._mark('llm.api_key',     llm['api_key'])
+        self._mark('llm.temperature', llm['temperature'])
+        self._mark('llm.timeout',     llm['timeout'])
+        # Refresh UI widgets
+        self._le_base_url.blockSignals(True)
+        self._le_base_url.setText(llm['base_url'])
+        self._le_base_url.blockSignals(False)
+        self._le_model_id.blockSignals(True)
+        self._le_model_id.setText(llm['model_id'])
+        self._le_model_id.blockSignals(False)
+        self._le_apikey.blockSignals(True)
+        self._le_apikey.setText(llm['api_key'])
+        self._le_apikey.blockSignals(False)
+        self._sld_temp.blockSignals(True)
+        self._sld_temp.setValue(int(llm['temperature'] * 10))
+        self._sld_temp.blockSignals(False)
+        self._lbl_temp_val.setText(f'{llm["temperature"]:.1f}')
+        self._spin_timeout.blockSignals(True)
+        self._spin_timeout.setValue(llm['timeout'])
+        self._spin_timeout.blockSignals(False)
+        self._do_save()
+
+    def _refresh_wheel_all_list(self):
+        self._wheel_all_list.blockSignals(True)
+        self._wheel_all_list.clear()
+        prompts = self._config.get('llm.prompts') or []
+        for p in prompts:
+            item = QListWidgetItem(p['name'])
+            item.setData(Qt.ItemDataRole.UserRole, p['id'])
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(
+                Qt.CheckState.Checked if p.get('visible_in_wheel', True)
+                else Qt.CheckState.Unchecked
+            )
+            self._wheel_all_list.addItem(item)
+        self._wheel_all_list.blockSignals(False)
+
+    def _refresh_wheel_selected_list(self):
+        self._wheel_selected_list.clear()
+        prompts = self._config.get('llm.prompts') or []
+        selected = [p for p in prompts if p.get('visible_in_wheel', True)]
+        for i, p in enumerate(selected[:self.MAX_WHEEL_PROMPTS], start=1):
+            item = QListWidgetItem(f'{i}. {p["name"]}')
+            item.setData(Qt.ItemDataRole.UserRole, p['id'])
+            self._wheel_selected_list.addItem(item)
+
+    def _on_wheel_all_item_changed(self, item: QListWidgetItem):
+        checked_count = sum(
+            1 for i in range(self._wheel_all_list.count())
+            if self._wheel_all_list.item(i).checkState() == Qt.CheckState.Checked
+        )
+        if checked_count > self.MAX_WHEEL_PROMPTS:
+            self._wheel_all_list.blockSignals(True)
+            item.setCheckState(Qt.CheckState.Unchecked)
+            self._wheel_all_list.blockSignals(False)
+            self._status_lbl.setText(f'轮盘最多显示{self.MAX_WHEEL_PROMPTS}个 Prompt')
+            QTimer.singleShot(2000, lambda: self._status_lbl.setText(''))
+            return
+
+        prompts = list(self._config.get('llm.prompts') or [])
+        for i in range(self._wheel_all_list.count()):
+            list_item = self._wheel_all_list.item(i)
+            pid = list_item.data(Qt.ItemDataRole.UserRole)
+            visible = list_item.checkState() == Qt.CheckState.Checked
+            for p in prompts:
+                if p['id'] == pid:
+                    p['visible_in_wheel'] = visible
+        self._mark('llm.prompts', prompts)
+        self._refresh_wheel_selected_list()
+
+    def _show_wheel_modal(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle('管理轮盘 Prompt')
+        dlg.resize(420, 360)
+        v = QVBoxLayout(dlg)
+
+        columns = QHBoxLayout()
+        c = ColorPalette.get(self._theme)
+
+        # Left: available templates
+        left_lay = QVBoxLayout()
+        lbl_left = QLabel('可用模板')
+        lbl_left.setStyleSheet(f"color: {c['muted']}; font-size: {FONT_SIZE_XS}; font-weight: 600; background: transparent;")
+        left_lay.addWidget(lbl_left)
+        modal_all = QListWidget()
+        modal_all.setMinimumHeight(200)
+        prompts = self._config.get('llm.prompts') or []
+        for p in prompts:
+            mi = QListWidgetItem(p['name'])
+            mi.setData(Qt.ItemDataRole.UserRole, p['id'])
+            mi.setFlags(mi.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            mi.setCheckState(
+                Qt.CheckState.Checked if p.get('visible_in_wheel', True)
+                else Qt.CheckState.Unchecked
+            )
+            modal_all.addItem(mi)
+        left_lay.addWidget(modal_all)
+        columns.addLayout(left_lay, 1)
+
+        # Right: selected templates
+        right_lay = QVBoxLayout()
+        lbl_right = QLabel(f'轮盘模板（最多{self.MAX_WHEEL_PROMPTS}个）')
+        lbl_right.setStyleSheet(f"color: {c['muted']}; font-size: {FONT_SIZE_XS}; font-weight: 600; background: transparent;")
+        right_lay.addWidget(lbl_right)
+        modal_selected = QListWidget()
+        modal_selected.setMinimumHeight(200)
+
+        def _refresh_modal_selected():
+            modal_selected.clear()
+            checked = []
+            for j in range(modal_all.count()):
+                ai = modal_all.item(j)
+                if ai.checkState() == Qt.CheckState.Checked:
+                    checked.append(ai.text())
+            for idx, name in enumerate(checked[:self.MAX_WHEEL_PROMPTS], 1):
+                si = QListWidgetItem(f'{idx}. {name}')
+                modal_selected.addItem(si)
+
+        modal_all.itemChanged.connect(_refresh_modal_selected)
+        _refresh_modal_selected()
+        right_lay.addWidget(modal_selected)
+        columns.addLayout(right_lay, 1)
+
+        v.addLayout(columns)
+
+        tip = QLabel('提示：勾选左侧模板添加到轮盘')
+        tip.setStyleSheet(f"color: {c['muted']}; font-size: {FONT_SIZE_XS}; background: transparent;")
+        v.addWidget(tip)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_ok = QPushButton('保存')
+        btn_ok.clicked.connect(dlg.accept)
+        btn_row.addWidget(btn_ok)
+        btn_cancel = QPushButton('取消')
+        btn_cancel.clicked.connect(dlg.reject)
+        btn_row.addWidget(btn_cancel)
+        v.addLayout(btn_row)
+
+        if dlg.exec():
+            # Collect check states and sync
+            updated_prompts = list(self._config.get('llm.prompts') or [])
+            for j in range(modal_all.count()):
+                mi = modal_all.item(j)
+                pid = mi.data(Qt.ItemDataRole.UserRole)
+                visible = mi.checkState() == Qt.CheckState.Checked
+                for p in updated_prompts:
+                    if p['id'] == pid:
+                        p['visible_in_wheel'] = visible
+            self._mark('llm.prompts', updated_prompts)
+            self._do_save()
+            self._refresh_wheel_all_list()
+            self._refresh_wheel_selected_list()
+
+    def _build_about_page(self) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setObjectName('content_scroll')
+
+        page = QWidget()
+        page.setObjectName('content_page')
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(24, 48, 24, 48)
+        layout.setSpacing(12)
+        layout.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop)
+
+        c = ColorPalette.get(self._theme)
+        from ui.styles import FONT_MONO, FONT_SIZE_SM, FONT_SIZE_XS
+
+        # NeatCopy brand name
+        name_label = QLabel('NeatCopy')
+        name_label.setStyleSheet(f"""
+            color: {c['fg']};
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            background: transparent;
+        """)
+        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(name_label)
+
+        # Version
+        version_label = QLabel(f'v{VERSION}')
+        version_label.setStyleSheet(f"""
+            color: {c['muted']};
+            font-family: {FONT_MONO};
+            font-size: {FONT_SIZE_SM};
+            background: transparent;
+        """)
+        version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(version_label)
+
+        # Author
+        author_label = QLabel('by StoneLL1')
+        author_label.setStyleSheet(f"""
+            color: {c['muted']};
+            font-size: {FONT_SIZE_SM};
+            background: transparent;
+        """)
+        author_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(author_label)
+
+        # GitHub link
+        github_label = QLabel(
+            '<a href="https://github.com/StoneLL1/NeatCopy" '
+            f'style="color: {c["fg"]}; text-decoration: underline; font-size: {FONT_SIZE_SM};">'
+            'github.com/StoneLL1/NeatCopy</a>')
+        github_label.setTextFormat(Qt.TextFormat.RichText)
+        github_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        github_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        github_label.linkActivated.connect(self._open_github)
+        layout.addWidget(github_label)
+
+        layout.addSpacing(32)
+
+        # Check update button
+        self._btn_check_update = QPushButton('检查更新')
+        self._btn_check_update.setStyleSheet(f"""
+            QPushButton {{
+                background: {c['surface_alt']};
+                border: 1px solid {c['border']};
+                border-radius: 6px;
+                padding: 8px 16px;
+                color: {c['fg']};
+                font-size: {FONT_SIZE_SM};
+            }}
+            QPushButton:hover {{
+                border-color: {c['border_strong']};
+                background: {c['fg_soft']};
+            }}
+        """)
+        self._btn_check_update.clicked.connect(self._on_check_update)
+        btn_container = QHBoxLayout()
+        btn_container.addStretch()
+        btn_container.addWidget(self._btn_check_update)
+        btn_container.addStretch()
+        layout.addLayout(btn_container)
+
+        # Star prompt
+        star_label = QLabel('如果觉得有用，欢迎 Star ⭐')
+        star_label.setStyleSheet(f"""
+            color: {c['muted']};
+            font-size: {FONT_SIZE_SM};
+            background: transparent;
+        """)
+        star_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(star_label)
+
+        layout.addStretch()
+        scroll.setWidget(page)
+        return scroll
+
+    def _open_github(self, url: str):
+        QDesktopServices.openUrl(QUrl(url))
+
+    def _on_check_update(self):
+        self._btn_check_update.setEnabled(False)
+        self._btn_check_update.setText('检查中...')
+
+        from PyQt6.QtCore import QThread, pyqtSignal
+
+        class _UpdateWorker(QThread):
+            result = pyqtSignal(str, str)  # latest_version, download_url_or_error
+
+            def run(self):
+                try:
+                    import httpx
+                    with httpx.Client(timeout=10.0) as client:
+                        resp = client.get('https://api.github.com/repos/StoneLL1/NeatCopy/releases/latest')
+                        resp.raise_for_status()
+                        data = resp.json()
+                        latest = data.get('tag_name', '').lstrip('v')
+                        download_url = data.get('html_url', '')
+                        self.result.emit(latest, download_url)
+                except Exception as e:
+                    self.result.emit('', str(e))
+
+        worker = _UpdateWorker()
+        worker.result.connect(self._on_update_result)
+        worker.start()
+        self._update_worker = worker
+
+    def _on_update_result(self, latest: str, url_or_error: str):
+        self._btn_check_update.setEnabled(True)
+        self._btn_check_update.setText('检查更新')
+        if not latest:
+            QMessageBox.warning(self, '检查失败', f'无法获取最新版本信息：{url_or_error}')
+            return
+        if latest == VERSION:
+            QMessageBox.information(self, '已是最新', f'当前版本 v{VERSION} 已是最新版本。')
+        else:
+            msg = f'发现新版本：v{latest}\n当前版本：v{VERSION}\n\n是否前往下载页面？'
+            reply = QMessageBox.question(
+                self, '发现新版本', msg,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                QDesktopServices.openUrl(QUrl(url_or_error))
+
+    # ── Theme ───────────────────────────────────────────────────────
 
     def _apply_theme(self):
-        """Apply the current theme's stylesheet."""
+        """Apply the current theme to the window and all child widgets."""
+        c = ColorPalette.get(self._theme)
         self.setStyleSheet(get_settings_stylesheet(self._theme))
+
+        # Title bar styling
+        titlebar = self.findChild(QWidget, 'titlebar')
+        if titlebar:
+            titlebar.setStyleSheet(f"""
+                QWidget#titlebar {{
+                    background: {c['bg']};
+                    border-bottom: 1px solid {c['border']};
+                }}
+                QLabel#titlebar_title {{
+                    color: {c['fg']};
+                    font-size: 14px;
+                    font-weight: 600;
+                }}
+                QPushButton#titlebar_close {{
+                    background: transparent;
+                    border: none;
+                    border-radius: 6px;
+                    color: {c['muted']};
+                    font-size: 16px;
+                    padding: 4px;
+                }}
+                QPushButton#titlebar_close:hover {{
+                    background: {c['danger_soft']};
+                    color: {c['danger']};
+                }}
+            """)
+
+        # Sidebar
         if hasattr(self, '_sidebar'):
             self._sidebar.set_theme(self._theme)
 
-    def _on_theme_light_clicked(self):
-        self._btn_theme_dark.setChecked(False)
-        self._btn_theme_light.setChecked(True)
-        self._theme = 'light'
-        self._mark('ui.theme', 'light')
+        # Cards
+        for card in self._cards:
+            card.set_theme(self._theme)
+
+        # Toggle switches
+        for toggle in self._toggles:
+            toggle.set_theme(self._theme)
+
+        # Segmented controls
+        for seg in self._segmented_controls:
+            seg.set_theme(self._theme)
+
+    def _on_theme_changed(self, index: int):
+        """Handle UI theme segmented control change."""
+        theme = 'light' if index == 0 else 'dark'
+        self._theme = theme
+        self._mark('ui.theme', theme)
         self._apply_theme()
 
-    def _on_theme_dark_clicked(self):
-        self._btn_theme_light.setChecked(False)
-        self._btn_theme_dark.setChecked(True)
-        self._theme = 'dark'
-        self._mark('ui.theme', 'dark')
-        self._apply_theme()
+    def _on_preview_theme_changed(self, index: int):
+        """Handle preview panel theme segmented control change."""
+        theme = 'dark' if index == 0 else 'light'
+        self._mark('preview.theme', theme)
 
-    def _on_startup_changed(self, state: int):
-        enabled = bool(state)
-        self._mark('general.startup_with_windows', enabled)
-        # 实时更新注册表
-        if enabled:
+    # ── Startup ─────────────────────────────────────────────────────
+
+    def _on_startup_changed(self, checked: bool):
+        """Handle startup toggle: update registry immediately."""
+        self._mark('general.startup_with_windows', checked)
+        if checked:
             ok, msg = _autostart_enable()
             if not ok and msg:
                 QMessageBox.warning(self, '开机自启动', msg)
         else:
             _autostart_disable()
 
-    # ── 关闭事件 ─────────────────────────────────────────────
+    # ── Window dragging ─────────────────────────────────────────────
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() & Qt.MouseButton.LeftButton and hasattr(self, '_drag_pos') and self._drag_pos is not None:
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+
+    def mouseReleaseEvent(self, event):
+        self._drag_pos = None
+
+    # ── Save ────────────────────────────────────────────────────────
+
+    def _on_reset_all(self):
+        """Reset all settings to defaults after confirmation."""
+        reply = QMessageBox.question(
+            self, '确认重置',
+            '确定要将所有设置恢复为默认值吗？此操作不可撤销。',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        from config_manager import DEFAULT_CONFIG
+        for key, value in DEFAULT_CONFIG.items():
+            if not key.startswith('llm.prompts'):
+                self._mark(key, value)
+        self._do_save()
+        self.close()
+
+    def _mark(self, key: str, value):
+        """Mark a config key as pending save."""
+        self._pending[key] = value
+
+    def _do_save(self):
+        """Save all pending changes to config."""
+        for key, value in self._pending.items():
+            self._config.set(key, value)
+        self._pending.clear()
+        if self._hotkey_manager:
+            self._hotkey_manager.reload_config(self._config)
+        self._status_lbl.setText('✓ 已保存')
+        QTimer.singleShot(2000, lambda: self._status_lbl.setText(''))
+
+    # ── Close event ─────────────────────────────────────────────────
 
     def closeEvent(self, event):
         if self._pending:
@@ -1177,7 +1480,6 @@ class SettingsWindow(QDialog):
             btn_cancel = msg_box.addButton('取消', QMessageBox.ButtonRole.RejectRole)
             msg_box.setDefaultButton(btn_save)
             msg_box.setMinimumWidth(480)
-            # 让按钮文字更宽，避免挤在一起
             for btn in (btn_save, btn_discard, btn_cancel):
                 btn.setMinimumWidth(90)
             msg_box.exec()
@@ -1187,21 +1489,5 @@ class SettingsWindow(QDialog):
             elif clicked == btn_cancel:
                 event.ignore()
                 return
-            # btn_discard: 直接关闭
+            # btn_discard: just close
         super().closeEvent(event)
-
-    # ── 保存 ─────────────────────────────────────────────────
-
-    def _mark(self, key: str, value):
-        self._pending[key] = value
-
-    def _do_save(self):
-        if hasattr(self, '_chk_preview'):
-            self._mark('preview.enabled', self._chk_preview.isChecked())
-        for key, value in self._pending.items():
-            self._config.set(key, value)
-        self._pending.clear()
-        if self._hotkey_manager:
-            self._hotkey_manager.reload_config(self._config)
-        self._status_lbl.setText('已保存 ✓')
-        QTimer.singleShot(1500, lambda: self._status_lbl.setText(''))

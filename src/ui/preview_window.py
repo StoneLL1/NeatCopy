@@ -49,7 +49,7 @@ class PreviewWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.resize(
-            self._config.get('preview.window_width', 360),
+            self._config.get('preview.window_width', 480),
             self._config.get('preview.window_height', 260)
         )
         self.setMinimumSize(240, 180)
@@ -59,64 +59,69 @@ class PreviewWindow(QWidget):
     # ================================================================
 
     def _get_theme_styles(self, theme: str) -> dict:
-        """返回指定主题的样式配置字典。基于 ColorPalette 基础色 + 预览面板专用透明度色。"""
+        """返回指定主题的样式配置字典。基于 Shadcn ColorPalette + 预览面板专用透明度色。"""
         c = ColorPalette.get(theme)
+
+        # 状态点颜色：统一使用 palette 语义色
+        status_colors = {
+            'status_waiting': c['muted'],
+            'status_processing': c['warn'],
+            'status_done': c['success'],
+            'status_failed': c['danger'],
+            'status_applied': c['info'],
+        }
 
         if theme == 'light':
             return {
-                'panel_bg': 'rgba(255, 255, 255, 230)',
-                'panel_border': f'rgba(233, 233, 233, 180)',
-                'edit_bg': 'rgba(247, 247, 245, 220)',
-                'edit_border': f'rgba(218, 218, 218, 120)',
-                'edit_focus_border': f'rgba(55, 53, 47, 150)',
-                'edit_text': c['text_primary'],
-                'edit_placeholder': c['text_secondary'],
-                'edit_selection': 'rgba(55, 53, 47, 80)',
+                'panel_bg': 'rgba(255, 255, 255, 0.92)',
+                'panel_border': 'rgba(0, 0, 0, 0.08)',
+                'titlebar_border': 'rgba(0, 0, 0, 0.06)',
+                'edit_bg': 'rgba(249, 250, 251, 0.88)',
+                'edit_border': 'rgba(0, 0, 0, 0.08)',
+                'edit_focus_border': c['accent'],
+                'edit_text': c['fg'],
+                'edit_placeholder': c['muted'],
+                'edit_selection': 'rgba(0, 0, 0, 0.08)',
                 'scrollbar_bg': c['scrollbar_bg'],
-                'scrollbar_handle': 'rgba(160, 160, 160, 120)',
-                'status_waiting': c['text_secondary'],
-                'status_processing': '#f0ad4e',
-                'status_done': '#5cb85c',
-                'status_failed': '#d9534f',
-                'status_applied': '#5bc0de',
-                'prompt_text': c['text_secondary'],
-                'btn_bg': 'rgba(250, 250, 250, 200)',
-                'btn_border': 'rgba(218, 218, 218, 140)',
-                'btn_text': c['text_primary'],
-                'btn_hover_bg': 'rgba(240, 240, 240, 220)',
-                'btn_hover_border': 'rgba(200, 200, 200, 160)',
-                'btn_pressed_bg': 'rgba(228, 228, 228, 240)',
-                'close_text': c['text_secondary'],
-                'close_hover_bg': 'rgba(0, 0, 0, 15)',
-                'close_hover_text': c['text_primary'],
+                'scrollbar_handle': c['scrollbar_handle'],
+                **status_colors,
+                'prompt_text': c['muted'],
+                'prompt_name_text': c['fg_2'],
+                'btn_bg': c['accent'],
+                'btn_border': c['accent'],
+                'btn_text': c['accent_on'],
+                'btn_hover_bg': c['accent_hover'],
+                'btn_hover_border': c['accent_hover'],
+                'btn_pressed_bg': c['accent_hover'],
+                'close_text': c['muted'],
+                'close_hover_bg': 'rgba(0, 0, 0, 0.05)',
+                'close_hover_text': c['fg'],
             }
         else:  # dark
             return {
-                'panel_bg': 'rgba(25, 25, 25, 210)',
-                'panel_border': f'rgba(55, 53, 47, 140)',
-                'edit_bg': 'rgba(31, 31, 31, 200)',
-                'edit_border': f'rgba(61, 60, 58, 100)',
-                'edit_focus_border': f'rgba(155, 154, 151, 150)',
-                'edit_text': c['text_primary'],
-                'edit_placeholder': c['text_secondary'],
-                'edit_selection': 'rgba(155, 154, 151, 100)',
+                'panel_bg': 'rgba(30, 30, 46, 0.92)',
+                'panel_border': 'rgba(255, 255, 255, 0.08)',
+                'titlebar_border': 'rgba(255, 255, 255, 0.06)',
+                'edit_bg': 'rgba(39, 39, 42, 0.80)',
+                'edit_border': 'rgba(255, 255, 255, 0.06)',
+                'edit_focus_border': c['accent'],
+                'edit_text': '#e2e2e8',
+                'edit_placeholder': 'rgba(255, 255, 255, 0.25)',
+                'edit_selection': 'rgba(250, 250, 250, 0.08)',
                 'scrollbar_bg': c['scrollbar_bg'],
-                'scrollbar_handle': 'rgba(74, 74, 74, 100)',
-                'status_waiting': c['text_secondary'],
-                'status_processing': '#f0ad4e',
-                'status_done': '#5cb85c',
-                'status_failed': '#d9534f',
-                'status_applied': '#5bc0de',
-                'prompt_text': c['text_secondary'],
-                'btn_bg': 'rgba(47, 47, 47, 160)',
-                'btn_border': 'rgba(61, 60, 58, 100)',
-                'btn_text': c['text_primary'],
-                'btn_hover_bg': 'rgba(55, 55, 55, 180)',
-                'btn_hover_border': 'rgba(78, 77, 74, 140)',
-                'btn_pressed_bg': 'rgba(64, 64, 64, 200)',
-                'close_text': c['text_secondary'],
-                'close_hover_bg': 'rgba(255, 255, 255, 25)',
-                'close_hover_text': c['text_primary'],
+                'scrollbar_handle': c['scrollbar_handle'],
+                **status_colors,
+                'prompt_text': 'rgba(255, 255, 255, 0.4)',
+                'prompt_name_text': 'rgba(255, 255, 255, 0.6)',
+                'btn_bg': '#ffffff',
+                'btn_border': '#ffffff',
+                'btn_text': '#1e1e2e',
+                'btn_hover_bg': 'rgba(255, 255, 255, 0.9)',
+                'btn_hover_border': 'rgba(255, 255, 255, 0.9)',
+                'btn_pressed_bg': '#d4d4d8',
+                'close_text': 'rgba(255, 255, 255, 0.4)',
+                'close_hover_bg': 'rgba(255, 255, 255, 0.08)',
+                'close_hover_text': 'rgba(255, 255, 255, 0.8)',
             }
 
     def _apply_theme(self, theme: str):
@@ -129,7 +134,7 @@ class PreviewWindow(QWidget):
             #panel {{
                 background: {styles['panel_bg']};
                 border: 1px solid {styles['panel_border']};
-                border-radius: 10px;
+                border-radius: 12px;
             }}
         """)
 
@@ -139,16 +144,11 @@ class PreviewWindow(QWidget):
         # 文本编辑区
         self.text_edit.setStyleSheet(f"""
             QTextEdit {{
-                background: {styles['edit_bg']};
-                border: 1px solid {styles['edit_border']};
-                border-radius: 6px;
-                padding: 8px;
+                background: transparent;
+                border: none;
                 color: {styles['edit_text']};
-                font-size: 13px;
+                font-size: 14px;
                 selection-background-color: {styles['edit_selection']};
-            }}
-            QTextEdit:focus {{
-                border: 1px solid {styles['edit_focus_border']};
             }}
             QScrollBar:vertical {{
                 background: {styles['scrollbar_bg']};
@@ -169,7 +169,7 @@ class PreviewWindow(QWidget):
         self.prompt_label.setStyleSheet(f"""
             #promptLabel {{
                 color: {styles['prompt_text']};
-                font-size: 10px;
+                font-size: 12px;
             }}
         """)
 
@@ -199,15 +199,37 @@ class PreviewWindow(QWidget):
             #closeBtn {{
                 background: transparent;
                 border: none;
-                font-size: 12px;
+                font-size: 14px;
                 color: {styles['close_text']};
-                border-radius: 4px;
+                border-radius: 6px;
             }}
             #closeBtn:hover {{
                 background: {styles['close_hover_bg']};
                 color: {styles['close_hover_text']};
             }}
         """)
+
+        # Titlebar border
+        titlebar = self.container.findChild(QWidget, 'previewTitlebar')
+        if titlebar:
+            tb_border = styles.get('titlebar_border', styles['panel_border'])
+            titlebar.setStyleSheet(f"""
+                QWidget#previewTitlebar {{
+                    border-bottom: 1px solid {tb_border};
+                    background: transparent;
+                }}
+            """)
+
+        # 页脚分隔线
+        footer = self.container.findChild(QWidget, 'previewFooter')
+        if footer:
+            ft_border = styles.get('titlebar_border', styles['panel_border'])
+            footer.setStyleSheet(f"""
+                QWidget#previewFooter {{
+                    border-top: 1px solid {ft_border};
+                    background: transparent;
+                }}
+            """)
 
     def _refresh_status_style(self):
         """根据当前状态刷新状态点样式。"""
@@ -223,13 +245,15 @@ class PreviewWindow(QWidget):
         }
         color = color_map.get(status, styles['status_waiting'])
 
-        self.status_dot.setStyleSheet(f"color: {color}; font-size: 10px;")
+        self.status_dot.setStyleSheet(f"""
+            background: {color};
+            border-radius: 4px;
+        """)
         self.status_label.setStyleSheet(f"""
             #statusLabel {{
                 color: {color};
-                font-size: 11px;
+                font-size: 12px;
                 font-weight: 500;
-                letter-spacing: 0.3px;
             }}
         """)
 
@@ -251,16 +275,20 @@ class PreviewWindow(QWidget):
         self.container = QWidget()
         self.container.setObjectName("panel")
         layout = QVBoxLayout(self.container)
-        layout.setContentsMargins(14, 10, 14, 12)
-        layout.setSpacing(8)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         # === 顶部栏：可拖动区域 + 状态 + 关闭按钮 ===
-        top_bar = QHBoxLayout()
-        top_bar.setSpacing(6)
+        titlebar = QWidget()
+        titlebar.setObjectName("previewTitlebar")
+        titlebar.setFixedHeight(36)
+        top_bar = QHBoxLayout(titlebar)
+        top_bar.setContentsMargins(12, 0, 12, 0)
+        top_bar.setSpacing(8)
 
         # 状态指示点
-        self.status_dot = QLabel("●")
-        self.status_dot.setFixedWidth(12)
+        self.status_dot = QLabel()
+        self.status_dot.setFixedSize(8, 8)
         top_bar.addWidget(self.status_dot)
 
         # 状态文字
@@ -272,39 +300,53 @@ class PreviewWindow(QWidget):
         # 关闭按钮
         self.close_btn = QPushButton("✕")
         self.close_btn.setObjectName("closeBtn")
-        self.close_btn.setFixedSize(26, 26)
+        self.close_btn.setFixedSize(24, 24)
         self.close_btn.clicked.connect(self.hide)
         top_bar.addWidget(self.close_btn)
 
-        layout.addLayout(top_bar)
+        layout.addWidget(titlebar)
 
         # === 文本编辑区 ===
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(16, 16, 16, 16)
+        body_layout.setSpacing(0)
+
         self.text_edit = QTextEdit()
         self.text_edit.setPlaceholderText("等待 LLM 处理结果…")
         self.text_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        layout.addWidget(self.text_edit, stretch=1)
+        body_layout.addWidget(self.text_edit, stretch=1)
+        layout.addWidget(body, stretch=1)
 
         # === 底部栏：prompt 名称 + 应用按钮 ===
-        bottom_bar = QHBoxLayout()
-        bottom_bar.setSpacing(8)
+        footer = QWidget()
+        footer.setObjectName("previewFooter")
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(12, 8, 12, 8)
+        footer_layout.setSpacing(8)
 
         # Prompt 名称
         self.prompt_label = QLabel("")
         self.prompt_label.setObjectName("promptLabel")
-        bottom_bar.addWidget(self.prompt_label)
-        bottom_bar.addStretch()
+        footer_layout.addWidget(self.prompt_label)
+        footer_layout.addStretch()
 
         # 应用按钮
         self.apply_btn = QPushButton("应用到剪贴板")
         self.apply_btn.setObjectName("applyBtn")
-        self.apply_btn.setFixedHeight(30)
         self.apply_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.apply_btn.clicked.connect(self._on_apply_clicked)
-        bottom_bar.addWidget(self.apply_btn)
+        footer_layout.addWidget(self.apply_btn)
 
-        layout.addLayout(bottom_bar)
+        layout.addWidget(footer)
 
         outer.addWidget(self.container)
+
+    def _get_fallback_bg(self) -> str:
+        """返回 Win10 降级时使用的不透明背景色。"""
+        if self._theme == 'dark':
+            return '#1e1e2e'
+        return '#ffffff'
 
     def _apply_acrylic_effect(self):
         if sys.platform != 'win32':
@@ -312,13 +354,13 @@ class PreviewWindow(QWidget):
 
         version = sys.getwindowsversion()
         if version.major < 10 or (version.major == 10 and version.build < 22000):
-            # Win10 降级：根据主题设置背景
+            # Win10 降级：使用不透明背景色
             styles = self._get_theme_styles(self._theme)
             self.container.setStyleSheet(f"""
                 #panel {{
-                    background: {styles['panel_bg'].replace('210', '235') if self._theme == 'dark' else styles['panel_bg'].replace('230', '245')};
+                    background: {self._get_fallback_bg()};
                     border: 1px solid {styles['panel_border']};
-                    border-radius: 10px;
+                    border-radius: 12px;
                 }}
             """)
             return
@@ -338,9 +380,9 @@ class PreviewWindow(QWidget):
             styles = self._get_theme_styles(self._theme)
             self.container.setStyleSheet(f"""
                 #panel {{
-                    background: {styles['panel_bg'].replace('210', '235') if self._theme == 'dark' else styles['panel_bg'].replace('230', '245')};
+                    background: {self._get_fallback_bg()};
                     border: 1px solid {styles['panel_border']};
-                    border-radius: 10px;
+                    border-radius: 12px;
                 }}
             """)
 
@@ -358,7 +400,16 @@ class PreviewWindow(QWidget):
         self._current_result = result
         self._current_prompt = prompt_name
         self.text_edit.setPlainText(result)
-        self.prompt_label.setText(f"Prompt: {prompt_name}" if prompt_name else "")
+        if prompt_name:
+            styles = self._get_theme_styles(self._theme)
+            name_color = styles.get('prompt_name_text', styles['prompt_text'])
+            self.prompt_label.setText(
+                f'<span style="color:{styles["prompt_text"]}">Prompt:</span> '
+                f'<span style="color:{name_color};font-weight:500">{prompt_name}</span>'
+            )
+            self.prompt_label.setTextFormat(Qt.TextFormat.RichText)
+        else:
+            self.prompt_label.setText("")
         self.set_status("处理完成")
 
     def set_status(self, status: str):
