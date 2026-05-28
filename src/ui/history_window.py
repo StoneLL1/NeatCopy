@@ -285,25 +285,7 @@ class HistoryWindow(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # === 标题栏 ===
-        titlebar = QWidget()
-        titlebar.setObjectName("titlebar")
-        titlebar.setFixedHeight(40)
-        titlebar_layout = QHBoxLayout(titlebar)
-        titlebar_layout.setContentsMargins(16, 0, 16, 0)
-        titlebar_layout.setSpacing(0)
-
-        titlebar_layout.addStretch()
-
-        self.close_btn = QPushButton("✕")
-        self.close_btn.setFixedSize(28, 28)
-        self.close_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        self.close_btn.clicked.connect(self.close)
-        titlebar_layout.addWidget(self.close_btn)
-
-        root.addWidget(titlebar)
-
-        # === 工具栏 ===
+        # === 工具栏（含标题和关闭按钮）===
         toolbar = QWidget()
         toolbar.setObjectName("toolbar")
         toolbar_layout = QHBoxLayout(toolbar)
@@ -333,6 +315,12 @@ class HistoryWindow(QWidget):
         self.clear_all_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         toolbar_layout.addWidget(self.clear_all_btn)
         self.clear_all_btn.clicked.connect(self._on_clear_all)
+
+        self.close_btn = QPushButton("✕")
+        self.close_btn.setFixedSize(28, 28)
+        self.close_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.close_btn.clicked.connect(self.close)
+        toolbar_layout.addWidget(self.close_btn)
 
         root.addWidget(toolbar)
 
@@ -480,10 +468,11 @@ class HistoryWindow(QWidget):
             prompt_name = entry.get('prompt_name', '')
             mode_str = f'LLM: {prompt_name}' if prompt_name else 'LLM'
 
-        # 摘要
+        # 摘要（仅显示第一行）
         original = entry.get('original', '')
-        summary = original[:30].replace('\n', ' ') if len(original) > 30 else original.replace('\n', ' ')
-        if len(original) > 30:
+        first_line = original.split('\n')[0] if original else ''
+        summary = first_line[:30] if len(first_line) > 30 else first_line
+        if len(first_line) > 30:
             summary += '...'
 
         # 顶行：时间 + 模式徽章
@@ -500,6 +489,7 @@ class HistoryWindow(QWidget):
         top.addStretch()
 
         mode_badge = QLabel(mode_str)
+        mode_badge.setFixedHeight(20)
         if mode == 'rules':
             mode_badge.setStyleSheet(f"""
                 background: {c['surface_alt']};
@@ -528,8 +518,8 @@ class HistoryWindow(QWidget):
             font-size: {FONT_SIZE_XS};
             background: transparent;
         """)
-        summary_label.setWordWrap(True)
-        summary_label.setMinimumHeight(20)
+        summary_label.setWordWrap(False)
+        summary_label.setFixedHeight(18)
         layout.addWidget(summary_label)
 
         return widget
