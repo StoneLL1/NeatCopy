@@ -41,7 +41,7 @@ class SettingsWindow(QDialog):
         self._config = config
         self._hotkey_manager = hotkey_manager
         self._pending: dict = {}
-        self._theme = config.get('ui.theme', 'light')
+        self._theme = 'light'
         self._drag_pos = None
 
         # Track themed widgets for propagation
@@ -202,14 +202,6 @@ class SettingsWindow(QDialog):
         card_appearance = Card('外观')
         self._cards.append(card_appearance)
 
-        # Row 1: UI theme
-        self._seg_theme = SegmentedControl(['浅色', '深色'], parent=self)
-        self._segmented_controls.append(self._seg_theme)
-        self._seg_theme.setCurrentIndex(0 if self._theme == 'light' else 1)
-        self._seg_theme.selectionChanged.connect(self._on_theme_changed)
-        self._make_setting_row(card_appearance.content_layout(), '界面主题', self._seg_theme)
-
-        # Row 2: Preview panel theme
         self._seg_preview_theme = SegmentedControl(['浅色', '深色'], parent=self)
         self._segmented_controls.append(self._seg_preview_theme)
         preview_theme_val = self._config.get('preview.theme', 'dark')
@@ -1412,13 +1404,6 @@ class SettingsWindow(QDialog):
         # Segmented controls
         for seg in self._segmented_controls:
             seg.set_theme(self._theme)
-
-    def _on_theme_changed(self, index: int):
-        """Handle UI theme segmented control change."""
-        theme = 'light' if index == 0 else 'dark'
-        self._theme = theme
-        self._mark('ui.theme', theme)
-        self._apply_theme()
 
     def _on_preview_theme_changed(self, index: int):
         """Handle preview panel theme segmented control change."""

@@ -92,7 +92,7 @@ class SegmentedControl(QWidget):
         self.setStyleSheet(f"""
             QWidget#segmentedContainer {{
                 background: {c['surface_alt']};
-                border: 1px solid {c['border']};
+                border: 1px solid {c['border_strong']};
                 border-radius: {RADIUS_SM};
             }}
         """)
@@ -104,7 +104,6 @@ class SegmentedControl(QWidget):
     def _apply_button_styles(self):
         """Refresh per-button QSS based on current selection and theme."""
         c = ColorPalette.get(self._theme)
-        selected_bg = c.get('card_bg', c['bg'])
 
         checked_id = self._button_group.checkedId()
 
@@ -118,9 +117,9 @@ class SegmentedControl(QWidget):
             if is_selected:
                 btn.setStyleSheet(f"""
                     QPushButton {{
-                        background: {selected_bg};
-                        color: {c['fg']};
-                        border: none;
+                        background: {c['accent']};
+                        color: {c['accent_on']};
+                        border: 1px solid {c['accent']};
                         border-radius: 4px;
                         padding: 4px 12px;
                         min-height: 22px;
@@ -129,8 +128,8 @@ class SegmentedControl(QWidget):
                         font-weight: 500;
                     }}
                     QPushButton:hover {{
-                        background: {selected_bg};
-                        color: {c['fg']};
+                        background: {c['accent_hover']};
+                        color: {c['accent_on']};
                     }}
                 """)
             else:
@@ -138,7 +137,7 @@ class SegmentedControl(QWidget):
                     QPushButton {{
                         background: transparent;
                         color: {c['muted']};
-                        border: none;
+                        border: 1px solid transparent;
                         border-radius: 4px;
                         padding: 4px 12px;
                         min-height: 22px;
@@ -147,6 +146,7 @@ class SegmentedControl(QWidget):
                         font-weight: 500;
                     }}
                     QPushButton:hover {{
+                        background: {c['fg_soft']};
                         color: {c['fg']};
                     }}
                 """)

@@ -174,6 +174,8 @@ class ConfigManager:
             self._write(DEFAULT_CONFIG)
             return self._deep_copy(DEFAULT_CONFIG)
         merged = self._merge_defaults(data, DEFAULT_CONFIG)
+        # UI 主界面仅保留浅色主题；预览面板仍使用 preview.theme 独立配置。
+        merged.setdefault('ui', {})['theme'] = 'light'
         # 旧配置兼容：为缺少 visible_in_wheel 的 prompt 自动补 True
         for p in merged.get('llm', {}).get('prompts', []):
             if 'visible_in_wheel' not in p:
