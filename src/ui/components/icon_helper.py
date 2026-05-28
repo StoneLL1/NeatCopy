@@ -56,8 +56,11 @@ def create_icon_from_svg(svg_data: str, color: str, size: int = 16) -> QIcon:
     pixmap.fill(Qt.GlobalColor.transparent)
 
     painter = QPainter(pixmap)
-    renderer.render(painter)
-    painter.end()
+    if painter.isActive():
+        try:
+            renderer.render(painter)
+        finally:
+            painter.end()
 
     return QIcon(pixmap)
 

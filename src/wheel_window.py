@@ -262,6 +262,8 @@ class WheelWindow(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
+        if not painter.isActive():
+            return
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # 缩放变换：以中心为原点
@@ -272,6 +274,7 @@ class WheelWindow(QWidget):
 
         n = len(self._prompts)
         if n == 0:
+            painter.end()
             return
 
         cx = cy = self._WINDOW_SIZE // 2
@@ -284,7 +287,7 @@ class WheelWindow(QWidget):
         for i, prompt in enumerate(self._prompts):
             start_angle = start_offset + i * sector_deg
             is_hovered = (i == self._hovered)
-            is_last = (prompt['id'] == self._last_prompt_id)
+            is_last = (prompt.get('id') == self._last_prompt_id)
 
             # 环形扇区路径
             path = QPainterPath()
@@ -367,6 +370,7 @@ class WheelWindow(QWidget):
         fw = fm_center.horizontalAdvance(esc_txt)
         fh = fm_center.height()
         painter.drawText(cx - fw // 2, cy + fh // 4, esc_txt)
+        painter.end()
 
     def mouseMoveEvent(self, event):
         mx, my = self._map_from_scaled_view(event.pos().x(), event.pos().y())

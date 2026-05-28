@@ -58,12 +58,15 @@ class HistoryWindow(QWidget):
         pm = QPixmap(14, 14)
         pm.fill(QColor(0, 0, 0, 0))
         p = QPainter(pm)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setPen(QPen(QColor(0, 0, 0, 120), 1.5))
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawEllipse(2, 2, 7, 7)
-        p.drawLine(9, 9, 13, 13)
-        p.end()
+        if p.isActive():
+            try:
+                p.setRenderHint(QPainter.RenderHint.Antialiasing)
+                p.setPen(QPen(QColor(0, 0, 0, 120), 1.5))
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawEllipse(2, 2, 7, 7)
+                p.drawLine(9, 9, 13, 13)
+            finally:
+                p.end()
         return QIcon(pm)
 
     # ================================================================
