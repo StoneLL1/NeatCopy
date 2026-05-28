@@ -1,9 +1,9 @@
 # 托盘管理：图标三态变色、右键菜单、Toast 通知。
 from PyQt6.QtWidgets import (
     QSystemTrayIcon, QMenu, QApplication, QLabel, QWidget, QVBoxLayout,
-    QGraphicsOpacityEffect, QGraphicsDropShadowEffect, QWidgetAction, QPushButton,
+    QWidgetAction, QPushButton,
 )
-from PyQt6.QtGui import QIcon, QAction, QColor
+from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtCore import (
     QTimer, pyqtSignal, QObject, QPropertyAnimation, QPoint, QEasingCurve,
     Qt,
@@ -63,21 +63,12 @@ class ToastWidget(QWidget):
         label.setStyleSheet('background: transparent; border: none;')
         inner.addWidget(label)
 
-        # Shadow matching design spec shadow-md
-        shadow = QGraphicsDropShadowEffect(self._container)
-        shadow.setBlurRadius(8)
-        shadow.setOffset(0, 2)
-        shadow.setColor(QColor(0, 0, 0, 20))
-        self._container.setGraphicsEffect(shadow)
-
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(self._container)
 
-        # 透明度效果
-        self._opacity = QGraphicsOpacityEffect(self)
-        self.setGraphicsEffect(self._opacity)
-        self._opacity.setOpacity(0.0)
+        # 使用顶层窗口透明度，避免 QGraphicsEffect 抢占 QWidget pixmap 绘制。
+        self.setWindowOpacity(0.0)
 
         self.adjustSize()
 
@@ -88,7 +79,7 @@ class ToastWidget(QWidget):
         down_pos = QPoint(base_pos.x(), base_pos.y() + 8)
 
         # 透明度淡入
-        self._anim_opacity_in = QPropertyAnimation(self._opacity, b'opacity')
+        self._anim_opacity_in = QPropertyAnimation(self, b'windowOpacity')
         self._anim_opacity_in.setDuration(250)
         self._anim_opacity_in.setStartValue(0.0)
         self._anim_opacity_in.setEndValue(1.0)
@@ -120,7 +111,7 @@ class ToastWidget(QWidget):
         self._anim_pos_out.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._anim_pos_out.start()
 
-        self._anim_opacity_out = QPropertyAnimation(self._opacity, b'opacity')
+        self._anim_opacity_out = QPropertyAnimation(self, b'windowOpacity')
         self._anim_opacity_out.setDuration(200)
         self._anim_opacity_out.setStartValue(1.0)
         self._anim_opacity_out.setEndValue(0.0)

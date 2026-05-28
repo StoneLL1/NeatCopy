@@ -5,10 +5,8 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QPushButton,
     QButtonGroup,
-    QGraphicsDropShadowEffect,
 )
 from PyQt6.QtCore import pyqtSignal, Qt
-from PyQt6.QtGui import QColor
 
 from ui.styles import ColorPalette, FONT_FAMILY, FONT_SIZE_XS, RADIUS_SM
 
@@ -37,7 +35,6 @@ class SegmentedControl(QWidget):
         self._full_width = full_width
         self._theme = "light"
         self._current_index = 0
-        self._shadows: list[QGraphicsDropShadowEffect] = []
 
         self.setObjectName("segmentedContainer")
 
@@ -56,14 +53,6 @@ class SegmentedControl(QWidget):
             btn.setObjectName("segButton")
             if full_width:
                 btn.setMinimumWidth(0)
-
-            # Each button gets its own shadow effect (toggled on/off)
-            shadow = QGraphicsDropShadowEffect(btn)
-            shadow.setBlurRadius(4)
-            shadow.setOffset(0, 1)
-            shadow.setEnabled(False)
-            btn.setGraphicsEffect(shadow)
-            self._shadows.append(shadow)
 
             self._layout.addWidget(btn, stretch=1 if full_width else 0)
             self._button_group.addButton(btn, id=i)
@@ -99,11 +88,6 @@ class SegmentedControl(QWidget):
         self._theme = theme
         c = ColorPalette.get(theme)
 
-        # Update all shadow colours — design says 0 1px 2px rgba(0,0,0,0.06)
-        shadow_color = QColor(0, 0, 0, 15)
-        for shadow in self._shadows:
-            shadow.setColor(shadow_color)
-
         # Container
         self.setStyleSheet(f"""
             QWidget#segmentedContainer {{
@@ -130,9 +114,6 @@ class SegmentedControl(QWidget):
                 continue
 
             is_selected = i == checked_id
-
-            # Toggle shadow visibility
-            self._shadows[i].setEnabled(is_selected)
 
             if is_selected:
                 btn.setStyleSheet(f"""

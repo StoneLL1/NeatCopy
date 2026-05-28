@@ -2,7 +2,7 @@
 import math
 import ctypes
 import ctypes.wintypes as wintypes
-from PyQt6.QtWidgets import QWidget, QApplication, QGraphicsOpacityEffect
+from PyQt6.QtWidgets import QWidget, QApplication
 from PyQt6.QtCore import (
     Qt, QPoint, QPointF, QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer, pyqtProperty
 )
@@ -91,10 +91,9 @@ class WheelWindow(QWidget):
         self._font_esc.setPixelSize(11)
         self._font_esc.setWeight(QFont.Weight.DemiBold)
 
-        # 透明度动画
-        self._opacity_effect = QGraphicsOpacityEffect(self)
-        self.setGraphicsEffect(self._opacity_effect)
-        self._anim = QPropertyAnimation(self._opacity_effect, b'opacity', self)
+        # 顶层窗口透明度动画。避免 QGraphicsOpacityEffect 在关闭轮盘时
+        # 通过 QWidgetEffectSourcePrivate::pixmap 抢占绘制设备。
+        self._anim = QPropertyAnimation(self, b'windowOpacity', self)
         self._anim.setEasingCurve(self._make_design_easing())
 
         # 缩放动画
@@ -143,7 +142,7 @@ class WheelWindow(QWidget):
         y = max(screen_rect.top(), min(pos.y() - half, screen_rect.bottom() - self._WINDOW_SIZE))
         self.move(x, y)
 
-        self._opacity_effect.setOpacity(0.0)
+        self.setWindowOpacity(0.0)
         self._scale_value = 0.8
         self._wheel_open = True
         self.show()
@@ -207,7 +206,7 @@ class WheelWindow(QWidget):
         if self._anim.receivers(self._anim.finished) > 0:
             self._anim.finished.disconnect()
         self._anim.setDuration(200)
-        self._anim.setStartValue(self._opacity_effect.opacity())
+        self._anim.setStartValue(self.windowOpacity())
         self._anim.setEndValue(0.0)
         self._anim.finished.connect(self.hide)
         self._anim.start()
