@@ -71,8 +71,8 @@ class HistoryWindow(QWidget):
         c = ColorPalette.get(theme)
         self.setStyleSheet(get_history_stylesheet(theme))
 
-        # 标题栏标题
-        self.title_label.setStyleSheet(f"""
+        # 工具栏标题
+        self.toolbar_title.setStyleSheet(f"""
             QLabel {{
                 color: {c['fg']};
                 font-size: {FONT_SIZE_SM};
@@ -293,8 +293,6 @@ class HistoryWindow(QWidget):
         titlebar_layout.setContentsMargins(16, 0, 16, 0)
         titlebar_layout.setSpacing(0)
 
-        self.title_label = QLabel("历史记录")
-        titlebar_layout.addWidget(self.title_label)
         titlebar_layout.addStretch()
 
         self.close_btn = QPushButton("✕")
@@ -464,7 +462,7 @@ class HistoryWindow(QWidget):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(4)
+        layout.setSpacing(6)
 
         # 格式化时间
         timestamp = entry.get('timestamp', '')
@@ -530,6 +528,8 @@ class HistoryWindow(QWidget):
             font-size: {FONT_SIZE_XS};
             background: transparent;
         """)
+        summary_label.setWordWrap(True)
+        summary_label.setMinimumHeight(20)
         layout.addWidget(summary_label)
 
         return widget
@@ -578,6 +578,7 @@ class HistoryWindow(QWidget):
             return
 
         self._current_entry_id = entry_id
+        c = ColorPalette.get(self._theme)
 
         # 显示详情内容，隐藏空状态
         self.detail_empty.hide()

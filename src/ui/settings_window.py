@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QInputDialog, QMessageBox, QMenu,
     QStackedWidget, QFrame, QScrollArea, QSpinBox,
 )
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QCursor
 from PyQt6.QtCore import Qt, QTimer, QUrl
 from PyQt6.QtGui import QDesktopServices
 
@@ -700,13 +700,13 @@ class SettingsWindow(QDialog):
         self._btn_show_key = QPushButton('显示')
         self._btn_show_key.setCheckable(True)
         self._btn_show_key.setFixedWidth(50)
+        self._btn_show_key.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self._btn_show_key.setStyleSheet(f"""
             QPushButton {{
                 background: none;
                 border: none;
                 font-size: {FONT_SIZE_XS};
                 color: {c['muted']};
-                cursor: pointer;
             }}
             QPushButton:hover {{
                 color: {c['fg']};
