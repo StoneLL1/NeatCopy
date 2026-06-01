@@ -1,4 +1,5 @@
 # 设置界面：自定义标题栏 + 侧边栏导航 + Card 分组布局（Shadcn 风格）
+import re
 import uuid
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout,
@@ -31,6 +32,15 @@ RULE_LABELS = {
     'protect_code_blocks': ('保护代码块',     '识别代码块，跳过所有清洗'),
     'protect_lists':       ('保护列表结构',   '列表行保留换行，不合并'),
 }
+
+GITHUB_LATEST_RELEASE_API = 'https://api.github.com/repos/StoneLL1/NeatCopy/releases/latest'
+GITHUB_LATEST_RELEASE_PAGE = 'https://github.com/StoneLL1/NeatCopy/releases/latest'
+NEATCOPY_WEBSITE = 'https://stonell1.github.io/neatcopy-website/'
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    """Return the numeric part of a release version for comparison."""
+    return tuple(int(part) for part in re.findall(r'\d+', version))
 
 
 class SettingsWindow(QDialog):
@@ -1269,9 +1279,9 @@ class SettingsWindow(QDialog):
 
         layout.addSpacing(32)
 
-        # Check update button
+        # Action buttons
         self._btn_check_update = QPushButton('检查更新')
-        self._btn_check_update.setStyleSheet(f"""
+        action_button_style = f"""
             QPushButton {{
                 background: {c['surface_alt']};
                 border: 1px solid {c['border']};
@@ -1284,11 +1294,16 @@ class SettingsWindow(QDialog):
                 border-color: {c['border_strong']};
                 background: {c['fg_soft']};
             }}
-        """)
+        """
+        self._btn_check_update.setStyleSheet(action_button_style)
         self._btn_check_update.clicked.connect(self._on_check_update)
+        btn_tutorials = QPushButton('使用教程')
+        btn_tutorials.setStyleSheet(action_button_style)
+        btn_tutorials.clicked.connect(lambda: self._open_github(NEATCOPY_WEBSITE))
         btn_container = QHBoxLayout()
         btn_container.addStretch()
         btn_container.addWidget(self._btn_check_update)
+        btn_container.addWidget(btn_tutorials)
         btn_container.addStretch()
         layout.addLayout(btn_container)
 
@@ -1321,12 +1336,26 @@ class SettingsWindow(QDialog):
             def run(self):
                 try:
                     import httpx
-                    with httpx.Client(timeout=10.0) as client:
-                        resp = client.get('https://api.github.com/repos/StoneLL1/NeatCopy/releases/latest')
-                        resp.raise_for_status()
-                        data = resp.json()
-                        latest = data.get('tag_name', '').lstrip('v')
-                        download_url = data.get('html_url', '')
+
+                    headers = {
+                        'Accept': 'application/vnd.github+json',
+                        'User-Agent': f'NeatCopy/{VERSION}',
+                    }
+                    with httpx.Client(timeout=10.0, follow_redirects=True, headers=headers) as client:
+                        try:
+                            resp = client.get(GITHUB_LATEST_RELEASE_API)
+                            resp.raise_for_status()
+                            data = resp.json()
+                            latest = data.get('tag_name', '').lstrip('vV')
+                            download_url = data.get('html_url', GITHUB_LATEST_RELEASE_PAGE)
+                        except Exception:
+                            resp = client.get(GITHUB_LATEST_RELEASE_PAGE)
+                            resp.raise_for_status()
+                            download_url = str(resp.url)
+                            match = re.search(r'/releases/tag/v?([^/?#]+)', download_url)
+                            latest = match.group(1) if match else ''
+                        if not latest:
+                            raise ValueError('发布页中未找到版本号')
                         self.result.emit(latest, download_url)
                 except Exception as e:
                     self.result.emit('', str(e))
@@ -1342,7 +1371,7 @@ class SettingsWindow(QDialog):
         if not latest:
             QMessageBox.warning(self, '检查失败', f'无法获取最新版本信息：{url_or_error}')
             return
-        if latest == VERSION:
+        if _version_key(latest) <= _version_key(VERSION):
             QMessageBox.information(self, '已是最新', f'当前版本 v{VERSION} 已是最新版本。')
         else:
             msg = f'发现新版本：v{latest}\n当前版本：v{VERSION}\n\n是否前往下载页面？'
