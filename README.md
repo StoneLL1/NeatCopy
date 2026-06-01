@@ -1,329 +1,359 @@
-
 <div align="center">
 
 <img width="275" height="130" src="https://github.com/user-attachments/assets/a09faa5b-7990-47b4-827e-f8574c9ae083" alt="NeatCopy Logo"/>
 
+# NeatCopy
 
+**让复制粘贴更干净，也让 AI 能力触手可及**
 
-**让复制粘贴更智能的AI 剪贴板 让大模型无处不在**
+[![Release](https://img.shields.io/github/v/release/StoneLL1/NeatCopy?style=flat-square&color=3b82f6)](https://github.com/StoneLL1/NeatCopy/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4?style=flat-square)](https://github.com/StoneLL1/NeatCopy/releases/latest)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
+[![Stars](https://img.shields.io/github/stars/StoneLL1/NeatCopy?style=flat-square&logo=github)](https://github.com/StoneLL1/NeatCopy/stargazers)
 
-[![Version](https://img.shields.io/badge/version-v2.0.0-blue.svg)](https://github.com/StoneLL1/NeatCopy/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)]()
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10+-yellow.svg)]()
+NeatCopy 是一款常驻 Windows 系统托盘的剪贴板文本处理工具。复制文本后按下全局快捷键，
+即可通过本地规则或大模型完成清洗、翻译、润色与摘要。
 
-一款常驻 Windows 系统托盘的剪贴板文本处理工具
-支持规则引擎与大模型两种模式
-
-[功能特性](#-功能特性) • [快速开始](#-快速开始) • [使用指南](#-使用指南) • [安装](#-安装) • [开发](#-从源码运行)
+[下载安装](https://github.com/StoneLL1/NeatCopy/releases/latest) ·
+[功能概览](#-功能概览) ·
+[使用指南](#-使用指南) ·
+[开发说明](#-开发说明)
 
 </div>
 
 ---
 
+## 为什么需要 NeatCopy？
 
+从 PDF、论文、网页或聊天窗口复制文字时，经常会遇到多余换行、混乱空格和中英文标点不统一的问题：
 
-## 💡 它能解决什么问题？
-
-从 PDF、论文、网页复制的文字，总是带着奇怪的换行和格式：
-
-```
-❌ 复制后：
+```text
+处理前：
 随着人工智能技术的不断发
 展，大语言模型在自然语言处
-理领域取得了重大突破。但
-是，模型依然存在幻觉问
-题，需要进一步优化。
+理领域取得了重大突破。
 
-✅ Ctrl+Shift+C 之后：
-随着人工智能技术的不断发展，大语言模型在自然语言处理领域取得了重大突破。但是，模型依然存在幻觉问题，需要进一步优化。
+按下 Ctrl+Shift+C 后：
+随着人工智能技术的不断发展，大语言模型在自然语言处理领域取得了重大突破。
 ```
 
-或者中英文混排，间距，全半角一团糟：
+中英文混排也可以一键整理：
 
+```text
+处理前：NeatCopy是一款Windows工具,支持LLM模式
+处理后：NeatCopy 是一款 Windows 工具，支持 LLM 模式
 ```
-❌ 复制后：NeatCopy是一款Windows工具,支持LLM模式
-✅ 之后：  NeatCopy 是一款 Windows 工具，支持 LLM 模式
+
+NeatCopy 让这类重复操作变成一个简单流程：
+
+```text
+复制文本 -> 按下快捷键 -> 直接粘贴
 ```
 
----
+<div align="center">
+  <img src="docs/assets/格式清洗功能演示.gif" width="772" alt="NeatCopy 格式清洗功能演示">
+</div>
 
-## ✨ 功能特性
+## 🤖 大模型特色
 
-### 🔧 规则模式（离线，无需网络）
+NeatCopy 不只是文本清洗工具。接入 OpenAI 兼容接口后，可以把常用 AI 操作放进复制粘贴流程中，
+无需频繁切换网页或对话窗口。
 
-内置 8 条清洗规则，按顺序执行，处理延迟 < 100ms：
+例如，将一段中文翻译为英文：
 
-| 规则 | 效果 |
-|------|------|
-| 合并软换行 | PDF/CAJ 段落内断行合并为一行 |
-| 保留段落分隔 | 真正的空行段落不被合并 |
-| 合并多余空格 | `hello   world` → `hello world` |
-| 智能全/半角标点 | 中文语境保留全角，英文语境转半角 |
-| 中英文间距 | `AI模型` → `AI 模型`（Pangu 风格）|
-| 去除行首尾空白 | 每行首尾多余空白清除 |
-| 保护代码块 | ` ``` ` 包裹的代码跳过所有处理 |
-| 保护列表结构 | `- item` / `1. item` 保留换行 |
+```text
+复制中文 -> 按 Ctrl+Shift+C -> 在轮盘中选择「翻译」
+         -> 预览面板查看结果 -> 确认后直接粘贴
+```
 
-### 🤖 大模型模式（需要 API Key）
+<div align="center">
+  <img src="docs/assets/轮盘翻译功能演示.gif" width="350" alt="NeatCopy Prompt 轮盘翻译功能演示">
+</div>
 
-接入任意 OpenAI 兼容接口，
-**致力于最大限度减小你与AI交互的摩擦成本**
-把**复制→粘贴**变成一个**微型 AI工作流**：
+### Prompt 轮盘：在鼠标旁快速选择任务
 
+按下快捷键后，扇形轮盘会在鼠标位置弹出。你可以用鼠标或数字键 `1-5` 选择 Prompt：
 
-- 支持 OpenAI、DeepSeek、月之暗面、本地 Ollama 等
-- 自定义 Prompt 模板，一键翻译、润色、摘要
-- 扇形轮盘快速切换 Prompt
-- 预览面板先看结果再应用
+| Prompt 示例 | 用途 |
+| --- | --- |
+| 翻译 | 自动识别中英文并翻译 |
+| 格式清洗 | 借助大模型整理复杂段落 |
+| 文字润色 | 将口语化表达改写得更自然、专业 |
+| 内容摘要 | 从长文本中提炼重点 |
+| 随时提问 | 将剪贴板内容作为问题快速获取回答 |
 
-### 🎯 核心功能
+常用 Prompt 也可以通过 `Ctrl+Shift+P` 锁定。锁定后，后续处理会直接使用该模板。
 
-| 功能 | 描述 |
-|------|------|
-| **全局热键** | `Ctrl+Shift+C` 一键清洗，支持自定义 |
-| **Prompt 轮盘** | 扇形 UI 快速切换 Prompt，支持数字键 1-5 |
-| **LLM 预览面板** | 查看结果、编辑后再应用，毛玻璃悬浮窗 |
-| **历史记录** | 自动保存清洗记录，支持搜索、复制、删除 |
-| **双击触发** | 快速双击 `Ctrl+C` 触发清洗 |
-| **托盘常驻** | 后台运行，不占用任务栏 |
-| **主题切换** | 深色/浅色两种主题 |
+### 预览面板：应用前先看一眼
 
----
+按 `Ctrl+Q` 打开悬浮预览面板。大模型返回结果后，可以先检查和编辑内容，再应用到剪贴板。
+即使预览面板未打开，结果也会正常写入剪贴板，保持快速粘贴体验。
+
+### 自定义 Prompt：把 AI 变成顺手的小工具
+
+Prompt 模板支持自由编辑。除了翻译和润色，还可以用于会议记录整理、Markdown 格式转换、
+术语解释、代码注释翻译等场景。
+
+## ✨ 功能概览
+
+### 大模型模式
+
+接入 OpenAI 兼容接口后，可将一次复制粘贴变成轻量 AI 工作流：
+
+- 自定义 Prompt 模板，用于翻译、润色、摘要、格式转换等场景
+- 支持 OpenAI、DeepSeek、Moonshot、本地 Ollama 等兼容接口
+- 使用 Prompt 轮盘快速选择或锁定常用模板
+- 在悬浮预览面板中查看并编辑处理结果
+- 请求失败时保留原始剪贴板内容，避免误覆盖
+
+### 本地规则模式
+
+无需联网，也不需要 API Key。内置 8 条按顺序执行的文本清洗规则：
+
+| 规则 | 作用 |
+| --- | --- |
+| 合并软换行 | 合并 PDF、CAJ 等来源的段落内断行 |
+| 保留段落分隔 | 保留真正的空行和段落结构 |
+| 合并多余空格 | 将连续空格整理为单个空格 |
+| 智能全角 / 半角标点 | 根据中英文语境调整标点 |
+| 中英文间距 | 自动补齐 Pangu 风格间距 |
+| 清理行首尾空白 | 移除每行两侧的多余空白 |
+| 保护代码块 | 跳过 Markdown 代码块，不破坏代码格式 |
+| 保护列表结构 | 保留有序列表与无序列表的换行 |
+
+### 桌面体验
+
+| 功能 | 说明 |
+| --- | --- |
+| 全局快捷键 | 默认使用 `Ctrl+Shift+C` 一键处理剪贴板 |
+| 双击复制触发 | 可选开启双击 `Ctrl+C` 自动清洗 |
+| Prompt 轮盘 | 在鼠标位置弹出扇形菜单，支持数字键 `1-5` |
+| 历史记录 | 自动保存处理记录，支持搜索、复制、删除和清空 |
+| 系统托盘 | 后台常驻，不占用任务栏空间 |
+| 状态提示 | 托盘图标和 Toast 显示处理中、成功或失败状态 |
+| 开机启动 | 可在设置中开启 Windows 自动启动 |
 
 ## 🚀 快速开始
 
-### 安装
+### 下载安装
 
-1. 前往 [Releases](https://github.com/StoneLL1/NeatCopy/releases) 下载最新版
-2. 双击直接运行（绿色软件，无需安装）
-3. 程序自动启动，系统托盘出现图标
+前往 [Releases](https://github.com/StoneLL1/NeatCopy/releases/latest) 下载最新版本：
 
-> 首次运行可能弹出 Windows Defender SmartScreen 提示，点击「更多信息」→「仍要运行」即可。
+| 版本 | 适用场景 |
+| --- | --- |
+| `NeatCopy_Setup_v*.exe` | 推荐。通过安装向导安装，可创建开始菜单和桌面快捷方式 |
+| `NeatCopy.exe` | 便携版。无需安装，下载后直接运行 |
 
-### 基础使用
+首次运行时，Windows 可能显示 SmartScreen 提示。由于当前发布版本未进行代码签名，可点击「更多信息」后选择「仍要运行」。
 
-```
-1. 选中文字 → Ctrl+C 复制
-2. 按 Ctrl+Shift+C 清洗
-3. Ctrl+V 粘贴干净的内容
-```
+### 三步使用
 
-### 选择工作模式
+1. 选中文字，按 `Ctrl+C` 复制。
+2. 按 `Ctrl+Shift+C` 处理剪贴板。
+3. 按 `Ctrl+V` 粘贴整理后的内容。
 
-双击托盘图标打开设置：
+点击托盘图标即可打开设置。在「清洗规则」页面中可切换规则模式或大模型模式。
 
-| 模式 | 适用场景 |
-|------|---------|
-| **规则模式** | 不需要 AI、追求纯本地处理、快速响应 |
-| **大模型模式** | 需要翻译、润色、摘要等 AI 能力 |
-
----
+<div align="center">
+  <img src="docs/assets/设置页面.png" width="780" alt="NeatCopy 设置页面">
+</div>
 
 ## 📖 使用指南
 
-### 快捷键一览
+### 快捷键
 
-| 快捷键 | 功能 |
-|--------|------|
-| `Ctrl+Shift+C` | 清洗剪贴板（核心功能） |
-| `Ctrl+C+C` | 双击 Ctrl+C 触发清洗（需在设置开启） |
-| `Ctrl+Shift+P` | 弹出 Prompt 轮盘（大模型模式） |
-| `Ctrl+Q` | 打开/关闭预览面板（大模型模式） |
-| `Ctrl+H` | 打开历史记录窗口 |
+| 默认快捷键 | 功能 | 备注 |
+| --- | --- | --- |
+| `Ctrl+Shift+C` | 处理剪贴板 | 支持自定义 |
+| 双击 `Ctrl+C` | 复制后自动处理 | 默认关闭，可在设置中开启 |
+| `Ctrl+Shift+P` | 打开 Prompt 轮盘 | 仅用于大模型模式 |
+| `Ctrl+Q` | 打开 / 关闭预览面板 | 仅用于大模型模式 |
+| `Ctrl+H` | 打开历史记录 | 支持全文搜索 |
 
-### 托盘图标状态
+### Prompt 轮盘
 
-| 颜色 | 状态 |
-|------|------|
-| ⚪ 白色 | 空闲，等待触发 |
-| 🟡 黄色 | 处理中 |
-| 🟢 绿色 | 处理成功 |
-| 🔴 红色 | 处理失败（查看 Toast 提示） |
+轮盘用于快速切换大模型模式下的 Prompt 模板：
+
+- **随清洗触发**：按下清洗快捷键后先选择 Prompt，再执行处理。
+- **锁定模式**：按 `Ctrl+Shift+P` 选择并锁定 Prompt，后续清洗直接使用该模板。
+- **快捷选择**：鼠标点击或按数字键 `1-5` 选择，按 `Esc` 取消。
 
 ### 大模型配置
 
-**设置 → 大模型** 中填入：
+进入「设置 -> 大模型」，填写兼容服务提供方的连接信息：
 
 | 字段 | 说明 | 示例 |
-|------|------|------|
-| Base URL | API 地址 | `https://api.openai.com/v1` |
-| Model | 模型 ID | `gpt-4o-mini` / `deepseek-chat` |
-| API Key | 密钥 | `sk-...` |
+| --- | --- | --- |
+| Base URL | OpenAI 兼容接口地址 | `https://api.openai.com/v1` |
+| Model ID | 模型标识 | `gpt-4o-mini` |
+| API Key | 服务提供方分配的密钥 | `sk-...` |
+| Temperature | 输出随机性 | 默认 `0.2` |
+| Timeout | 请求超时时间 | 默认 `30` 秒 |
 
-**兼容服务商（仅举例部分辅助说明）：**
-
-| 服务商 | Base URL | Model ID  |
-|--------|----------|----------|
-| OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
-| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
-| Moonshot | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
-| Qwen | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-flash` |
-
----
-
-## 🎨 创意玩法
-
-> 在 **设置 → 大模型 → Prompt 模板** 中写好提示词，配合轮盘一键切换。
-
-### 📖 一键翻译
-```
-Prompt: 将以下中文翻译成流畅自然的英文，保持原文语气。
-
-复制：深度学习模型在图像识别任务上取得了突破性进展。
-粘贴：Deep learning models have achieved breakthrough progress in image recognition tasks.
-```
-
-### 📝 论文摘要
-```
-Prompt: 用 3 句话提炼以下内容的核心观点，语言简洁。
-
-复制：[一大段论文引言]
-粘贴：本文研究了 XXX 问题。提出了 YYY 方法。实验证明比基线提升 ZZZ%。
-```
-
-### ✍️ 文字润色
-```
-Prompt: 将以下文字改写得更正式、专业。
-
-复制：这个方法挺好用的，比以前快多了
-粘贴：该方法显著提升了处理效率，相较于原有方案具有明显优势。
-```
-
-### 💡 更多玩法
-
-| 场景 | Prompt 示例 |
-|------|------------|
-| 代码注释翻译 | `将代码中的英文注释翻译为中文，保持代码不变` |
-| 术语解释 | `用通俗易懂的语言解释以下专业术语` |
-| 会议笔记整理 | `将杂乱的会议记录整理为结构化条目列表` |
-| Markdown 格式化 | `将纯文本转换为格式规范的 Markdown` |
-
----
-
-## ⚙️ 配置说明
-
-配置文件保存在 `%APPDATA%\NeatCopy\config.json`，仅存在本地。
-
-### 通用设置
-
-| 配置项 | 说明 |
-|--------|------|
-| 工作模式 | 规则模式 / 大模型模式 |
-| 独立热键 | 触发清洗的快捷键 |
-| 双击 Ctrl+C | 双击触发清洗（默认关闭） |
-| Toast 通知 | 处理完成后弹出通知 |
-| Prompt 轮盘 | 启用/禁用、热键配置 |
-| 预览面板 | 启用/禁用、主题切换 |
-| 历史记录 | 启用/禁用、最大条数 |
+> API Key 和设置仅保存在本机 `%APPDATA%\NeatCopy\config.json`。请根据所选服务提供方的文档填写 Base URL 和 Model ID。
 
 ### 历史记录
 
-- 自动保存每次清洗的原文和结果
-- 支持全文搜索（匹配原文或结果）
-- 默认保留最近 500 条
-- 快捷键 `Ctrl+H` 快速打开
+每次处理成功后，NeatCopy 会保存原文、结果、模式和时间戳。默认最多保留最近 `500` 条，可在设置中修改容量或关闭记录功能。
 
----
+历史记录文件保存在：
 
-## 🔧 从源码运行
+```text
+%APPDATA%\NeatCopy\history.json
+```
+
+<div align="center">
+  <img src="docs/assets/历史记录.png" width="780" alt="NeatCopy 历史记录窗口">
+</div>
+
+## 🧩 工作方式
+
+```mermaid
+flowchart LR
+    A["复制文本"] --> B["按下全局快捷键"]
+    B --> C{"选择工作模式"}
+
+    subgraph LOCAL["本地规则模式"]
+        direction TB
+        D["8 条清洗规则"]
+        E["离线快速处理"]
+        D --> E
+    end
+
+    subgraph AI["大模型模式"]
+        direction TB
+        F["Prompt 轮盘"]
+        G["选择或锁定模板"]
+        H["OpenAI 兼容接口"]
+        I["悬浮预览面板"]
+        F --> G --> H
+        H -. "预览与编辑" .-> I
+    end
+
+    C -->|"规则模式"| D
+    C -->|"大模型模式"| F
+    E --> J["写回剪贴板"]
+    H --> J
+    I -. "确认应用" .-> J
+    J --> K["直接粘贴"]
+    J --> L["保存历史记录"]
+
+    classDef entry fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a,stroke-width:2px;
+    classDef decision fill:#fef3c7,stroke:#f59e0b,color:#92400e,stroke-width:2px;
+    classDef local fill:#ecfdf5,stroke:#10b981,color:#065f46;
+    classDef ai fill:#f5f3ff,stroke:#8b5cf6,color:#5b21b6;
+    classDef output fill:#fff7ed,stroke:#f97316,color:#9a3412;
+
+    class A,B entry;
+    class C decision;
+    class D,E local;
+    class F,G,H,I ai;
+    class J,K,L output;
+```
+
+## 🛠️ 开发说明
+
+### 环境要求
+
+- Windows 10 / 11
+- Python 3.11+
+
+### 从源码运行
 
 ```bash
-# 克隆仓库
 git clone https://github.com/StoneLL1/NeatCopy.git
 cd NeatCopy
 
-# 安装依赖
-pip install PyQt6 pywin32 httpx langdetect pyperclip pyinstaller
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
 
-# 运行
 python src/main.py
+```
 
-# 打包
-pyinstaller --onefile --windowed --name NeatCopy --add-data "assets;assets" src/main.py
+### 测试与打包
+
+```bash
+# 运行自动化测试
+python -m pytest tests -v
+
+# 使用仓库内的 PyInstaller 配置打包
+pyinstaller NeatCopy.spec
 ```
 
 ### 项目结构
 
-```
+```text
 NeatCopy/
 ├── src/
-│   ├── main.py              # 入口
-│   ├── tray_manager.py      # 托盘管理
-│   ├── hotkey_manager.py    # 全局热键
-│   ├── clip_processor.py    # 剪贴板处理
-│   ├── rule_engine.py       # 规则引擎
-│   ├── llm_client.py        # LLM 客户端
-│   ├── wheel_window.py      # Prompt 轮盘
-│   ├── history_manager.py   # 历史记录
-│   └── ui/
-│       ├── settings_window.py
-│       ├── preview_window.py
-│       └── history_window.py
-├── assets/                  # 图标资源
-├── tests/                   # 单元测试
-└── docs/                    # 文档
+│   ├── main.py                 # 应用入口与信号编排
+│   ├── clip_processor.py       # 剪贴板处理调度
+│   ├── rule_engine.py          # 本地规则引擎
+│   ├── llm_client.py           # OpenAI 兼容接口客户端
+│   ├── hotkey_manager.py       # 全局热键与键盘钩子
+│   ├── tray_manager.py         # 系统托盘与 Toast
+│   ├── wheel_window.py         # Prompt 轮盘
+│   ├── history_manager.py      # 历史记录管理
+│   └── ui/                     # 设置、预览与历史记录窗口
+├── assets/                     # 图标与资源文件
+├── tests/                      # 自动化测试
+├── docs/                       # 架构与开发文档
+└── installer/                  # Inno Setup 安装脚本
 ```
 
----
+更完整的技术细节见 [docs/architecture.md](docs/architecture.md)。
 
-## 📋 更新日志
+## 📝 更新日志
 
-### v1.9.0
-- **新增历史记录功能**：
-  - 自动保存每次清洗的原文和结果
-  - 双栏布局，左侧列表右侧详情
-  - 全文搜索，快速复制
-  - 快捷键 `Ctrl+H` 打开
-- **代码优化**：
-  - 修复历史窗口重复刷新问题
-  - 优化容量控制算法（O(n²) → O(n)）
-  - UI 简化与对齐优化
+### v2.0.0
+
+- 重构设置界面，统一视觉风格和交互细节
+- 优化托盘菜单、Toast 提示和窗口表现
+- 改进 Prompt 模板编辑与轮盘使用体验
+- 修复轮盘绘制、动画和 QPainter 生命周期相关问题
+
+### v1.9.x
+
+- 新增历史记录窗口，支持搜索、复制、删除和容量控制
+- 优化历史记录刷新和存储性能
 
 ### v1.8.0
-- **新增 LLM 预览面板**：
-  - 独立快捷键 `Ctrl+Q` 打开/关闭
-  - 预览、编辑后再应用
-  - 毛玻璃背景，可拖动调整大小
-- **超时时长可配置**
-- **轮盘 Prompt 选择器重构**
-- **新增三个内置预设模板**
 
-### v1.1.0
-- 新增 Prompt 轮盘选择器
-- 新增锁定模式
-- 托盘菜单显示当前锁定项
+- 新增 LLM 预览面板
+- 支持自定义请求超时时长
+- 重构 Prompt 轮盘选择器
 
-### v1.0.0
-- 初始版本
-- 规则引擎（8 条清洗规则）
-- 大模型模式
-- 系统托盘常驻
+完整版本记录请查看 [Releases](https://github.com/StoneLL1/NeatCopy/releases)。
 
----
+## ❓ 常见问题
 
-## 🤝 贡献
+### 为什么首次运行会提示风险？
 
-欢迎提交 Issue 和 Pull Request！
+当前发布版本尚未进行代码签名，Windows SmartScreen 可能显示安全提示。建议仅从本仓库的 [Releases](https://github.com/StoneLL1/NeatCopy/releases/latest) 页面下载。
 
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建 Pull Request
+### 为什么快捷键没有响应？
 
----
+请确认 NeatCopy 正在系统托盘中运行，并检查快捷键是否被其他应用占用。低级键盘钩子在部分系统环境下可能需要管理员权限。
 
-## 📄 许可证
+### 大模型请求失败会覆盖剪贴板吗？
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
+不会。只有请求成功后，NeatCopy 才会将结果写入剪贴板；失败时原始内容保持不变。
+
+## 🤝 参与贡献
+
+欢迎提交 [Issue](https://github.com/StoneLL1/NeatCopy/issues) 或 [Pull Request](https://github.com/StoneLL1/NeatCopy/pulls)：
+
+1. Fork 本仓库并创建功能分支。
+2. 完成功能开发与必要测试。
+3. 使用清晰的提交信息描述改动。
+4. 推送分支并创建 Pull Request。
 
 ---
 
 <div align="center">
 
-**如果觉得有用，请给个 ⭐ Star 支持一下！**
+如果 NeatCopy 对你有帮助，欢迎点亮一个 [Star](https://github.com/StoneLL1/NeatCopy)。
 
-Made with ❤️ by [StoneLL1](https://github.com/StoneLL1)
+Made with care by [StoneLL1](https://github.com/StoneLL1)
 
 </div>
