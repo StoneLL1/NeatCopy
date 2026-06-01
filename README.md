@@ -14,6 +14,8 @@
 NeatCopy 是一款常驻 Windows 系统托盘的剪贴板文本处理工具。复制文本后按下全局快捷键，
 即可通过本地规则或大模型完成清洗、翻译、润色与摘要。
 
+查看官网：https://stonell1.github.io/neatcopy-website/
+
 [下载安装](https://github.com/StoneLL1/NeatCopy/releases/latest) ·
 [功能概览](#-功能概览) ·
 [使用指南](#-使用指南) ·
@@ -21,7 +23,7 @@ NeatCopy 是一款常驻 Windows 系统托盘的剪贴板文本处理工具。�
 
 </div>
 
-[官网]([https://github.com/StoneLL1/NeatCopy/releases/latest](https://stonell1.github.io/neatcopy-website/)：https://stonell1.github.io/neatcopy-website/
+
 ---
 
 ## 为什么需要 NeatCopy？
