@@ -39,10 +39,6 @@ from autostart_manager import sync_from_config
 from tray_manager import TrayManager
 from hotkey_manager import HotkeyManager
 from clip_processor import ClipProcessor
-from wheel_window import WheelWindow
-from ui.settings_window import SettingsWindow
-from ui.preview_window import PreviewWindow
-from ui.history_window import HistoryWindow
 from history_manager import HistoryManager
 
 
@@ -70,9 +66,42 @@ def main():
     tray = TrayManager(config)
     hotkey = HotkeyManager(config)
     processor = ClipProcessor(config, history_manager=history)
-    wheel = WheelWindow()
-    preview = PreviewWindow(config)
-    history_win = HistoryWindow(config, history)
+    wheel = None
+    preview = None
+    history_win = None
+    settings_win = None
+
+    def ensure_wheel():
+        nonlocal wheel
+        if wheel is None:
+            from wheel_window import WheelWindow
+            wheel = WheelWindow()
+        return wheel
+
+    def ensure_preview():
+        nonlocal preview
+        if preview is None:
+            from ui.preview_window import PreviewWindow
+            preview = PreviewWindow(config)
+            preview.apply_to_clipboard.connect(
+                lambda text: processor.write_to_clipboard(text))
+        return preview
+
+    def ensure_history_window():
+        nonlocal history_win
+        if history_win is None:
+            from ui.history_window import HistoryWindow
+            history_win = HistoryWindow(config, history)
+            history_win.copy_to_clipboard.connect(
+                lambda text: processor.write_to_clipboard(text))
+        return history_win
+
+    def ensure_settings_window():
+        nonlocal settings_win
+        if settings_win is None:
+            from ui.settings_window import SettingsWindow
+            settings_win = SettingsWindow(config, hotkey_manager=hotkey)
+        return settings_win
 
     tray.quit_requested.connect(app.quit)
     tray.pause_toggled.connect(hotkey.set_paused)
@@ -99,6 +128,12 @@ def main():
 
     processor.process_done.connect(on_process_done)
 
+    def mark_history_dirty_after_success(success: bool, message: str):
+        if success and history_win is not None:
+            history_win.mark_dirty()
+
+    processor.process_done.connect(mark_history_dirty_after_success)
+
     # ── 清洗热键触发逻辑 ──────────────────────────────────────
     def on_hotkey_triggered():
         mode = config.get('rules.mode', 'rules')
@@ -122,7 +157,7 @@ def main():
                     config.set('wheel.last_prompt_id', pid)
                     processor.process_with_prompt(pid)
 
-                wheel.show_at(pos, visible, on_wheel_selected, last_id)
+                ensure_wheel().show_at(pos, visible, on_wheel_selected, last_id)
         else:
             processor.process()
 
@@ -144,26 +179,37 @@ def main():
             name = next((p['name'] for p in visible if p['id'] == pid), None)
             tray.update_locked_prompt(name)
 
-        wheel.show_at(pos, visible, on_lock_selected, locked_id)
+        ensure_wheel().show_at(pos, visible, on_lock_selected, locked_id)
 
     hotkey.wheel_hotkey_triggered.connect(on_wheel_hotkey_triggered)
 
     # ── 预览面板信号连接 ───────────────────────────────────────
-    hotkey.preview_hotkey_triggered.connect(preview.toggle_visibility)
-    processor.processing_started.connect(
-        lambda: preview.set_status("处理中...") if preview.isVisible() else None)
-    processor.preview_ready.connect(
-        lambda result, prompt_name: preview.update_result(result, prompt_name))
-    processor.preview_failed.connect(
-        lambda error: preview.set_status(f"处理失败: {error}"))
-    preview.apply_to_clipboard.connect(
-        lambda text: processor.write_to_clipboard(text))
+    def on_preview_hotkey_triggered():
+        ensure_preview().toggle_visibility()
+
+    def on_processing_started():
+        if preview is not None and preview.isVisible():
+            preview.set_status("处理中...")
+
+    def on_preview_ready(result: str, prompt_name: str):
+        if preview is not None and preview.isVisible():
+            preview.update_result(result, prompt_name)
+
+    def on_preview_failed(error: str):
+        if preview is not None and preview.isVisible():
+            preview.set_status(f"处理失败: {error}")
+
+    hotkey.preview_hotkey_triggered.connect(on_preview_hotkey_triggered)
+    processor.processing_started.connect(on_processing_started)
+    processor.preview_ready.connect(on_preview_ready)
+    processor.preview_failed.connect(on_preview_failed)
 
     # ── 历史记录信号连接 ─────────────────────────────────────────
-    hotkey.history_hotkey_triggered.connect(history_win.toggle_visibility)
-    tray.open_history_requested.connect(history_win.toggle_visibility)
-    history_win.copy_to_clipboard.connect(
-        lambda text: processor.write_to_clipboard(text))
+    def toggle_history_window():
+        ensure_history_window().toggle_visibility()
+
+    hotkey.history_hotkey_triggered.connect(toggle_history_window)
+    tray.open_history_requested.connect(toggle_history_window)
 
     # ── 初始化托盘锁定状态显示 ───────────────────────────────
     locked_id = config.get('wheel.locked_prompt_id')
@@ -172,15 +218,14 @@ def main():
         locked_name = next((p['name'] for p in prompts if p['id'] == locked_id), None)
         tray.update_locked_prompt(locked_name)
 
-    settings_win = SettingsWindow(config, hotkey_manager=hotkey)
-
     def on_open_settings():
-        if settings_win.isVisible():
-            settings_win.hide()
+        win = ensure_settings_window()
+        if win.isVisible():
+            win.hide()
         else:
-            settings_win.show()
-            settings_win.raise_()
-            settings_win.activateWindow()
+            win.show()
+            win.raise_()
+            win.activateWindow()
 
     tray.open_settings_requested.connect(on_open_settings)
 
