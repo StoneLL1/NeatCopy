@@ -163,3 +163,20 @@ def test_history_window_uses_view_model_not_item_widgets(qapp):
 
     window.hide()
     window.deleteLater()
+
+
+def test_apply_theme_does_not_set_search_input_local_stylesheet(qapp, monkeypatch):
+    history = DummyHistory()
+    window = HistoryWindow(DummyConfig(), history)
+
+    calls = []
+
+    def record(style):
+        calls.append(style)
+
+    monkeypatch.setattr(window.search_input, "setStyleSheet", record)
+
+    window._apply_theme("light")
+
+    assert calls == []
+    window.deleteLater()

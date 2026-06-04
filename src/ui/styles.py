@@ -589,6 +589,13 @@ def get_history_stylesheet(theme: str) -> str:
             color: {c['fg']};
         }}
 
+        QListView#history_list {{
+            background: transparent;
+            border: none;
+            outline: none;
+            padding: 0;
+        }}
+
         /* ── Input fields ── */
         QLineEdit {{
             border: 1px solid {c['border']};
@@ -725,6 +732,24 @@ def get_history_stylesheet(theme: str) -> str:
             border-radius: {RADIUS_PILL};
             padding: 2px 8px;
             font-size: {FONT_SIZE_XS};
+            font-weight: bold;
+        }}
+
+        QLabel#detail_mode_badge_rules {{
+            background: {c['surface_alt']};
+            color: {c['muted']};
+            border-radius: 9999px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: bold;
+        }}
+
+        QLabel#detail_mode_badge_llm {{
+            background: {c['accent_soft']};
+            color: {c['accent']};
+            border-radius: 9999px;
+            padding: 2px 8px;
+            font-size: 11px;
             font-weight: bold;
         }}
 
