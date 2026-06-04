@@ -6,10 +6,14 @@ import sys
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
+import re
+
 import pytest
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtGui import QColor
 
 from ui.history_window import HistoryWindow
+from ui.styles import ColorPalette
 
 
 @pytest.fixture(scope='module')
@@ -179,4 +183,78 @@ def test_apply_theme_does_not_set_search_input_local_stylesheet(qapp, monkeypatc
     window._apply_theme("light")
 
     assert calls == []
+    window.deleteLater()
+
+
+def _qcolor_from_stylesheet(value: str) -> QColor:
+    match = re.match(r"rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)", value)
+    if match:
+        return QColor(
+            int(match.group(1)),
+            int(match.group(2)),
+            int(match.group(3)),
+            int(float(match.group(4)) * 255),
+        )
+    return QColor(value)
+
+
+def _widget_pixel_hex(widget, x=6, y=6):
+    image = widget.grab().toImage()
+    return image.pixelColor(x, y).name(QColor.NameFormat.HexArgb)
+
+
+def test_theme_switch_uses_root_qss_for_action_separator(qapp):
+    """Review item #1: action_separator must not carry theme-bound inline style."""
+    history = DummyHistory()
+    window = HistoryWindow(DummyConfig(), history)
+
+    assert window.action_separator.objectName() == "detail_sep"
+    assert window.action_separator.styleSheet() == ""
+
+    window.set_theme("dark")
+    qapp.processEvents()
+
+    assert "QFrame#detail_sep" in window.styleSheet()
+    assert ColorPalette.get("dark")["border"] in window.styleSheet()
+    window.deleteLater()
+
+
+def test_mode_badge_switches_rendered_style_between_rules_and_llm(qapp):
+    """Review item #2 (rejected): mode_badge already renders correctly on switch."""
+    window = HistoryWindow(DummyConfig(), DummyHistory())
+    window.show()
+    qapp.processEvents()
+
+    rules_entry = {
+        "id": "rules-1",
+        "timestamp": "2026-06-04T10:00:00",
+        "mode": "rules",
+        "prompt_name": None,
+        "original": "原文",
+        "result": "结果",
+    }
+    llm_entry = {
+        "id": "llm-1",
+        "timestamp": "2026-06-04T10:00:01",
+        "mode": "llm",
+        "prompt_name": "翻译",
+        "original": "原文",
+        "result": "结果",
+    }
+
+    window._show_entry(rules_entry)
+    qapp.processEvents()
+    assert window.mode_badge.objectName() == "detail_mode_badge_rules"
+    # Badge is tiny (~22x12px); sample corner pixel (0,0) to avoid text glyphs
+    rules_bg = _widget_pixel_hex(window.mode_badge, x=0, y=0)
+
+    window._show_entry(llm_entry)
+    qapp.processEvents()
+    assert window.mode_badge.objectName() == "detail_mode_badge_llm"
+    llm_bg = _widget_pixel_hex(window.mode_badge, x=0, y=0)
+
+    # The two modes must render different background colors
+    assert rules_bg != llm_bg
+
+    window.hide()
     window.deleteLater()

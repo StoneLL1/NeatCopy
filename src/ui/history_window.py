@@ -6,15 +6,12 @@ from PyQt6.QtWidgets import (
     QTextEdit, QPushButton, QListView,
     QLineEdit, QMessageBox, QSizePolicy, QSplitter, QFrame, QStackedWidget
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize, QModelIndex
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QModelIndex
 from PyQt6.QtGui import QCursor, QIcon, QPixmap, QPainter, QColor, QPen, QAction
 
 from ui.history_item_delegate import HistoryItemDelegate
-from ui.history_list_model import EntryIdRole, HistoryListModel
-from ui.styles import (
-    get_history_stylesheet, ColorPalette,
-    FONT_MONO, FONT_SIZE_XS, FONT_SIZE_SM, FONT_FAMILY, RADIUS_SM
-)
+from ui.history_list_model import HistoryListModel
+from ui.styles import get_history_stylesheet
 
 
 class HistoryWindow(QWidget):
@@ -30,8 +27,6 @@ class HistoryWindow(QWidget):
         self._theme = config.get('ui.theme', 'light')
         self._drag_pos = None
         self._resize_timer = None
-        self._displayed_entries_by_id = {}
-        self._list_item_size = QSize(0, 76)
         self._search_timer = QTimer()  # 搜索防抖定时器
         self._search_timer.setSingleShot(True)
         self._search_timer.timeout.connect(self._do_search)
@@ -197,8 +192,8 @@ class HistoryWindow(QWidget):
 
         # 操作按钮行
         self.action_separator = QFrame()
+        self.action_separator.setObjectName("detail_sep")
         self.action_separator.setFrameShape(QFrame.Shape.HLine)
-        self.action_separator.setStyleSheet(f"background: {ColorPalette.get(self._theme)['border']}; max-height: 1px; border: none;")
         detail_inner.addWidget(self.action_separator)
 
         action_row = QHBoxLayout()
@@ -284,11 +279,6 @@ class HistoryWindow(QWidget):
             entries = self._history.get_all()
 
         self._history_model.set_entries(entries)
-        self._displayed_entries_by_id = {
-            entry.get('id'): entry
-            for entry in entries
-            if entry.get('id')
-        }
 
         if not entries:
             self._main_stack.setCurrentWidget(self.global_empty)

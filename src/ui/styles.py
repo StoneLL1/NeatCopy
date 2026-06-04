@@ -566,34 +566,18 @@ def get_history_stylesheet(theme: str) -> str:
             border-bottom: 1px solid {c['border']};
         }}
 
-        /* ── List widgets ── */
-        QListWidget {{
-            background: transparent;
-            border: none;
-            outline: none;
-            padding: 0;
-        }}
-
-        QListWidget::item {{
-            padding: 8px 12px;
-            border-bottom: 1px solid {c['border']};
-            color: {c['fg']};
-        }}
-
-        QListWidget::item:hover {{
-            background: {c['fg_soft']};
-        }}
-
-        QListWidget::item:selected {{
-            background: {selected_bg};
-            color: {c['fg']};
-        }}
-
+        /* ── List view ── */
         QListView#history_list {{
             background: transparent;
             border: none;
             outline: none;
             padding: 0;
+        }}
+
+        QFrame#detail_sep {{
+            background: {c['border']};
+            max-height: 1px;
+            border: none;
         }}
 
         /* ── Input fields ── */
