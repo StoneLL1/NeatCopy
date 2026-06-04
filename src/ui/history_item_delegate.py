@@ -1,11 +1,21 @@
 from __future__ import annotations
 
+import re
+
 from PyQt6.QtCore import QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import QStyle, QStyledItemDelegate
 
 from ui.history_list_model import ModeRole, SummaryRole, TimeTextRole
 from ui.styles import ColorPalette
+
+
+def _qc(color_str: str) -> QColor:
+    """Convert a ColorPalette string (including rgba with float alpha) to QColor."""
+    m = re.match(r'rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)', color_str)
+    if m:
+        return QColor(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(float(m.group(4)) * 255))
+    return QColor(color_str)
 
 
 class HistoryItemDelegate(QStyledItemDelegate):
@@ -32,9 +42,9 @@ class HistoryItemDelegate(QStyledItemDelegate):
 
         # Background: flat fill matching original QListWidget::item QSS
         if selected:
-            bg = QColor(c["selected_bg"])
+            bg = _qc(c["selected_bg"])
         elif hovered:
-            bg = QColor(c["fg_soft"])
+            bg = _qc(c["fg_soft"])
         else:
             bg = Qt.GlobalColor.transparent
 
@@ -75,10 +85,10 @@ class HistoryItemDelegate(QStyledItemDelegate):
         # rules: bg surface_alt, fg muted
         # llm: bg selected_bg (accent_soft), fg accent
         if mode == "rules":
-            badge_bg = QColor(c["surface_alt"])
+            badge_bg = _qc(c["surface_alt"])
             badge_fg = QColor(c["muted"])
         else:
-            badge_bg = QColor(c.get("selected_bg", c["accent_soft"]))
+            badge_bg = _qc(c.get("selected_bg", c["accent_soft"]))
             badge_fg = QColor(c["accent"])
 
         painter.setPen(Qt.PenStyle.NoPen)
