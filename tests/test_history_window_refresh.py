@@ -63,12 +63,16 @@ class DummyHistory:
         return next((e for e in self.entries if e['id'] == entry_id), None)
 
 
+def _row_count(window):
+    return window._history_model.rowCount()
+
+
 def test_constructor_does_not_refresh_list(qapp):
     history = DummyHistory()
     window = HistoryWindow(DummyConfig(), history)
 
     assert history.get_all_calls == 0
-    assert window.list_widget.count() == 0
+    assert _row_count(window) == 0
 
     window.deleteLater()
 
@@ -81,7 +85,7 @@ def test_show_event_refreshes_first_time(qapp):
     qapp.processEvents()
 
     assert history.get_all_calls == 1
-    assert window.list_widget.count() == 1
+    assert _row_count(window) == 1
 
     window.hide()
     window.deleteLater()
@@ -128,7 +132,7 @@ def test_mark_dirty_forces_refresh_on_next_show(qapp):
     qapp.processEvents()
 
     assert history.get_all_calls == 2
-    assert window.list_widget.count() == 2
+    assert _row_count(window) == 2
 
     window.hide()
     window.deleteLater()
@@ -144,4 +148,18 @@ def test_search_keyword_change_refreshes_list(qapp):
 
     assert history.search_calls == 1
 
+    window.deleteLater()
+
+
+def test_history_window_uses_view_model_not_item_widgets(qapp):
+    history = DummyHistory()
+    window = HistoryWindow(DummyConfig(), history)
+
+    window.show()
+    qapp.processEvents()
+
+    assert hasattr(window, "_history_model")
+    assert window._history_model.rowCount() == 1
+
+    window.hide()
     window.deleteLater()

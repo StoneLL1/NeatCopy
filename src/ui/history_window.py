@@ -3,12 +3,14 @@ from datetime import datetime
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QTextEdit, QPushButton, QListWidget, QListWidgetItem,
+    QTextEdit, QPushButton, QListView,
     QLineEdit, QMessageBox, QSizePolicy, QSplitter, QFrame, QStackedWidget
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize, QModelIndex
 from PyQt6.QtGui import QCursor, QIcon, QPixmap, QPainter, QColor, QPen, QAction
 
+from ui.history_item_delegate import HistoryItemDelegate
+from ui.history_list_model import EntryIdRole, HistoryListModel
 from ui.styles import (
     get_history_stylesheet, ColorPalette,
     FONT_MONO, FONT_SIZE_XS, FONT_SIZE_SM, FONT_FAMILY, RADIUS_SM
@@ -253,9 +255,10 @@ class HistoryWindow(QWidget):
             self.action_separator.setStyleSheet(
                 f"background: {c['border']}; max-height: 1px; border: none;")
 
-        # 重新刷新列表以更新自定义 item widget 颜色
-        if self.list_widget.count() > 0:
-            self._refresh_list()
+        # Update delegate theme and repaint
+        if hasattr(self, '_history_delegate'):
+            self._history_delegate.set_theme(theme)
+            self.list_widget.viewport().update()
 
     def set_theme(self, theme: str):
         """公共方法：动态切换主题。"""
@@ -308,10 +311,21 @@ class HistoryWindow(QWidget):
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # 左栏：列表
-        self.list_widget = QListWidget()
+        self.list_widget = QListView()
+        self.list_widget.setObjectName("history_list")
         self.list_widget.setMinimumWidth(200)
         self.list_widget.setMaximumWidth(320)
-        self.list_widget.itemClicked.connect(self._on_item_clicked)
+        self.list_widget.setAlternatingRowColors(False)
+        self.list_widget.setUniformItemSizes(True)
+        self.list_widget.setMouseTracking(True)
+        self.list_widget.setEditTriggers(QListView.EditTrigger.NoEditTriggers)
+        self.list_widget.setSelectionMode(QListView.SelectionMode.SingleSelection)
+        self.list_widget.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
+        self._history_model = HistoryListModel(self)
+        self._history_delegate = HistoryItemDelegate(self._theme, self.list_widget)
+        self.list_widget.setModel(self._history_model)
+        self.list_widget.setItemDelegate(self._history_delegate)
+        self.list_widget.clicked.connect(self._on_index_clicked)
         splitter.addWidget(self.list_widget)
 
         # 右栏：详情
@@ -419,65 +433,6 @@ class HistoryWindow(QWidget):
         root.addWidget(self._main_stack, stretch=1)
 
     # ================================================================
-    #  列表项 Widget 工厂
-    # ================================================================
-
-    def _create_list_item_widget(self, entry):
-        """为列表项创建两行格式的自定义 widget（优化版本）。"""
-        c = ColorPalette.get(self._theme)
-        widget = QWidget()
-        widget.setObjectName("list_item")
-        layout = QVBoxLayout(widget)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(8)
-
-        # 格式化时间
-        timestamp = entry.get('timestamp', '')
-        try:
-            dt = datetime.fromisoformat(timestamp)
-            time_str = dt.strftime('%H:%M')
-        except Exception:
-            time_str = '--:--'
-
-        # 模式
-        mode = entry.get('mode', 'rules')
-        if mode == 'rules':
-            mode_str = '规则'
-        else:
-            prompt_name = entry.get('prompt_name', '')
-            mode_str = f'LLM: {prompt_name}' if prompt_name else 'LLM'
-
-        # 摘要（仅显示第一行）
-        original = entry.get('original', '')
-        first_line = original.split('\n')[0] if original else ''
-        summary = first_line[:30] if len(first_line) > 30 else first_line
-        if len(first_line) > 30:
-            summary += '...'
-
-        # 顶行：时间 + 模式徽章
-        top = QHBoxLayout()
-        top.setSpacing(4)
-        time_label = QLabel(time_str)
-        time_label.setObjectName("time_label")
-        top.addWidget(time_label)
-        top.addStretch()
-
-        mode_badge = QLabel(mode_str)
-        mode_badge.setObjectName("mode_badge_rules" if mode == 'rules' else "mode_badge_llm")
-        mode_badge.setFixedHeight(20)
-        top.addWidget(mode_badge)
-        layout.addLayout(top)
-
-        # 底行：摘要
-        summary_label = QLabel(summary)
-        summary_label.setObjectName("summary_label")
-        summary_label.setWordWrap(False)
-        summary_label.setFixedHeight(20)
-        layout.addWidget(summary_label)
-
-        return widget
-
-    # ================================================================
     #  数据操作
     # ================================================================
 
@@ -495,13 +450,13 @@ class HistoryWindow(QWidget):
         return False
 
     def _refresh_list(self, keyword: str = ''):
-        """刷新列表显示（优化版本：批量添加）。"""
-        self.list_widget.clear()
-
+        """Refresh the list model without creating per-row QWidget trees."""
         if keyword:
             entries = self._history.search(keyword)
         else:
             entries = self._history.get_all()
+
+        self._history_model.set_entries(entries)
         self._displayed_entries_by_id = {
             entry.get('id'): entry
             for entry in entries
@@ -511,48 +466,30 @@ class HistoryWindow(QWidget):
         if not entries:
             self._main_stack.setCurrentWidget(self.global_empty)
             self._clear_detail()
-            self._list_dirty = False
-            self._rendered_keyword = keyword
-            self._rendered_history_revision = self._history_revision()
-            return
-
-        self._main_stack.setCurrentIndex(0)
-
-        # 批量添加：先禁用更新，添加完后再启用
-        self.list_widget.setUpdatesEnabled(False)
-        try:
-            for entry in entries:
-                item = QListWidgetItem()
-                item.setData(Qt.ItemDataRole.UserRole, entry.get('id'))
-                item.setSizeHint(self._list_item_size)
-                self.list_widget.addItem(item)
-                self.list_widget.setItemWidget(item, self._create_list_item_widget(entry))
-        finally:
-            self.list_widget.setUpdatesEnabled(True)
+        else:
+            self._main_stack.setCurrentIndex(0)
+            current = self.list_widget.currentIndex()
+            if current.isValid():
+                self._show_entry(self._history_model.entry_at(current))
 
         self._list_dirty = False
         self._rendered_keyword = keyword
         self._rendered_history_revision = self._history_revision()
 
-    def _on_item_clicked(self, item: QListWidgetItem):
-        """点击列表项，显示详情。"""
-        entry_id = item.data(Qt.ItemDataRole.UserRole)
-        entry = self._displayed_entries_by_id.get(entry_id)
-        if entry is None:
-            entry = self._history.get_by_id(entry_id)
+    def _on_index_clicked(self, index: QModelIndex):
+        """Show details for the selected model row."""
+        entry = self._history_model.entry_at(index)
+        self._show_entry(entry)
 
-        if not entry:
+    def _show_entry(self, entry: dict | None):
+        if entry is None:
             self._clear_detail()
             return
 
-        self._current_entry_id = entry_id
-        c = ColorPalette.get(self._theme)
-
-        # 显示详情内容，隐藏空状态
+        self._current_entry_id = entry.get('id')
         self.detail_empty.hide()
         self.detail_content.show()
 
-        # 显示时间
         timestamp = entry.get('timestamp', '')
         try:
             dt = datetime.fromisoformat(timestamp)
@@ -561,38 +498,18 @@ class HistoryWindow(QWidget):
             time_str = timestamp
         self.time_label.setText(time_str)
 
-        # 显示模式
         mode = entry.get('mode', 'rules')
         if mode == 'rules':
             self.mode_badge.setText("规则")
-            self.mode_badge.setStyleSheet(f"""
-                QLabel {{
-                    background: {c['surface_alt']};
-                    color: {c['muted']};
-                    border-radius: 9999px;
-                    padding: 2px 8px;
-                    font-size: 11px;
-                    font-weight: bold;
-                }}
-            """)
+            self.mode_badge.setObjectName("detail_mode_badge_rules")
         else:
             prompt_name = entry.get('prompt_name', '')
             self.mode_badge.setText(f"LLM: {prompt_name}" if prompt_name else "LLM")
-            self.mode_badge.setStyleSheet(f"""
-                QLabel {{
-                    background: {c['accent_soft']};
-                    color: {c['accent']};
-                    border-radius: 9999px;
-                    padding: 2px 8px;
-                    font-size: 11px;
-                    font-weight: bold;
-                }}
-            """)
+            self.mode_badge.setObjectName("detail_mode_badge_llm")
+        self.mode_badge.style().unpolish(self.mode_badge)
+        self.mode_badge.style().polish(self.mode_badge)
 
-        # 显示原文
         self.original_edit.setPlainText(entry.get('original', ''))
-
-        # 显示结果
         self.result_edit.setPlainText(entry.get('result', ''))
 
     def _clear_detail(self):
