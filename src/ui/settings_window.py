@@ -73,6 +73,16 @@ class SettingsWindow(QDialog):
         self.setMinimumSize(550, 400)
         self.setWindowIcon(QIcon(_asset('idle.ico')))
 
+        # Lazy page construction
+        self._built_pages = {}
+        self._page_builders = [
+            self._build_general_page,
+            self._build_hotkeys_page,
+            self._build_rules_page,
+            self._build_llm_page,
+            self._build_about_page,
+        ]
+
         # Build layout
         self._build_layout()
 
@@ -106,11 +116,9 @@ class SettingsWindow(QDialog):
         body.addWidget(separator)
 
         self._content_stack = QStackedWidget()
-        self._content_stack.addWidget(self._build_general_page())
-        self._content_stack.addWidget(self._build_hotkeys_page())
-        self._content_stack.addWidget(self._build_rules_page())
-        self._content_stack.addWidget(self._build_llm_page())
-        self._content_stack.addWidget(self._build_about_page())
+        for _ in self._page_builders:
+            self._content_stack.addWidget(self._build_empty_page())
+        self._ensure_page(0)
         body.addWidget(self._content_stack, 1)
 
         root.addLayout(body, 1)
@@ -170,7 +178,25 @@ class SettingsWindow(QDialog):
 
     def _on_nav_select(self, index: int):
         """Sidebar navigation callback: switch stacked page."""
+        self._ensure_page(index)
         self._content_stack.setCurrentIndex(index)
+
+    def _ensure_page(self, index: int):
+        if index in self._built_pages:
+            return self._built_pages[index]
+        builder = self._page_builders[index]
+        page = builder()
+        old = self._content_stack.widget(index)
+        self._content_stack.removeWidget(old)
+        old.deleteLater()
+        self._content_stack.insertWidget(index, page)
+        self._built_pages[index] = page
+        return page
+
+    def _build_empty_page(self) -> QWidget:
+        page = QWidget()
+        page.setObjectName('content_page_empty')
+        return page
 
     # ── General page (Page 0) ───────────────────────────────────────
 
@@ -1423,16 +1449,19 @@ class SettingsWindow(QDialog):
             self._sidebar.set_theme(self._theme)
 
         # Cards
-        for card in self._cards:
-            card.set_theme(self._theme)
+        if hasattr(self, '_cards'):
+            for card in self._cards:
+                card.set_theme(self._theme)
 
         # Toggle switches
-        for toggle in self._toggles:
-            toggle.set_theme(self._theme)
+        if hasattr(self, '_toggles'):
+            for toggle in self._toggles:
+                toggle.set_theme(self._theme)
 
         # Segmented controls
-        for seg in self._segmented_controls:
-            seg.set_theme(self._theme)
+        if hasattr(self, '_segmented_controls'):
+            for seg in self._segmented_controls:
+                seg.set_theme(self._theme)
 
     def _on_preview_theme_changed(self, index: int):
         """Handle preview panel theme segmented control change."""
