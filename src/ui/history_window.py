@@ -34,6 +34,10 @@ class HistoryWindow(QWidget):
         self._search_timer.setSingleShot(True)
         self._search_timer.timeout.connect(self._do_search)
 
+        self._list_dirty = True
+        self._rendered_history_revision = None
+        self._rendered_keyword = None
+
         self._setup_window_properties()
         self._create_ui()
         self._apply_theme(self._theme)
@@ -250,7 +254,8 @@ class HistoryWindow(QWidget):
                 f"background: {c['border']}; max-height: 1px; border: none;")
 
         # 重新刷新列表以更新自定义 item widget 颜色
-        self._refresh_list()
+        if self.list_widget.count() > 0:
+            self._refresh_list()
 
     def set_theme(self, theme: str):
         """公共方法：动态切换主题。"""
@@ -413,8 +418,6 @@ class HistoryWindow(QWidget):
         self._main_stack.addWidget(self.global_empty)
         root.addWidget(self._main_stack, stretch=1)
 
-        self._refresh_list()
-
     # ================================================================
     #  列表项 Widget 工厂
     # ================================================================
@@ -478,6 +481,19 @@ class HistoryWindow(QWidget):
     #  数据操作
     # ================================================================
 
+    def _history_revision(self):
+        return getattr(self._history, 'revision', None)
+
+    def _needs_list_refresh(self, keyword: str = '') -> bool:
+        if self._list_dirty:
+            return True
+        if self._rendered_keyword != keyword:
+            return True
+        current_revision = self._history_revision()
+        if current_revision is not None and self._rendered_history_revision != current_revision:
+            return True
+        return False
+
     def _refresh_list(self, keyword: str = ''):
         """刷新列表显示（优化版本：批量添加）。"""
         self.list_widget.clear()
@@ -495,6 +511,9 @@ class HistoryWindow(QWidget):
         if not entries:
             self._main_stack.setCurrentWidget(self.global_empty)
             self._clear_detail()
+            self._list_dirty = False
+            self._rendered_keyword = keyword
+            self._rendered_history_revision = self._history_revision()
             return
 
         self._main_stack.setCurrentIndex(0)
@@ -510,6 +529,10 @@ class HistoryWindow(QWidget):
                 self.list_widget.setItemWidget(item, self._create_list_item_widget(entry))
         finally:
             self.list_widget.setUpdatesEnabled(True)
+
+        self._list_dirty = False
+        self._rendered_keyword = keyword
+        self._rendered_history_revision = self._history_revision()
 
     def _on_item_clicked(self, item: QListWidgetItem):
         """点击列表项，显示详情。"""
@@ -647,8 +670,11 @@ class HistoryWindow(QWidget):
     #  公共方法
     # ================================================================
 
+    def mark_dirty(self):
+        """Mark the list for refresh on next display."""
+        self._list_dirty = True
+
     def toggle_visibility(self):
-        """切换窗口可见性。"""
         if self.isVisible():
             self.hide()
         else:
@@ -666,7 +692,9 @@ class HistoryWindow(QWidget):
         new_theme = self._config.get('ui.theme', 'light')
         if new_theme != self._theme:
             self._apply_theme(new_theme)
-        self._refresh_list()
+        keyword = self.search_input.text()
+        if self._needs_list_refresh(keyword):
+            self._refresh_list(keyword)
 
     # ================================================================
     #  拖动（仅标题栏） + 尺寸保存
