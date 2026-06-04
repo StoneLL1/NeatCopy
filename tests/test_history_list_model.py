@@ -68,3 +68,11 @@ def test_model_returns_none_for_invalid_index():
 
     assert model.entry_at(QModelIndex()) is None
     assert model.entry_by_id("missing") is None
+
+
+def test_delegate_imports_and_reports_fixed_row_size():
+    from ui.history_item_delegate import HistoryItemDelegate
+
+    delegate = HistoryItemDelegate(theme="light")
+
+    assert delegate.sizeHint(None, QModelIndex()).height() == 76
