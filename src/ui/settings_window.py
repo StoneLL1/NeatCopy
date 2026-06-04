@@ -119,6 +119,7 @@ class SettingsWindow(QDialog):
         for _ in self._page_builders:
             self._content_stack.addWidget(self._build_empty_page())
         self._ensure_page(0)
+        self._content_stack.setCurrentIndex(0)
         body.addWidget(self._content_stack, 1)
 
         root.addLayout(body, 1)

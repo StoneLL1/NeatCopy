@@ -26,53 +26,71 @@ class HistoryItemDelegate(QStyledItemDelegate):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         c = ColorPalette.get(self._theme)
-        rect = option.rect.adjusted(4, 4, -4, -4)
+        rect = option.rect
         selected = bool(option.state & QStyle.StateFlag.State_Selected)
         hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
 
+        # Background: flat fill matching original QListWidget::item QSS
         if selected:
-            bg = QColor(c["accent_soft"])
+            bg = QColor(c["selected_bg"])
         elif hovered:
             bg = QColor(c["fg_soft"])
         else:
-            bg = QColor(c.get("card_bg", c["bg"]))
+            bg = Qt.GlobalColor.transparent
 
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(bg)
-        painter.drawRoundedRect(rect, 6, 6)
+        painter.drawRect(rect)
 
+        # Bottom border separator
+        painter.setPen(QPen(QColor(c["border"]), 1))
+        painter.drawLine(rect.bottomLeft(), rect.bottomRight())
+
+        # Content area: matching original widget margins(16, 14, 16, 14), spacing 8
+        content = rect.adjusted(16, 14, -16, -14)
+        top_rect = QRect(content.left(), content.top(), content.width(), 20)
+        summary_rect = QRect(content.left(), content.top() + 28, content.width(), 20)
+
+        # Time label: font-family mono, font-size 11px
         time_text = index.data(TimeTextRole) or "--:--"
-        mode = index.data(ModeRole) or "rules"
-        summary = index.data(SummaryRole) or ""
-        mode_text = "规则" if mode == "rules" else self._llm_text(index)
-
-        content = rect.adjusted(12, 10, -12, -10)
-        top_rect = QRect(content.left(), content.top(), content.width(), 22)
-        summary_rect = QRect(content.left(), content.top() + 32, content.width(), 22)
-
         time_font = QFont("Cascadia Code")
-        time_font.setPointSize(8)
+        time_font.setPixelSize(11)
         painter.setFont(time_font)
         painter.setPen(QColor(c["muted"]))
         painter.drawText(top_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, time_text)
 
+        # Mode badge: font-size 10px, bold, pill-shaped
+        mode = index.data(ModeRole) or "rules"
+        mode_text = "规则" if mode == "rules" else self._llm_text(index)
+
         badge_font = QFont()
-        badge_font.setPointSize(8)
+        badge_font.setPixelSize(10)
         badge_font.setBold(True)
         painter.setFont(badge_font)
         metrics = painter.fontMetrics()
         badge_w = metrics.horizontalAdvance(mode_text) + 16
-        badge_rect = QRect(top_rect.right() - badge_w, top_rect.top() + 1, badge_w, 20)
-        badge_bg = QColor(c["accent_soft"] if mode == "rules" else c["success_soft"])
-        badge_fg = QColor(c["accent"] if mode == "rules" else c["success"])
+        badge_rect = QRect(top_rect.right() - badge_w, top_rect.top(), badge_w, 20)
+
+        # Badge colors matching original QSS:
+        # rules: bg surface_alt, fg muted
+        # llm: bg selected_bg (accent_soft), fg accent
+        if mode == "rules":
+            badge_bg = QColor(c["surface_alt"])
+            badge_fg = QColor(c["muted"])
+        else:
+            badge_bg = QColor(c.get("selected_bg", c["accent_soft"]))
+            badge_fg = QColor(c["accent"])
+
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(badge_bg)
         painter.drawRoundedRect(badge_rect, 10, 10)
         painter.setPen(badge_fg)
         painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, mode_text)
 
+        # Summary: font-size 12px, color fg
+        summary = index.data(SummaryRole) or ""
         summary_font = QFont()
-        summary_font.setPointSize(9)
+        summary_font.setPixelSize(12)
         painter.setFont(summary_font)
         painter.setPen(QColor(c["fg"]))
         elided = painter.fontMetrics().elidedText(
