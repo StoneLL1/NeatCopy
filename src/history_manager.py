@@ -18,6 +18,7 @@ class HistoryManager:
         self._history_path.parent.mkdir(parents=True, exist_ok=True)
         self._max_count = max_count
         self._data = self._load()
+        self._revision = 0
 
     def _load(self) -> dict:
         """加载历史文件，不存在或损坏时返回空结构。"""
@@ -61,13 +62,21 @@ class HistoryManager:
         # 容量控制：超出时保留最新的 max_count 条
         if len(self._data['entries']) > self._max_count:
             self._data['entries'] = self._data['entries'][-self._max_count:]
-        return self._write()
+        success = self._write()
+        if success:
+            self._revision += 1
+        return success
 
     def get_all(self) -> list[dict]:
         """返回所有历史记录（按时间倒序）。"""
         entries = self._data.get('entries', [])
         # 倒序排列（最新在前）
         return list(reversed(entries))
+
+    @property
+    def revision(self) -> int:
+        """Monotonic in-memory version for UI refresh checks."""
+        return self._revision
 
     def set_max_count(self, max_count: int):
         """更新最大条数上限。"""
@@ -79,13 +88,19 @@ class HistoryManager:
         for i, entry in enumerate(entries):
             if entry.get('id') == entry_id:
                 entries.pop(i)
-                return self._write()
+                success = self._write()
+                if success:
+                    self._revision += 1
+                return success
         return False
 
     def clear(self) -> bool:
         """清空所有历史记录。"""
         self._data['entries'] = []
-        return self._write()
+        success = self._write()
+        if success:
+            self._revision += 1
+        return success
 
     def search(self, keyword: str) -> list[dict]:
         """全文搜索，匹配原文或结果内容（不区分大小写）。"""

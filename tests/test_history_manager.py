@@ -124,3 +124,42 @@ class TestHistoryManagerCapacity:
         hm.add('第3条', '结果3', 'rules', None)  # 应触发删除
         entries = hm.get_all()
         assert len(entries) == 2
+
+
+class TestHistoryManagerRevision:
+    """revision 属性测试：单调递增的内存版本号。"""
+
+    def test_revision_starts_at_zero(self, tmp_config_dir):
+        hm = HistoryManager(config_dir=str(tmp_config_dir))
+        assert hm.revision == 0
+
+    def test_revision_increments_after_successful_add_delete_clear(self, tmp_config_dir):
+        hm = HistoryManager(config_dir=str(tmp_config_dir))
+
+        assert hm.add('原文1', '结果1', 'rules', None) is True
+        assert hm.revision == 1
+
+        entry_id = hm.get_all()[0]['id']
+        assert hm.delete(entry_id) is True
+        assert hm.revision == 2
+
+        assert hm.add('原文2', '结果2', 'rules', None) is True
+        assert hm.revision == 3
+
+        assert hm.clear() is True
+        assert hm.revision == 4
+
+    def test_revision_does_not_increment_for_failed_delete(self, tmp_config_dir):
+        hm = HistoryManager(config_dir=str(tmp_config_dir))
+        hm.add('原文', '结果', 'rules', None)
+        before = hm.revision
+
+        assert hm.delete('missing-id') is False
+        assert hm.revision == before
+
+    def test_revision_does_not_increment_when_write_fails(self, tmp_config_dir, monkeypatch):
+        hm = HistoryManager(config_dir=str(tmp_config_dir))
+        monkeypatch.setattr(hm, '_write', lambda: False)
+
+        assert hm.add('原文', '结果', 'rules', None) is False
+        assert hm.revision == 0
