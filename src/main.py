@@ -31,6 +31,7 @@ def _setup_logging():
     os.makedirs(log_dir, exist_ok=True)
     return os.path.join(log_dir, 'crash.log')
 
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QCursor, QIcon
 from assets import asset as _asset
@@ -40,6 +41,43 @@ from tray_manager import TrayManager
 from hotkey_manager import HotkeyManager
 from clip_processor import ClipProcessor
 from history_manager import HistoryManager
+
+
+def create_preview_state() -> dict:
+    return {
+        'status': 'idle',
+        'message': '等待处理',
+        'result': '',
+        'prompt_name': '',
+        'error': '',
+    }
+
+
+def record_preview_processing(state: dict) -> None:
+    state['status'] = 'processing'
+    state['message'] = '处理中...'
+    state['error'] = ''
+
+
+def record_preview_ready(state: dict, result: str, prompt_name: str) -> None:
+    state['status'] = 'done'
+    state['message'] = '处理完成'
+    state['result'] = result
+    state['prompt_name'] = prompt_name
+    state['error'] = ''
+
+
+def record_preview_failed(state: dict, error: str) -> None:
+    state['status'] = 'failed'
+    state['message'] = f'处理失败: {error}'
+    state['error'] = error
+
+
+def replay_preview_state(preview, state: dict) -> None:
+    if state.get('result'):
+        preview.update_result(state.get('result', ''), state.get('prompt_name', ''))
+    if state.get('status') in {'processing', 'failed'}:
+        preview.set_status(state.get('message', '等待处理'))
 
 
 def main():
@@ -70,6 +108,7 @@ def main():
     preview = None
     history_win = None
     settings_win = None
+    preview_state = create_preview_state()
 
     def ensure_wheel():
         nonlocal wheel
@@ -85,6 +124,7 @@ def main():
             preview = PreviewWindow(config)
             preview.apply_to_clipboard.connect(
                 lambda text: processor.write_to_clipboard(text))
+            replay_preview_state(preview, preview_state)
         return preview
 
     def ensure_history_window():
@@ -188,16 +228,21 @@ def main():
         ensure_preview().toggle_visibility()
 
     def on_processing_started():
-        if preview is not None and preview.isVisible():
-            preview.set_status("处理中...")
+        if config.get('rules.mode', 'rules') != 'llm':
+            return
+        record_preview_processing(preview_state)
+        if preview is not None:
+            replay_preview_state(preview, preview_state)
 
     def on_preview_ready(result: str, prompt_name: str):
-        if preview is not None and preview.isVisible():
-            preview.update_result(result, prompt_name)
+        record_preview_ready(preview_state, result, prompt_name)
+        if preview is not None:
+            replay_preview_state(preview, preview_state)
 
     def on_preview_failed(error: str):
-        if preview is not None and preview.isVisible():
-            preview.set_status(f"处理失败: {error}")
+        record_preview_failed(preview_state, error)
+        if preview is not None:
+            replay_preview_state(preview, preview_state)
 
     hotkey.preview_hotkey_triggered.connect(on_preview_hotkey_triggered)
     processor.processing_started.connect(on_processing_started)
@@ -228,6 +273,9 @@ def main():
             win.activateWindow()
 
     tray.open_settings_requested.connect(on_open_settings)
+
+    QTimer.singleShot(0, ensure_preview)
+    QTimer.singleShot(200, ensure_wheel)
 
     sys.exit(app.exec())
 
