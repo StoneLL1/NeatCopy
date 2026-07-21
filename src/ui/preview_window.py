@@ -1,5 +1,6 @@
 """预览面板窗口组件：显示 LLM 处理结果，支持编辑和应用到剪贴板。支持深色/浅色主题切换。"""
 import ctypes
+import html
 import sys
 
 from PyQt6.QtWidgets import (
@@ -236,14 +237,16 @@ class PreviewWindow(QWidget):
         status = self.status_label.text()
         styles = self._get_theme_styles(self._theme)
 
-        color_map = {
-            "等待处理": styles['status_waiting'],
-            "处理中…": styles['status_processing'],
-            "处理完成": styles['status_done'],
-            "处理失败": styles['status_failed'],
-            "已应用": styles['status_applied'],
-        }
-        color = color_map.get(status, styles['status_waiting'])
+        if status.startswith(("处理中", "正在应用")):
+            color = styles['status_processing']
+        elif status.startswith(("处理失败", "应用失败")):
+            color = styles['status_failed']
+        elif status == "处理完成":
+            color = styles['status_done']
+        elif status == "已应用":
+            color = styles['status_applied']
+        else:
+            color = styles['status_waiting']
 
         self.status_dot.setStyleSheet(f"""
             background: {color};
@@ -393,8 +396,12 @@ class PreviewWindow(QWidget):
     def _on_apply_clicked(self):
         text = self.text_edit.toPlainText()
         if text:
+            self.set_status("正在应用...")
             self.apply_to_clipboard.emit(text)
-            self.set_status("已应用")
+
+    def set_apply_result(self, success: bool):
+        """Reflect the actual clipboard write result in the panel."""
+        self.set_status("已应用" if success else "应用失败")
 
     def update_result(self, result: str, prompt_name: str):
         self._current_result = result
@@ -405,7 +412,7 @@ class PreviewWindow(QWidget):
             name_color = styles.get('prompt_name_text', styles['prompt_text'])
             self.prompt_label.setText(
                 f'<span style="color:{styles["prompt_text"]}">Prompt:</span> '
-                f'<span style="color:{name_color};font-weight:500">{prompt_name}</span>'
+                f'<span style="color:{name_color};font-weight:500">{html.escape(prompt_name)}</span>'
             )
             self.prompt_label.setTextFormat(Qt.TextFormat.RichText)
         else:

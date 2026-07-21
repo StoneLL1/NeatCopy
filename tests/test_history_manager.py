@@ -2,6 +2,7 @@
 """HistoryManager 单元测试。"""
 import sys
 import os
+import json
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 import pytest
@@ -163,3 +164,38 @@ class TestHistoryManagerRevision:
 
         assert hm.add('原文', '结果', 'rules', None) is False
         assert hm.revision == 0
+
+
+class TestHistoryManagerRecovery:
+    def test_invalid_root_is_backed_up_and_reset(self, tmp_config_dir):
+        history_dir = tmp_config_dir / 'NeatCopy'
+        history_dir.mkdir(parents=True, exist_ok=True)
+        path = history_dir / 'history.json'
+        path.write_text('[]', encoding='utf-8')
+
+        hm = HistoryManager(config_dir=str(tmp_config_dir))
+
+        assert hm.get_all() == []
+        assert (history_dir / 'history.json.bak').exists()
+
+    def test_malformed_entries_are_filtered_and_text_normalized(self, tmp_config_dir):
+        history_dir = tmp_config_dir / 'NeatCopy'
+        history_dir.mkdir(parents=True, exist_ok=True)
+        path = history_dir / 'history.json'
+        path.write_text(json.dumps({'entries': [
+            'broken',
+            {'original': 'missing id'},
+            {'id': 'ok', 'original': 123, 'result': None},
+        ]}), encoding='utf-8')
+
+        hm = HistoryManager(config_dir=str(tmp_config_dir))
+
+        assert hm.get_all()[0]['original'] == '123'
+        assert hm.get_all()[0]['result'] == ''
+
+    def test_returned_entries_cannot_mutate_manager(self, tmp_config_dir):
+        hm = HistoryManager(config_dir=str(tmp_config_dir))
+        hm.add('原文', '结果', 'rules', None)
+        entry = hm.get_all()[0]
+        entry['original'] = 'MUTATED'
+        assert hm.get_all()[0]['original'] == '原文'

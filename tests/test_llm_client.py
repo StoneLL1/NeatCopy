@@ -5,7 +5,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 import pytest
 import httpx
 from unittest.mock import AsyncMock, MagicMock, patch
-from llm_client import LLMClient, classify_error
+from llm_client import LLMClient, api_key_required, auth_headers, classify_error
+
+
+def test_authentication_policy_supports_keyless_loopback_servers():
+    assert api_key_required({'base_url': 'http://localhost:11434/v1'}) is False
+    assert api_key_required({'base_url': 'http://127.0.0.1:1234/v1'}) is False
+    assert api_key_required({'base_url': 'http://[::1]:8000/v1'}) is False
+    assert api_key_required({'base_url': 'https://api.openai.com/v1'}) is True
+    assert auth_headers({'api_key': ''}) == {}
+    assert auth_headers({'api_key': ' secret '}) == {'Authorization': 'Bearer secret'}
 
 
 class TestClassifyError:

@@ -5,9 +5,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import pytest
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 
-from ui.settings_window import SettingsWindow
+from ui.settings_window import SettingsWindow, _recorded_modifier_names
 
 
 @pytest.fixture(scope="module")
@@ -76,3 +77,15 @@ def test_selecting_tab_builds_that_page_once(qapp):
     assert window._built_pages[2] is first_page
     assert sorted(window._built_pages.keys()) == [0, 2]
     window.deleteLater()
+
+
+def test_windows_hotkey_recording_keeps_original_modifier_contract():
+    modifiers = (
+        Qt.KeyboardModifier.ControlModifier
+        | Qt.KeyboardModifier.ShiftModifier
+        | Qt.KeyboardModifier.MetaModifier
+    )
+
+    # Windows supports Ctrl/Shift/Alt. Its Meta/Windows key must never be
+    # serialized as the macOS-only ``cmd`` token.
+    assert _recorded_modifier_names(modifiers, 'win32') == ['ctrl', 'shift']

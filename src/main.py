@@ -2,6 +2,10 @@ import sys
 import os
 import traceback
 import ctypes
+import tempfile
+import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 sys.path.insert(0, os.path.dirname(__file__))
 
 # 设置 AppUserModelID，让 Windows 任务栏显示应用图标而非 Python 图标
@@ -18,6 +22,19 @@ def _check_single_instance():
     Returns:
         tuple: (mutex_handle, is_duplicate) - is_duplicate 为 True 表示已有实例
     """
+    if sys.platform == 'darwin':
+        import fcntl
+        from platform_paths import app_data_dir
+        lock_path = app_data_dir() / 'instance.lock'
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_file = lock_path.open('w')
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return lock_file, False
+        except OSError:
+            lock_file.close()
+            return None, True
+
     mutex_name = "NeatCopy_SingleInstance_Mutex"
     mutex = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
     last_error = ctypes.windll.kernel32.GetLastError()
@@ -26,10 +43,28 @@ def _check_single_instance():
 
 
 def _setup_logging():
-    """崩溃时写 crash.log，方便冻结模式无 console 时排查问题。"""
-    log_dir = os.path.join(os.environ.get('APPDATA', '.'), 'NeatCopy')
-    os.makedirs(log_dir, exist_ok=True)
-    return os.path.join(log_dir, 'crash.log')
+    """Persist runtime diagnostics for the windowed macOS bundle."""
+    from platform_paths import app_data_dir
+    for log_dir in (str(app_data_dir()), tempfile.gettempdir()):
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            crash_path = os.path.join(log_dir, 'crash.log')
+            runtime_path = os.path.join(log_dir, 'runtime.log')
+            with open(crash_path, 'a', encoding='utf-8'):
+                pass
+            root_logger = logging.getLogger()
+            if not root_logger.handlers:
+                handler = RotatingFileHandler(
+                    runtime_path, maxBytes=512 * 1024, backupCount=2,
+                    encoding='utf-8')
+                handler.setFormatter(logging.Formatter(
+                    '%(asctime)s %(levelname)s %(name)s: %(message)s'))
+                root_logger.addHandler(handler)
+                root_logger.setLevel(logging.INFO)
+            return crash_path
+        except OSError:
+            continue
+    return None
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
@@ -81,17 +116,21 @@ def replay_preview_state(preview, state: dict) -> None:
 
 
 def main():
+    logging.getLogger(__name__).info(
+        'Starting NeatCopy platform=%s executable=%s', sys.platform, sys.executable)
     # 单实例检测（先检测，弹窗放在 QApplication 创建后）
     _mutex, is_duplicate = _check_single_instance()
 
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName('NeatCopy')
-    app.setWindowIcon(QIcon(_asset('idle.ico')))  # 应用级别图标
+    icon_name = 'idle.png' if sys.platform == 'darwin' else 'idle.ico'
+    app.setWindowIcon(QIcon(_asset(icon_name)))  # 应用级别图标
 
     if is_duplicate:
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.warning(None, 'NeatCopy', 'NeatCopy 已在运行中，请检查系统托盘。')
+        location = '菜单栏' if sys.platform == 'darwin' else '系统托盘'
+        QMessageBox.warning(None, 'NeatCopy', f'NeatCopy 已在运行中，请检查{location}。')
         sys.exit(1)
 
     config = ConfigManager()
@@ -100,15 +139,78 @@ def main():
         max_count=config.get('history.max_count', 500)
     )
     # 同步开机自启动注册表状态
-    sync_from_config(config.get('general.startup_with_windows', False))
+    autostart_ok, autostart_message = sync_from_config(
+        config.get('general.startup_with_windows', False)
+    )
     tray = TrayManager(config)
+    if not autostart_ok:
+        QTimer.singleShot(
+            0, lambda: tray.show_warn_toast(autostart_message or '同步开机启动失败')
+        )
     hotkey = HotkeyManager(config)
+
+    permission_help_shown = False
+    input_monitoring_help_shown = False
+
+    def on_permission_missing():
+        nonlocal permission_help_shown
+        tray.show_warn_toast('请授予 NeatCopy 辅助功能权限')
+        if permission_help_shown:
+            return
+        permission_help_shown = True
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.warning(
+            None,
+            'NeatCopy 需要辅助功能权限',
+            '“处理剪贴板”需要向当前应用发送一次 ⌘C，以取得刚选中的文本。'
+            '请开启：\n\n'
+            '系统设置 → 隐私与安全性 → 辅助功能\n\n'
+            '双击 ⌘C、轮盘、预览和历史记录不依赖此项权限。\n\n'
+            '如果 NeatCopy 已在列表中但仍无效，请先删除旧条目，'
+            '再将 /Applications/NeatCopy.app 重新加入并开启。'
+        )
+
+    hotkey.permission_missing.connect(on_permission_missing)
+
+    def on_input_monitoring_missing():
+        nonlocal input_monitoring_help_shown
+        tray.show_warn_toast('双击 ⌘C 需要“输入监控”权限')
+        if input_monitoring_help_shown:
+            return
+        input_monitoring_help_shown = True
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.warning(
+            None,
+            '双击 ⌘C 需要输入监控权限',
+            'NeatCopy 只在你开启“双击 ⌘C”时观察复制键。请开启：\n\n'
+            '系统设置 → 隐私与安全性 → 输入监控\n\n'
+            '开启后如果没有立即生效，请退出并重新打开 NeatCopy。'
+        )
+
+    hotkey.input_monitoring_missing.connect(on_input_monitoring_missing)
+
+    def on_hotkey_registration_failed(message: str):
+        tray.set_error(message=message, toast_enabled=True)
+
+    hotkey.registration_failed.connect(on_hotkey_registration_failed)
+
     processor = ClipProcessor(config, history_manager=history)
     wheel = None
     preview = None
     history_win = None
     settings_win = None
     preview_state = create_preview_state()
+    quit_pending = False
+
+    def background_work_active() -> bool:
+        settings_busy = bool(
+            settings_win is not None and settings_win.has_active_background_work()
+        )
+        return processor.is_processing() or settings_busy
+
+    def maybe_finish_quit():
+        if quit_pending and not background_work_active():
+            app.quit()
 
     def ensure_wheel():
         nonlocal wheel
@@ -122,8 +224,16 @@ def main():
         if preview is None:
             from ui.preview_window import PreviewWindow
             preview = PreviewWindow(config)
-            preview.apply_to_clipboard.connect(
-                lambda text: processor.write_to_clipboard(text))
+
+            def apply_preview_to_clipboard(text: str):
+                success = processor.write_to_clipboard(text)
+                preview.set_apply_result(success)
+                if success:
+                    tray.show_info_toast('已应用到剪贴板')
+                else:
+                    tray.set_error('写入剪贴板失败')
+
+            preview.apply_to_clipboard.connect(apply_preview_to_clipboard)
             replay_preview_state(preview, preview_state)
         return preview
 
@@ -132,8 +242,14 @@ def main():
         if history_win is None:
             from ui.history_window import HistoryWindow
             history_win = HistoryWindow(config, history)
-            history_win.copy_to_clipboard.connect(
-                lambda text: processor.write_to_clipboard(text))
+
+            def copy_history_to_clipboard(text: str):
+                if processor.write_to_clipboard(text):
+                    tray.show_info_toast('已复制到剪贴板')
+                else:
+                    tray.set_error('写入剪贴板失败')
+
+            history_win.copy_to_clipboard.connect(copy_history_to_clipboard)
         return history_win
 
     def ensure_settings_window():
@@ -141,16 +257,49 @@ def main():
         if settings_win is None:
             from ui.settings_window import SettingsWindow
             settings_win = SettingsWindow(config, hotkey_manager=hotkey)
+
+            def apply_runtime_settings():
+                history.set_max_count(config.get('history.max_count', 500))
+                tray.refresh_style()
+                if preview is not None:
+                    preview.set_theme(config.get('preview.theme', 'dark'))
+
+            settings_win.settings_saved.connect(apply_runtime_settings)
+            settings_win.background_work_finished.connect(maybe_finish_quit)
         return settings_win
 
-    tray.quit_requested.connect(app.quit)
+    def request_quit():
+        nonlocal quit_pending
+        if quit_pending:
+            maybe_finish_quit()
+            return
+        quit_pending = True
+        hotkey.set_paused(True)
+        if wheel is not None:
+            wheel.shutdown()
+        if settings_win is not None:
+            settings_win.prepare_shutdown()
+        if background_work_active():
+            tray.show_info_toast('正在等待当前请求安全结束…')
+        else:
+            app.quit()
+
+    def shutdown_native_monitors():
+        hotkey.close()
+        if wheel is not None:
+            wheel.shutdown()
+
+    tray.quit_requested.connect(request_quit)
     tray.pause_toggled.connect(hotkey.set_paused)
+    app.aboutToQuit.connect(shutdown_native_monitors)
+    processor.became_idle.connect(maybe_finish_quit)
 
     def on_locked_prompt_changed(pid: str):
         config.set('wheel.locked_prompt_id', pid or None)
         if pid:
             prompts = config.get('llm.prompts') or []
-            name = next((p['name'] for p in prompts if p['id'] == pid), None)
+            name = next((p.get('name') for p in prompts
+                         if isinstance(p, dict) and p.get('id') == pid), None)
         else:
             name = None
         tray.update_locked_prompt(name)
@@ -216,7 +365,7 @@ def main():
 
         def on_lock_selected(pid: str):
             config.set('wheel.locked_prompt_id', pid)
-            name = next((p['name'] for p in visible if p['id'] == pid), None)
+            name = next((p.get('name') for p in visible if p.get('id') == pid), None)
             tray.update_locked_prompt(name)
 
         ensure_wheel().show_at(pos, visible, on_lock_selected, locked_id)
@@ -260,7 +409,8 @@ def main():
     locked_id = config.get('wheel.locked_prompt_id')
     if locked_id:
         prompts = config.get('llm.prompts') or []
-        locked_name = next((p['name'] for p in prompts if p['id'] == locked_id), None)
+        locked_name = next((p.get('name') for p in prompts
+                            if isinstance(p, dict) and p.get('id') == locked_id), None)
         tray.update_locked_prompt(locked_name)
 
     def on_open_settings():
@@ -281,10 +431,15 @@ def main():
 
 
 if __name__ == '__main__':
+    _crash_log_path = _setup_logging()
     try:
         main()
     except Exception:
-        log_path = _setup_logging()
-        with open(log_path, 'w', encoding='utf-8') as f:
-            f.write(traceback.format_exc())
+        logging.getLogger(__name__).exception('Fatal application error')
+        if _crash_log_path:
+            try:
+                with open(_crash_log_path, 'w', encoding='utf-8') as f:
+                    f.write(traceback.format_exc())
+            except OSError:
+                pass
         raise

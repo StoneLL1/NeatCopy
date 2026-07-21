@@ -7,11 +7,11 @@
 **让复制粘贴更干净，也让 AI 能力触手可及**
 
 [![Release](https://img.shields.io/github/v/release/StoneLL1/NeatCopy?style=flat-square&color=3b82f6)](https://github.com/StoneLL1/NeatCopy/releases/latest)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078d4?style=flat-square)](https://github.com/StoneLL1/NeatCopy/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20%7C%20macOS%20arm64-0078d4?style=flat-square)](https://github.com/StoneLL1/NeatCopy/releases/latest)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Stars](https://img.shields.io/github/stars/StoneLL1/NeatCopy?style=flat-square&logo=github)](https://github.com/StoneLL1/NeatCopy/stargazers)
 
-NeatCopy 是一款常驻 Windows 系统托盘的剪贴板文本处理工具。复制文本后按下全局快捷键，
+NeatCopy 是一款常驻 Windows/macOS 菜单栏的剪贴板文本处理工具。复制文本后按下全局快捷键，
 即可通过本地规则或大模型完成清洗、翻译、润色与摘要。
 
 查看官网：https://stonell1.github.io/neatcopy-website/
@@ -128,13 +128,13 @@ Prompt 模板支持自由编辑。除了翻译和润色，还可以用于会议�
 
 | 功能 | 说明 |
 | --- | --- |
-| 全局快捷键 | 默认使用 `Ctrl+Shift+C` 一键处理剪贴板 |
-| 双击复制触发 | 可选开启双击 `Ctrl+C` 自动清洗 |
+| 全局快捷键 | Windows 默认 `Ctrl+Shift+C`；macOS 默认 `⌘⇧C` |
+| 双击复制触发 | 可选开启双击 `Ctrl+C` / `⌘C` 自动清洗 |
 | Prompt 轮盘 | 在鼠标位置弹出扇形菜单，支持数字键 `1-5` |
 | 历史记录 | 自动保存处理记录，支持搜索、复制、删除和清空 |
 | 系统托盘 | 后台常驻，不占用任务栏空间 |
 | 状态提示 | 托盘图标和 Toast 显示处理中、成功或失败状态 |
-| 开机启动 | 可在设置中开启 Windows 自动启动 |
+| 开机启动 | 可在设置中开启系统自动启动 |
 
 ## 🚀 快速开始
 
@@ -146,6 +146,9 @@ Prompt 模板支持自由编辑。除了翻译和润色，还可以用于会议�
 | --- | --- |
 | `NeatCopy_Setup_v*.exe` | 推荐。通过安装向导安装，可创建开始菜单和桌面快捷方式 |
 | `NeatCopy.exe` | 便携版。无需安装，下载后直接运行 |
+| `NeatCopy-*-macOS-arm64.dmg` | Apple Silicon 版本。打开后将 NeatCopy 拖入 Applications |
+
+macOS 的轮盘、预览和历史记录快捷键无需隐私权限。“处理剪贴板”需要在“系统设置 → 隐私与安全性 → 辅助功能”中允许 NeatCopy，以向前台应用发送 `⌘C`；可选的双击 `⌘C` 功能需要单独开启“输入监控”，以只读方式识别两次复制。
 
 首次运行时，Windows 可能显示 SmartScreen 提示。由于当前发布版本未进行代码签名，可点击「更多信息」后选择「仍要运行」。
 
@@ -165,13 +168,13 @@ Prompt 模板支持自由编辑。除了翻译和润色，还可以用于会议�
 
 ### 快捷键
 
-| 默认快捷键 | 功能 | 备注 |
+| Windows 默认 | macOS 默认 | 功能 |
 | --- | --- | --- |
-| `Ctrl+Shift+C` | 处理剪贴板 | 支持自定义 |
-| 双击 `Ctrl+C` | 复制后自动处理 | 默认关闭，可在设置中开启 |
-| `Ctrl+Shift+P` | 打开 Prompt 轮盘 | 仅用于大模型模式 |
-| `Ctrl+Q` | 打开 / 关闭预览面板 | 仅用于大模型模式 |
-| `Ctrl+H` | 打开历史记录 | 支持全文搜索 |
+| `Ctrl+Shift+C` | `⌘⇧C` | 处理剪贴板 |
+| 双击 `Ctrl+C` | 双击 `⌘C` | 复制后自动处理（默认关闭） |
+| `Ctrl+Shift+P` | `⌘⇧P` | 打开 Prompt 轮盘 |
+| `Ctrl+Q` | `Control+Q` | 打开 / 关闭预览面板 |
+| `Ctrl+H` | `Control+H` | 打开历史记录 |
 
 ### Prompt 轮盘
 
@@ -193,7 +196,7 @@ Prompt 模板支持自由编辑。除了翻译和润色，还可以用于会议�
 | Temperature | 输出随机性 | 默认 `0.2` |
 | Timeout | 请求超时时间 | 默认 `30` 秒 |
 
-> API Key 和设置仅保存在本机 `%APPDATA%\NeatCopy\config.json`。请根据所选服务提供方的文档填写 Base URL 和 Model ID。
+> API Key 和设置仅保存在本机。Windows 路径为 `%APPDATA%\NeatCopy\config.json`，macOS 路径为 `~/Library/Application Support/NeatCopy/config.json`。本地 `localhost` / 回环地址的 OpenAI 兼容服务可不填 API Key。
 
 ### 历史记录
 
@@ -258,7 +261,7 @@ flowchart LR
 
 ### 环境要求
 
-- Windows 10 / 11
+- Windows 10 / 11，或 macOS 11+ Apple Silicon
 - Python 3.11+
 
 ### 从源码运行
@@ -282,6 +285,9 @@ python -m pytest tests -v
 
 # 使用仓库内的 PyInstaller 配置打包
 pyinstaller NeatCopy.spec
+
+# macOS Apple Silicon：生成 .app 和 .dmg
+installer/build_macos.sh
 ```
 
 ### 项目结构

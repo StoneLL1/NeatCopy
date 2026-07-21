@@ -1,7 +1,7 @@
 # 剪贴板处理调度：读取剪贴板 → 规则/LLM → 写回剪贴板。
-# 使用 win32clipboard 直接操作，绕过 Qt OleSetClipboard 无重试的问题。
-# 写入时重试（App 可能以延迟渲染持有 clipboard owner，需等其释放）。
+# Windows 使用 win32clipboard；macOS/Linux 使用 Qt 的系统剪贴板实现。
 import time
+import sys
 from PyQt6.QtCore import QObject, pyqtSignal, QThread
 
 from rule_engine import RuleEngine
@@ -16,6 +16,12 @@ _CONTENT_BOUNDARY = (
 
 
 def _read_clipboard() -> str | None:
+    if sys.platform == 'darwin':
+        from PyQt6.QtWidgets import QApplication
+        clipboard = QApplication.clipboard()
+        data = clipboard.text() if clipboard else ''
+        return data.replace('\r\n', '\n').replace('\r', '\n') if data else None
+
     import win32clipboard
     for _ in range(5):
         try:
@@ -35,6 +41,20 @@ def _read_clipboard() -> str | None:
 
 
 def _write_clipboard(text: str) -> bool:
+    if sys.platform == 'darwin':
+        from PyQt6.QtWidgets import QApplication
+        clipboard = QApplication.clipboard()
+        if clipboard is None:
+            return False
+        try:
+            clipboard.setText(text)
+            # QClipboard has no flush() API.  NeatCopy remains resident, so
+            # retaining ownership is sufficient; reading back catches a
+            # rejected or immediately replaced write.
+            return clipboard.text() == text
+        except (RuntimeError, TypeError):
+            return False
+
     import win32clipboard
     for attempt in range(10):
         try:
@@ -59,14 +79,18 @@ class _LLMWorker(QThread):
         super().__init__(parent)
         self._text = text
         self._prompt = prompt
-        self._llm_config = llm_config
+        self._llm_config = dict(llm_config)
 
     def run(self):
         import httpx
-        from llm_client import classify_error
+        from llm_client import auth_headers, classify_error
+        cfg = self._llm_config
         try:
-            cfg = self._llm_config
-            headers = {'Authorization': f'Bearer {cfg.get("api_key", "")}'}
+            timeout = float(cfg.get('timeout', 30))
+        except (TypeError, ValueError):
+            timeout = 30.0
+        try:
+            headers = auth_headers(cfg)
             payload = {
                 'model': cfg.get('model_id', 'gpt-4o-mini'),
                 'temperature': cfg.get('temperature', 0.2),
@@ -76,15 +100,16 @@ class _LLMWorker(QThread):
                 ],
             }
             base_url = cfg.get('base_url', 'https://api.openai.com/v1').rstrip('/')
-            timeout = float(cfg.get('timeout', 30))
             with httpx.Client(timeout=timeout) as client:
                 resp = client.post(f'{base_url}/chat/completions',
                                    json=payload, headers=headers)
                 resp.raise_for_status()
                 content = resp.json()['choices'][0]['message']['content']
+                if not isinstance(content, str) or not content:
+                    raise ValueError('模型返回了空结果')
                 self.succeeded.emit(content)
         except Exception as e:
-            self.failed.emit(classify_error(e, timeout=int(cfg.get('timeout', 30))))
+            self.failed.emit(classify_error(e, timeout=int(timeout)))
 
 
 class ClipProcessor(QObject):
@@ -92,6 +117,7 @@ class ClipProcessor(QObject):
     processing_started = pyqtSignal()
     preview_ready = pyqtSignal(str, str)    # (result, prompt_name) — LLM 成功时发射
     preview_failed = pyqtSignal(str)        # (error_message) — LLM 失败时发射
+    became_idle = pyqtSignal()
 
     def __init__(self, config, history_manager=None, parent=None):
         super().__init__(parent)
@@ -106,10 +132,14 @@ class ClipProcessor(QObject):
         if history_manager is not None:
             self._history = history_manager
 
+    def is_processing(self) -> bool:
+        return bool(self._current_worker and self._current_worker.isRunning())
+
     def get_visible_prompts(self) -> list[dict]:
         """返回轮盘可见的 prompt 列表（visible_in_wheel=True，最多5个）。"""
         prompts = self._config.get('llm.prompts') or []
-        visible = [p for p in prompts if p.get('visible_in_wheel', True)]
+        visible = [p for p in prompts if isinstance(p, dict)
+                   and p.get('id') and p.get('visible_in_wheel', True)]
         return visible[:5]
 
     def process(self):
@@ -170,13 +200,16 @@ class ClipProcessor(QObject):
             return
 
         llm_config = self._config.get('llm') or {}
-        if not llm_config.get('api_key'):
+        from llm_client import api_key_required
+        if not llm_config.get('api_key') and api_key_required(llm_config):
             self.process_done.emit(False, '请先在设置中配置 API Key')
             return
 
         prompts = llm_config.get('prompts') or []
-        prompt_obj = next((p for p in prompts if p['id'] == prompt_id),
-                          prompts[0] if prompts else None)
+        valid_prompts = [p for p in prompts if isinstance(p, dict)
+                         and p.get('id') and isinstance(p.get('content'), str)]
+        prompt_obj = next((p for p in valid_prompts if p.get('id') == prompt_id),
+                          valid_prompts[0] if valid_prompts else None)
         if not prompt_obj:
             self.process_done.emit(False, '未找到有效的 Prompt 模板')
             return
@@ -190,11 +223,17 @@ class ClipProcessor(QObject):
         worker = _LLMWorker(text, prompt_obj['content'], llm_config)
         worker.succeeded.connect(self._on_llm_success)
         worker.failed.connect(self._on_llm_error)
-        worker.finished.connect(lambda: setattr(self, '_current_worker', None))
-        worker.finished.connect(lambda: setattr(self, '_current_prompt_obj', None))
-        worker.finished.connect(lambda: setattr(self, '_current_original', None))
-        worker.start()
         self._current_worker = worker
+        worker.finished.connect(lambda: self._on_worker_finished(worker))
+        worker.start()
+
+    def _on_worker_finished(self, worker):
+        if self._current_worker is not worker:
+            return
+        self._current_worker = None
+        self._current_prompt_obj = None
+        self._current_original = None
+        self.became_idle.emit()
 
     def _on_llm_success(self, result: str):
         # 写入剪贴板（原有行为：双写模式）

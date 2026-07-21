@@ -1,7 +1,7 @@
 # 扇形轮盘 Prompt 快捷选择器：围绕鼠标位置展开，支持鼠标点击和数字键。
 import math
-import ctypes
-import ctypes.wintypes as wintypes
+import logging
+import sys
 from PyQt6.QtWidgets import QWidget, QApplication
 from PyQt6.QtCore import (
     Qt, QPoint, QPointF, QPropertyAnimation, QEasingCurve, pyqtSignal, QTimer, pyqtProperty
@@ -10,22 +10,76 @@ from PyQt6.QtGui import (
     QPainter, QColor, QPen, QFont, QPainterPath, QBrush, QCursor
 )
 
-_user32 = ctypes.windll.user32
-_WH_MOUSE_LL = 14
-_WM_LBUTTONDOWN = 0x0201
-_WM_RBUTTONDOWN = 0x0204
-_MOUSEHOOKPROC = ctypes.WINFUNCTYPE(
-    ctypes.c_long, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+logger = logging.getLogger(__name__)
+
+if sys.platform == 'darwin':
+    from AppKit import (
+        NSApplication,
+        NSApplicationActivateIgnoringOtherApps,
+        NSRunningApplication,
+        NSWorkspace,
+    )
+
+if sys.platform != 'darwin':
+    import ctypes
+    import ctypes.wintypes as wintypes
+
+    _user32 = ctypes.windll.user32
+    _WH_MOUSE_LL = 14
+    _WM_LBUTTONDOWN = 0x0201
+    _WM_RBUTTONDOWN = 0x0204
+    _MOUSEHOOKPROC = ctypes.WINFUNCTYPE(
+        ctypes.c_long, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
 
 
-class _MSLLHOOKSTRUCT(ctypes.Structure):
-    _fields_ = [
-        ('pt', wintypes.POINT),
-        ('mouseData', wintypes.DWORD),
-        ('flags', wintypes.DWORD),
-        ('time', wintypes.DWORD),
-        ('dwExtraInfo', ctypes.POINTER(ctypes.c_ulong)),
-    ]
+def _macos_frontmost_application():
+    """Remember the app that should regain focus after the wheel closes."""
+    if sys.platform != 'darwin':
+        return None
+    try:
+        frontmost = NSWorkspace.sharedWorkspace().frontmostApplication()
+        current = NSRunningApplication.currentApplication()
+        if frontmost is None or current is None:
+            return None
+        if frontmost.processIdentifier() == current.processIdentifier():
+            return None
+        return frontmost
+    except Exception:
+        logger.exception('Could not capture the frontmost macOS application')
+        return None
+
+
+def _activate_macos_application() -> None:
+    """Make an LSUIElement app active so its global wheel can receive input."""
+    if sys.platform != 'darwin':
+        return
+    try:
+        app = NSApplication.sharedApplication()
+        # ``activate`` is the current API. Keep the older fallback because
+        # NeatCopy still supports macOS releases predating it.
+        if hasattr(app, 'activate'):
+            app.activate()
+        else:
+            app.activateIgnoringOtherApps_(True)
+    except Exception:
+        logger.exception('Could not activate NeatCopy for the macOS wheel')
+
+
+def _restore_macos_application(previous) -> None:
+    """Return keyboard focus to the app that invoked the global wheel."""
+    if sys.platform != 'darwin' or previous is None:
+        return
+    try:
+        if previous.isTerminated():
+            return
+        current = NSRunningApplication.currentApplication()
+        if hasattr(previous, 'activateFromApplication_options_') and current is not None:
+            previous.activateFromApplication_options_(
+                current, NSApplicationActivateIgnoringOtherApps)
+        else:
+            previous.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+    except Exception:
+        logger.exception('Could not restore the previous macOS application')
 
 
 class WheelWindow(QWidget):
@@ -68,26 +122,27 @@ class WheelWindow(QWidget):
         self._mouse_hook_proc = None
         self._wheel_open = False
         self._scale_value = 1.0
+        self._previous_macos_app = None
 
-        # 无边框置顶普通窗口。不使用 Popup（会在 WM_ACTIVATEAPP 时被 Qt 强制关闭）
-        # 也不使用 Tool（阻止 Windows 赋予焦点）。点击轮盘外部通过 WH_MOUSE_LL 检测。
-        self.setWindowFlags(
+        flags = (
+            Qt.WindowType.Window |
             Qt.WindowType.FramelessWindowHint |
             Qt.WindowType.WindowStaysOnTopHint
         )
+        self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setFixedSize(self._WINDOW_SIZE, self._WINDOW_SIZE)
         self.setMouseTracking(True)
 
         # 字体（避免在 paintEvent 中每帧重复创建）
-        self._font_name = QFont('Segoe UI Variable, Segoe UI, Microsoft YaHei UI')
+        self._font_name = QFont('SF Pro Text, PingFang SC, Segoe UI Variable, Microsoft YaHei UI')
         self._font_name.setPixelSize(12)
         self._font_name.setWeight(500)
 
-        self._font_num = QFont('Cascadia Code, Fira Code, Consolas')
+        self._font_num = QFont('SF Mono, Fira Code, Cascadia Code, Consolas')
         self._font_num.setPixelSize(10)
 
-        self._font_esc = QFont('Consolas')
+        self._font_esc = QFont('SF Mono, Consolas')
         self._font_esc.setPixelSize(11)
         self._font_esc.setWeight(QFont.Weight.DemiBold)
 
@@ -145,10 +200,18 @@ class WheelWindow(QWidget):
         self.setWindowOpacity(0.0)
         self._scale_value = 0.8
         self._wheel_open = True
+        if sys.platform == 'darwin' and self._previous_macos_app is None:
+            self._previous_macos_app = _macos_frontmost_application()
         self.show()
+        _activate_macos_application()
         self.raise_()
         self.activateWindow()
         self.setFocus()
+        # Native application activation is asynchronous. Repeat the Qt focus
+        # request on the next event-loop turn so number keys and ESC work when
+        # the wheel was invoked from another application.
+        if sys.platform == 'darwin':
+            QTimer.singleShot(0, self._take_focus)
 
         # 展开动画：先断开上一次 _close_wheel 留下的 finished→hide 连接，否则 open 动画
         # 结束时也会触发 hide()，导致轮盘每次第二次弹出后自动消失。
@@ -170,11 +233,22 @@ class WheelWindow(QWidget):
         # 安装全局鼠标钩子，检测轮盘外点击
         self._install_mouse_hook()
 
+    def _take_focus(self):
+        if not self._wheel_open:
+            return
+        _activate_macos_application()
+        self.raise_()
+        self.activateWindow()
+        self.setFocus()
+
     # ── 内部逻辑 ─────────────────────────────────────────────
 
     def _install_mouse_hook(self):
-        """安装 WH_MOUSE_LL 低级鼠标钩子，点击轮盘外部时关闭。"""
+        """安装平台原生全局鼠标监听，点击轮盘外部时关闭。"""
         self._uninstall_mouse_hook()  # 确保不重复安装
+
+        if sys.platform == 'darwin':
+            return
 
         def _hook(nCode, wParam, lParam):
             if nCode >= 0 and wParam in (_WM_LBUTTONDOWN, _WM_RBUTTONDOWN):
@@ -189,11 +263,33 @@ class WheelWindow(QWidget):
         self._mouse_hook_handle = _user32.SetWindowsHookExW(
             _WH_MOUSE_LL, self._mouse_hook_proc, None, 0)
 
+    def _on_global_click(self):
+        if self._wheel_open and not self.geometry().contains(QCursor.pos()):
+            QTimer.singleShot(0, lambda: self._close_wheel(cancelled=True))
+
     def _uninstall_mouse_hook(self):
+        if sys.platform == 'darwin':
+            return
         if self._mouse_hook_handle:
             _user32.UnhookWindowsHookEx(self._mouse_hook_handle)
             self._mouse_hook_handle = None
             self._mouse_hook_proc = None
+
+    def shutdown(self):
+        """Stop native monitoring before the application exits."""
+        self._wheel_open = False
+        self._uninstall_mouse_hook()
+        self._restore_previous_macos_app()
+
+    def _restore_previous_macos_app(self):
+        previous = self._previous_macos_app
+        self._previous_macos_app = None
+        if previous is not None:
+            _restore_macos_application(previous)
+
+    def _finish_close(self):
+        self.hide()
+        self._restore_previous_macos_app()
 
     def _close_wheel(self, cancelled: bool = True):
         """动画关闭轮盘。"""
@@ -208,7 +304,7 @@ class WheelWindow(QWidget):
         self._anim.setDuration(200)
         self._anim.setStartValue(self.windowOpacity())
         self._anim.setEndValue(0.0)
-        self._anim.finished.connect(self.hide)
+        self._anim.finished.connect(self._finish_close)
         self._anim.start()
 
         # 缩放动画
@@ -409,3 +505,25 @@ class WheelWindow(QWidget):
         self._hovered = -1
         self._center_hovered = False
         self.update()
+
+    def focusOutEvent(self, event):
+        # A normal top-level window is required for an LSUIElement app to show
+        # above unrelated applications. It does not get Qt.Popup's automatic
+        # outside-click dismissal, so close it when another window gains focus.
+        if sys.platform == 'darwin' and self._wheel_open:
+            QTimer.singleShot(0, self._close_if_focus_was_lost)
+        super().focusOutEvent(event)
+
+    def _close_if_focus_was_lost(self):
+        if self._wheel_open and not self.isActiveWindow():
+            self._close_wheel(cancelled=True)
+
+    def hideEvent(self, event):
+        # Preserve cancellation semantics when another caller hides the wheel
+        # directly instead of going through _close_wheel().
+        if self._wheel_open:
+            self._wheel_open = False
+            self._uninstall_mouse_hook()
+            self.wheel_cancelled.emit()
+        self._restore_previous_macos_app()
+        super().hideEvent(event)

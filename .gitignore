@@ -1,2 +1,7 @@
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.venv/
+build-macos/
+dist-macos/
+release-macos/

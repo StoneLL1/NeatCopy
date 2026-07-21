@@ -1,8 +1,13 @@
-# 配置管理单例：读写 %APPDATA%/NeatCopy/config.json，支持嵌套键点号访问。
+# 配置管理单例：读写平台原生用户目录中的 config.json，支持嵌套键点号访问。
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
+
+from platform_defaults import CLEAN_HOTKEY, WHEEL_HOTKEY, PREVIEW_HOTKEY, HISTORY_HOTKEY
+from platform_paths import app_data_dir
+from storage import atomic_write_json
 
 DEFAULT_CONFIG = {
     'ui': {
@@ -14,7 +19,7 @@ DEFAULT_CONFIG = {
         'startup_with_windows': False,
         'toast_notification': True,
         'double_ctrl_c': {'enabled': False, 'interval_ms': 300},
-        'custom_hotkey': {'enabled': True, 'keys': 'ctrl+shift+c'},
+        'custom_hotkey': {'enabled': True, 'keys': CLEAN_HOTKEY},
     },
     'rules': {
         'mode': 'rules',
@@ -130,13 +135,13 @@ DEFAULT_CONFIG = {
     'wheel': {
         'enabled': True,
         'trigger_with_clean': True,
-        'switch_hotkey': 'ctrl+shift+p',
+        'switch_hotkey': WHEEL_HOTKEY,
         'last_prompt_id': None,
         'locked_prompt_id': None,
     },
     'preview': {
         'enabled': True,
-        'hotkey': 'ctrl+q',
+        'hotkey': PREVIEW_HOTKEY,
         'window_width': 320,
         'window_height': 200,
         'theme': 'dark',
@@ -144,7 +149,7 @@ DEFAULT_CONFIG = {
     'history': {
         'enabled': True,
         'max_count': 500,
-        'hotkey': 'ctrl+h',
+        'hotkey': HISTORY_HOTKEY,
         'window_width': 600,
         'window_height': 400,
     },
@@ -154,8 +159,7 @@ DEFAULT_CONFIG = {
 class ConfigManager:
     def __init__(self, config_dir: str | None = None):
         if config_dir is None:
-            appdata = os.environ.get('APPDATA', str(Path.home()))
-            config_dir = os.path.join(appdata, 'NeatCopy')
+            config_dir = str(app_data_dir())
         self._config_path = Path(config_dir) / 'config.json'
         self._config_path.parent.mkdir(parents=True, exist_ok=True)
         self._data = self._load()
@@ -167,6 +171,8 @@ class ConfigManager:
         try:
             with open(self._config_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
+            if not isinstance(data, dict):
+                raise ValueError('config root must be an object')
         except (json.JSONDecodeError, ValueError):
             # 配置文件损坏，备份后重置为默认
             backup = self._config_path.with_suffix('.json.bak')
@@ -174,12 +180,58 @@ class ConfigManager:
             self._write(DEFAULT_CONFIG)
             return self._deep_copy(DEFAULT_CONFIG)
         merged = self._merge_defaults(data, DEFAULT_CONFIG)
+        changed = merged != data
         # UI 主界面仅保留浅色主题；预览面板仍使用 preview.theme 独立配置。
-        merged.setdefault('ui', {})['theme'] = 'light'
-        # 旧配置兼容：为缺少 visible_in_wheel 的 prompt 自动补 True
-        for p in merged.get('llm', {}).get('prompts', []):
-            if 'visible_in_wheel' not in p:
-                p['visible_in_wheel'] = True
+        if merged.setdefault('ui', {}).get('theme') != 'light':
+            merged['ui']['theme'] = 'light'
+            changed = True
+        # Migrate defaults from the first macOS preview. Those values globally
+        # intercepted Quit/Hide in every app while NeatCopy was running.
+        if sys.platform == 'darwin':
+            migrations = {
+                ('preview', 'hotkey', 'cmd+q'): PREVIEW_HOTKEY,
+                ('history', 'hotkey', 'cmd+h'): HISTORY_HOTKEY,
+            }
+            for (section, key, unsafe_value), replacement in migrations.items():
+                if merged.get(section, {}).get(key, '').lower() == unsafe_value:
+                    merged[section][key] = replacement
+                    changed = True
+        # Keep every prompt safe for the settings, wheel and processor code.
+        prompts = merged.get('llm', {}).get('prompts', [])
+        normalized_prompts = []
+        seen_ids = set()
+        for prompt in prompts:
+            if not isinstance(prompt, dict):
+                changed = True
+                continue
+            pid = prompt.get('id')
+            name = prompt.get('name')
+            content = prompt.get('content')
+            if (not isinstance(pid, str) or not pid or pid in seen_ids
+                    or not isinstance(name, str) or not isinstance(content, str)):
+                changed = True
+                continue
+            normalized = dict(prompt)
+            normalized['readonly'] = bool(prompt.get('readonly', False))
+            normalized['visible_in_wheel'] = bool(prompt.get('visible_in_wheel', True))
+            if normalized != prompt:
+                changed = True
+            normalized_prompts.append(normalized)
+            seen_ids.add(pid)
+        if normalized_prompts != prompts:
+            merged['llm']['prompts'] = normalized_prompts
+        active_id = merged['llm'].get('active_prompt_id')
+        if normalized_prompts and active_id not in seen_ids:
+            merged['llm']['active_prompt_id'] = normalized_prompts[0]['id']
+            changed = True
+        if changed:
+            self._write(merged)
+        else:
+            # Harden files created by older builds without rewriting content.
+            try:
+                os.chmod(self._config_path, 0o600)
+            except OSError:
+                pass
         return merged
 
     def _deep_copy(self, obj):
@@ -188,15 +240,29 @@ class ConfigManager:
     def _merge_defaults(self, data: dict, defaults: dict) -> dict:
         result = self._deep_copy(defaults)
         for k, v in data.items():
-            if k in result and isinstance(result[k], dict) and isinstance(v, dict):
-                result[k] = self._merge_defaults(v, result[k])
+            if k in result and isinstance(result[k], dict):
+                if isinstance(v, dict):
+                    result[k] = self._merge_defaults(v, result[k])
+                # A malformed section must not replace a required object.
+                continue
+            if k in result and not self._compatible_type(v, result[k]):
+                continue
             else:
                 result[k] = v
         return result
 
+    @staticmethod
+    def _compatible_type(value, default) -> bool:
+        if default is None:
+            return True
+        if isinstance(default, bool):
+            return isinstance(value, bool)
+        if isinstance(default, (int, float)):
+            return isinstance(value, (int, float)) and not isinstance(value, bool)
+        return isinstance(value, type(default))
+
     def _write(self, data: dict) -> None:
-        with open(self._config_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        atomic_write_json(self._config_path, data)
 
     def get(self, key: str, default: Any = None) -> Any:
         """点号分隔的嵌套键访问，如 'general.toast_notification'。"""
@@ -206,16 +272,29 @@ class ConfigManager:
             if not isinstance(node, dict) or part not in node:
                 return default
             node = node[part]
+        if isinstance(node, (dict, list)):
+            return self._deep_copy(node)
         return node
 
     def set(self, key: str, value: Any) -> None:
         """设置值并立即写入磁盘。"""
-        parts = key.split('.')
-        node = self._data
-        for part in parts[:-1]:
-            node = node.setdefault(part, {})
-        node[parts[-1]] = value
-        self._write(self._data)
+        self.update({key: value})
+
+    def update(self, values: dict[str, Any]) -> None:
+        """Atomically persist several dotted-key updates as one transaction."""
+        candidate = self._deep_copy(self._data)
+        for key, value in values.items():
+            parts = key.split('.')
+            node = candidate
+            for part in parts[:-1]:
+                child = node.get(part)
+                if not isinstance(child, dict):
+                    child = {}
+                    node[part] = child
+                node = child
+            node[parts[-1]] = self._deep_copy(value)
+        self._write(candidate)
+        self._data = candidate
 
     def all(self) -> dict:
         return self._deep_copy(self._data)

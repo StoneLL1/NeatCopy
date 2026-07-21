@@ -1,13 +1,49 @@
-# Windows 开机自启动管理：操作注册表 Run 键。
+# 跨平台开机自启动管理：Windows 使用注册表，macOS 使用 LaunchAgent。
+import os
+import plistlib
 import sys
+import tempfile
 from pathlib import Path
 
 REG_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
 APP_NAME = 'NeatCopy'
+MAC_LABEL = 'com.stonell1.neatcopy'
+
+
+def _is_macos() -> bool:
+    return sys.platform == 'darwin'
+
+
+def _mac_plist_path() -> Path:
+    return Path.home() / 'Library' / 'LaunchAgents' / f'{MAC_LABEL}.plist'
+
+
+def _mac_program_arguments() -> list[str]:
+    if getattr(sys, 'frozen', False):
+        return [str(Path(sys.executable).resolve())]
+    return [str(Path(sys.executable).resolve()),
+            str(Path(__file__).resolve().with_name('main.py'))]
+
+
+def _mac_payload() -> dict:
+    return {
+        'Label': MAC_LABEL,
+        'ProgramArguments': _mac_program_arguments(),
+        'RunAtLoad': True,
+        'ProcessType': 'Interactive',
+        'LimitLoadToSessionType': 'Aqua',
+    }
 
 
 def is_enabled() -> bool:
     """检查注册表中是否已启用自启动。"""
+    if _is_macos():
+        path = _mac_plist_path()
+        try:
+            with path.open('rb') as handle:
+                return plistlib.load(handle) == _mac_payload()
+        except (OSError, plistlib.InvalidFileException, ValueError):
+            return False
     try:
         import winreg
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_KEY, 0, winreg.KEY_READ)
@@ -28,6 +64,29 @@ def enable() -> tuple[bool, str]:
     Returns:
         tuple: (success, message) - 成功时 message 为空，失败时为原因说明
     """
+    if _is_macos():
+        try:
+            path = _mac_plist_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode='wb', dir=path.parent, prefix=f'.{path.name}.',
+                    suffix='.tmp', delete=False,
+                ) as handle:
+                    temporary = Path(handle.name)
+                    os.chmod(handle.name, 0o600)
+                    plistlib.dump(_mac_payload(), handle, sort_keys=False)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(temporary, path)
+                temporary = None
+            finally:
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
+            return True, ''
+        except Exception as e:
+            return False, f'写入 macOS 开机启动配置失败: {e}'
     try:
         import winreg
         # 只有打包后的 exe 才能开机自启动，脚本路径无效
@@ -47,6 +106,13 @@ def enable() -> tuple[bool, str]:
 
 def disable() -> bool:
     """禁用开机自启动，删除注册表项。"""
+    if _is_macos():
+        try:
+            _mac_plist_path().unlink(missing_ok=True)
+            return True
+        except Exception as e:
+            print(f'[Autostart] disable failed: {e}')
+            return False
     try:
         import winreg
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_KEY, 0, winreg.KEY_WRITE)
@@ -67,6 +133,14 @@ def sync_from_config(enabled: bool) -> tuple[bool, str]:
     Returns:
         tuple: (success, message)
     """
+    if _is_macos():
+        # Rewriting an enabled LaunchAgent refreshes a stale application path
+        # after the user moves or reinstalls the .app bundle.
+        if enabled:
+            return enable()
+        ok = disable()
+        return ok, '' if ok else '删除 macOS 开机启动配置失败'
+
     current = is_enabled()
     if enabled and not current:
         return enable()

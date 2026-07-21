@@ -1,5 +1,7 @@
 # OpenAI 兼容接口客户端，失败时抛出异常，不静默处理。
 import httpx
+import ipaddress
+from urllib.parse import urlparse
 
 ERROR_MESSAGES = {
     401: 'API Key 无效，请在设置中检查',
@@ -29,10 +31,29 @@ _CONTENT_BOUNDARY = (
 )
 
 
+def auth_headers(config: dict) -> dict[str, str]:
+    """Only send Authorization when the user actually configured a key."""
+    api_key = str(config.get('api_key') or '').strip()
+    return {'Authorization': f'Bearer {api_key}'} if api_key else {}
+
+
+def api_key_required(config: dict) -> bool:
+    """Cloud endpoints require a key; loopback OpenAI-compatible servers do not."""
+    hostname = urlparse(str(config.get('base_url') or '')).hostname
+    if not hostname:
+        return True
+    if hostname.lower() == 'localhost':
+        return False
+    try:
+        return not ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return True
+
+
 class LLMClient:
     async def format(self, text: str, prompt: str, config: dict) -> str:
         """调用 OpenAI 兼容接口整理文本格式，失败时抛出异常。"""
-        headers = {'Authorization': f'Bearer {config.get("api_key", "")}'}
+        headers = auth_headers(config)
         payload = {
             'model': config.get('model_id', 'gpt-4o-mini'),
             'temperature': config.get('temperature', 0.2),

@@ -3,6 +3,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from config_manager import ConfigManager
+from platform_defaults import HISTORY_HOTKEY
 
 
 class TestConfigManagerDefaults:
@@ -88,6 +89,52 @@ class TestConfigManagerAllReturnsCopy:
         data['general']['toast_notification'] = 'MUTATED'
         assert cm.get('general.toast_notification') is True
 
+    def test_get_mutable_value_returns_copy(self, tmp_config_dir):
+        cm = ConfigManager(config_dir=str(tmp_config_dir / 'NeatCopy'))
+        prompts = cm.get('llm.prompts')
+        prompts[0]['name'] = 'MUTATED'
+        assert cm.get('llm.prompts')[0]['name'] != 'MUTATED'
+
+
+class TestConfigManagerSchemaRecovery:
+    def test_malformed_sections_and_scalars_use_defaults(self, tmp_config_dir):
+        import json
+        cfg_dir = tmp_config_dir / 'NeatCopy'
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        (cfg_dir / 'config.json').write_text(json.dumps({
+            'ui': [],
+            'history': {'max_count': 'many', 'enabled': 'yes'},
+            'llm': {'prompts': 'bad'},
+        }), encoding='utf-8')
+
+        cm = ConfigManager(config_dir=str(cfg_dir))
+
+        assert cm.get('ui.theme') == 'light'
+        assert cm.get('history.max_count') == 500
+        assert cm.get('history.enabled') is True
+        assert isinstance(cm.get('llm.prompts'), list)
+
+    def test_malformed_and_duplicate_prompts_are_removed(self, tmp_config_dir):
+        import json
+        cfg_dir = tmp_config_dir / 'NeatCopy'
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        (cfg_dir / 'config.json').write_text(json.dumps({
+            'llm': {
+                'active_prompt_id': 'missing',
+                'prompts': [
+                    {'id': 'ok', 'name': 'Good', 'content': 'Prompt'},
+                    {'id': 'ok', 'name': 'Duplicate', 'content': 'Prompt'},
+                    'broken',
+                    {'id': 'missing-content', 'name': 'Broken'},
+                ],
+            },
+        }), encoding='utf-8')
+
+        cm = ConfigManager(config_dir=str(cfg_dir))
+
+        assert [p['id'] for p in cm.get('llm.prompts')] == ['ok']
+        assert cm.get('llm.active_prompt_id') == 'ok'
+
 
 class TestConfigManagerPrompts:
     def test_default_prompt_exists(self, tmp_config_dir):
@@ -109,7 +156,7 @@ class TestHistoryConfig:
         config = ConfigManager(config_dir=str(tmp_config_dir))
         assert config.get('history.enabled') is True
         assert config.get('history.max_count') == 500
-        assert config.get('history.hotkey') == 'ctrl+h'
+        assert config.get('history.hotkey') == HISTORY_HOTKEY
         assert config.get('history.window_width') == 600
         assert config.get('history.window_height') == 400
 

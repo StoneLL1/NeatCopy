@@ -1,8 +1,13 @@
 """Shadcn-inspired design tokens and stylesheet generators for NeatCopy UI."""
+import sys
 
 # Font stacks
-FONT_FAMILY = '"Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", sans-serif'
-FONT_MONO = '"Cascadia Code", "Fira Code", Consolas, monospace'
+if sys.platform == 'darwin':
+    FONT_FAMILY = '"SF Pro Text", "PingFang SC", sans-serif'
+    FONT_MONO = '"SF Mono", "Fira Code", Menlo, monospace'
+else:
+    FONT_FAMILY = '"Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", sans-serif'
+    FONT_MONO = '"Cascadia Code", "Fira Code", Consolas, monospace'
 
 # Font sizes
 FONT_SIZE_XS = '12px'

@@ -265,7 +265,8 @@ class TrayManager(QObject):
             return
 
         prompts = self._config.get('llm.prompts') or []
-        visible = [p for p in prompts if p.get('visible_in_wheel', True)][:5]
+        visible = [p for p in prompts if isinstance(p, dict) and p.get('id')
+                   and p.get('visible_in_wheel', True)][:5]
         locked_id = self._config.get('wheel.locked_prompt_id')
 
         act_none = QAction('（无 / 解除锁定）', self._menu_lock)
@@ -277,7 +278,7 @@ class TrayManager(QObject):
         if visible:
             self._menu_lock.addSeparator()
         for p in visible:
-            act = QAction(p['name'], self._menu_lock)
+            act = QAction(str(p.get('name') or '未命名 Prompt'), self._menu_lock)
             act.setCheckable(True)
             act.setChecked(p['id'] == locked_id)
             pid = p['id']

@@ -1,5 +1,6 @@
 # 设置界面：自定义标题栏 + 侧边栏导航 + Card 分组布局（Shadcn 风格）
 import re
+import sys
 import uuid
 from PyQt6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout,
@@ -9,12 +10,16 @@ from PyQt6.QtWidgets import (
     QStackedWidget, QFrame, QScrollArea, QSpinBox,
 )
 from PyQt6.QtGui import QIcon, QCursor
-from PyQt6.QtCore import Qt, QTimer, QUrl
+from PyQt6.QtCore import Qt, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QDesktopServices
 
 from version import VERSION
 from assets import asset as _asset
 from autostart_manager import enable as _autostart_enable, disable as _autostart_disable
+from platform_defaults import (
+    CLEAN_HOTKEY, WHEEL_HOTKEY, PREVIEW_HOTKEY, HISTORY_HOTKEY,
+    DOUBLE_COPY_LABEL,
+)
 from ui.styles import get_settings_stylesheet, ColorPalette, FONT_MONO, FONT_SIZE_XS
 from ui.components.sidebar import SidebarWidget
 from ui.components.card import Card
@@ -43,7 +48,39 @@ def _version_key(version: str) -> tuple[int, ...]:
     return tuple(int(part) for part in re.findall(r'\d+', version))
 
 
+def _recorded_modifier_names(modifiers, platform: str | None = None) -> list[str]:
+    """Translate Qt modifiers to the physical modifier names users pressed.
+
+    Qt intentionally maps the macOS Command key to ``ControlModifier`` and
+    the physical Control key to ``MetaModifier`` for portable application
+    shortcuts. NeatCopy persists physical hotkeys for Carbon, so the recorder
+    must reverse that semantic swap on macOS.
+    """
+    platform = sys.platform if platform is None else platform
+    if platform == 'darwin':
+        control_modifier = Qt.KeyboardModifier.MetaModifier
+        command_modifier = Qt.KeyboardModifier.ControlModifier
+    else:
+        control_modifier = Qt.KeyboardModifier.ControlModifier
+        # The Windows registrar intentionally supports Ctrl/Shift/Alt only.
+        # Do not persist the Windows/Meta key as the macOS-only ``cmd`` token.
+        command_modifier = None
+
+    names = []
+    if modifiers & control_modifier:
+        names.append('ctrl')
+    if command_modifier is not None and modifiers & command_modifier:
+        names.append('cmd')
+    if modifiers & Qt.KeyboardModifier.ShiftModifier:
+        names.append('shift')
+    if modifiers & Qt.KeyboardModifier.AltModifier:
+        names.append('alt')
+    return names
+
+
 class SettingsWindow(QDialog):
+    settings_saved = pyqtSignal()
+    background_work_finished = pyqtSignal()
     MAX_WHEEL_PROMPTS = 5
 
     def __init__(self, config, hotkey_manager=None, parent=None):
@@ -53,6 +90,9 @@ class SettingsWindow(QDialog):
         self._pending: dict = {}
         self._theme = 'light'
         self._drag_pos = None
+        self._shutting_down = False
+        self._test_worker = None
+        self._update_worker = None
 
         # Track themed widgets for propagation
         self._cards: list[Card] = []
@@ -71,7 +111,7 @@ class SettingsWindow(QDialog):
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
         self.resize(780, 580)
         self.setMinimumSize(550, 400)
-        self.setWindowIcon(QIcon(_asset('idle.ico')))
+        self.setWindowIcon(QIcon(_asset('idle.png' if sys.platform == 'darwin' else 'idle.ico')))
 
         # Lazy page construction
         self._built_pages = {}
@@ -301,7 +341,7 @@ class SettingsWindow(QDialog):
             lambda v: self._mark('general.custom_hotkey.enabled', v))
 
         self._btn_clean_hotkey = QPushButton(
-            self._config.get('general.custom_hotkey.keys', 'ctrl+shift+c'))
+            self._config.get('general.custom_hotkey.keys', CLEAN_HOTKEY))
         self._btn_clean_hotkey.setObjectName('hotkey_btn')
         self._btn_clean_hotkey.setCheckable(True)
         self._btn_clean_hotkey.clicked.connect(self._on_clean_hotkey_btn)
@@ -310,12 +350,12 @@ class SettingsWindow(QDialog):
         self._make_setting_row(card_clean.content_layout(), '独立热键',
                                self._toggle_clean_hotkey, self._btn_clean_hotkey)
 
-        # Row 2: 双击 Ctrl+C — ToggleSwitch
+        # Row 2: 双击主复制快捷键 — ToggleSwitch
         self._toggle_double_ctrl_c = ToggleSwitch(
             parent=self, checked=self._config.get('general.double_ctrl_c.enabled', False))
         self._toggles.append(self._toggle_double_ctrl_c)
         self._toggle_double_ctrl_c.toggled.connect(self._on_double_click_changed)
-        self._make_setting_row(card_clean.content_layout(), '双击 Ctrl+C',
+        self._make_setting_row(card_clean.content_layout(), DOUBLE_COPY_LABEL,
                                self._toggle_double_ctrl_c, separator=False)
 
         # Row 3: 间隔阈值 — QSlider + QLabel (indented, disabled when double-click off)
@@ -364,7 +404,7 @@ class SettingsWindow(QDialog):
         self._toggle_wheel.toggled.connect(self._on_wheel_enabled_changed)
 
         self._btn_wheel_hotkey = QPushButton(
-            self._config.get('wheel.switch_hotkey', 'ctrl+shift+p'))
+            self._config.get('wheel.switch_hotkey', WHEEL_HOTKEY))
         self._btn_wheel_hotkey.setObjectName('hotkey_btn')
         self._btn_wheel_hotkey.setCheckable(True)
         self._btn_wheel_hotkey.clicked.connect(self._on_wheel_hotkey_btn)
@@ -401,7 +441,7 @@ class SettingsWindow(QDialog):
             lambda v: self._mark('preview.enabled', v))
 
         self._btn_preview_hotkey = QPushButton(
-            self._config.get('preview.hotkey', 'ctrl+q'))
+            self._config.get('preview.hotkey', PREVIEW_HOTKEY))
         self._btn_preview_hotkey.setObjectName('hotkey_btn')
         self._btn_preview_hotkey.setCheckable(True)
         self._btn_preview_hotkey.clicked.connect(self._on_preview_hotkey_btn)
@@ -418,7 +458,7 @@ class SettingsWindow(QDialog):
             lambda v: self._mark('history.enabled', v))
 
         self._btn_history_hotkey = QPushButton(
-            self._config.get('history.hotkey', 'ctrl+h'))
+            self._config.get('history.hotkey', HISTORY_HOTKEY))
         self._btn_history_hotkey.setObjectName('hotkey_btn')
         self._btn_history_hotkey.setCheckable(True)
         self._btn_history_hotkey.clicked.connect(self._on_history_hotkey_btn)
@@ -510,10 +550,10 @@ class SettingsWindow(QDialog):
         target = self._recording_target
         if target and target in self._hotkey_buttons:
             config_map = {
-                'clean': ('general.custom_hotkey.keys', 'ctrl+shift+c'),
-                'wheel': ('wheel.switch_hotkey', 'ctrl+shift+p'),
-                'preview': ('preview.hotkey', 'ctrl+q'),
-                'history': ('history.hotkey', 'ctrl+h'),
+                'clean': ('general.custom_hotkey.keys', CLEAN_HOTKEY),
+                'wheel': ('wheel.switch_hotkey', WHEEL_HOTKEY),
+                'preview': ('preview.hotkey', PREVIEW_HOTKEY),
+                'history': ('history.hotkey', HISTORY_HOTKEY),
             }
             key, default = config_map[target]
             self._hotkey_buttons[target].setText(self._config.get(key, default))
@@ -534,13 +574,7 @@ class SettingsWindow(QDialog):
                    Qt.Key.Key_Alt, Qt.Key.Key_Meta, Qt.Key.Key_unknown):
             return
 
-        parts = []
-        if mods & Qt.KeyboardModifier.ControlModifier:
-            parts.append('ctrl')
-        if mods & Qt.KeyboardModifier.ShiftModifier:
-            parts.append('shift')
-        if mods & Qt.KeyboardModifier.AltModifier:
-            parts.append('alt')
+        parts = _recorded_modifier_names(mods)
 
         try:
             key_name = Qt.Key(key).name.replace('Key_', '').lower()
@@ -1019,7 +1053,8 @@ class SettingsWindow(QDialog):
             self._refresh_prompts()
 
     def _on_test_connection(self):
-        self._do_save()
+        if not self._do_save():
+            return
         llm_cfg = self._config.get('llm') or {}
         self._btn_test.setEnabled(False)
         self._btn_test.setText('测试中...')
@@ -1033,12 +1068,13 @@ class SettingsWindow(QDialog):
 
             def __init__(self, cfg):
                 super().__init__()
-                self._cfg = cfg
+                self._cfg = dict(cfg)
 
             def run(self):
                 try:
                     import httpx
-                    headers = {'Authorization': f'Bearer {self._cfg.get("api_key", "")}'}
+                    from llm_client import auth_headers
+                    headers = auth_headers(self._cfg)
                     payload = {
                         'model': self._cfg.get('model_id', 'gpt-4o-mini'),
                         'temperature': self._cfg.get('temperature', 0.2),
@@ -1062,19 +1098,22 @@ class SettingsWindow(QDialog):
         worker = _TestWorker(llm_cfg)
 
         def _on_success(r):
+            if self._shutting_down:
+                return
             QMessageBox.information(self, '连接成功', f'模型回复：{r[:200]}')
             self._btn_test.setEnabled(True)
             self._btn_test.setText('测试连接')
 
         def _on_error(e):
+            if self._shutting_down:
+                return
             QMessageBox.critical(self, '连接失败', e)
             self._btn_test.setEnabled(True)
             self._btn_test.setText('测试连接')
 
         worker.success.connect(_on_success)
         worker.error.connect(_on_error)
-        worker.start()
-        self._test_worker = worker
+        self._track_worker('_test_worker', worker)
 
     def _confirm_and_reset_llm_api(self):
         reply = QMessageBox.question(
@@ -1389,10 +1428,11 @@ class SettingsWindow(QDialog):
 
         worker = _UpdateWorker()
         worker.result.connect(self._on_update_result)
-        worker.start()
-        self._update_worker = worker
+        self._track_worker('_update_worker', worker)
 
     def _on_update_result(self, latest: str, url_or_error: str):
+        if self._shutting_down:
+            return
         self._btn_check_update.setEnabled(True)
         self._btn_check_update.setText('检查更新')
         if not latest:
@@ -1472,14 +1512,8 @@ class SettingsWindow(QDialog):
     # ── Startup ─────────────────────────────────────────────────────
 
     def _on_startup_changed(self, checked: bool):
-        """Handle startup toggle: update registry immediately."""
+        """Stage startup changes; side effects happen only when saving."""
         self._mark('general.startup_with_windows', checked)
-        if checked:
-            ok, msg = _autostart_enable()
-            if not ok and msg:
-                QMessageBox.warning(self, '开机自启动', msg)
-        else:
-            _autostart_disable()
 
     # ── Window dragging ─────────────────────────────────────────────
 
@@ -1525,19 +1559,79 @@ class SettingsWindow(QDialog):
         """Mark a config key as pending save."""
         self._pending[key] = value
 
-    def _do_save(self):
+    def _do_save(self) -> bool:
         """Save all pending changes to config."""
-        for key, value in self._pending.items():
-            self._config.set(key, value)
+        if not self._pending:
+            return True
+
+        pending = dict(self._pending)
+        old_startup = self._config.get('general.startup_with_windows', False)
+        try:
+            if hasattr(self._config, 'update'):
+                self._config.update(pending)
+            else:
+                for key, value in pending.items():
+                    self._config.set(key, value)
+        except (OSError, TypeError, ValueError) as exc:
+            QMessageBox.warning(self, '保存失败', f'无法写入设置：{exc}')
+            return False
+
         self._pending.clear()
+
+        if 'general.startup_with_windows' in pending:
+            requested = bool(pending['general.startup_with_windows'])
+            if requested:
+                ok, msg = _autostart_enable()
+            else:
+                ok = _autostart_disable()
+                msg = '' if ok else '删除开机启动配置失败'
+            if not ok:
+                try:
+                    self._config.set('general.startup_with_windows', old_startup)
+                except (OSError, TypeError, ValueError) as exc:
+                    self._pending['general.startup_with_windows'] = old_startup
+                    msg = f'{msg}\n回滚配置也失败：{exc}'
+                if hasattr(self, '_toggle_startup'):
+                    self._toggle_startup.set_checked_silent(old_startup)
+                QMessageBox.warning(self, '开机自启动', msg)
+
         if self._hotkey_manager:
             self._hotkey_manager.reload_config(self._config)
+        self.settings_saved.emit()
         self._status_lbl.setText('✓ 已保存')
         QTimer.singleShot(2000, lambda: self._status_lbl.setText(''))
+        return not self._pending
+
+    def _track_worker(self, attr_name: str, worker):
+        """Keep QThreads alive and announce when shutdown may continue."""
+        setattr(self, attr_name, worker)
+
+        def _finished():
+            if getattr(self, attr_name, None) is worker:
+                setattr(self, attr_name, None)
+            self.background_work_finished.emit()
+
+        worker.finished.connect(_finished)
+        worker.start()
+
+    def has_active_background_work(self) -> bool:
+        return any(
+            worker is not None and worker.isRunning()
+            for worker in (self._test_worker, self._update_worker)
+        )
+
+    def prepare_shutdown(self):
+        self._shutting_down = True
+        self._recording_timer.stop()
+        self._release_recording()
+        self.hide()
 
     # ── Close event ─────────────────────────────────────────────────
 
     def closeEvent(self, event):
+        if self._shutting_down:
+            event.accept()
+            return
         if self._pending:
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle('未保存的修改')
@@ -1554,7 +1648,9 @@ class SettingsWindow(QDialog):
             msg_box.exec()
             clicked = msg_box.clickedButton()
             if clicked == btn_save:
-                self._do_save()
+                if not self._do_save():
+                    event.ignore()
+                    return
             elif clicked == btn_cancel:
                 event.ignore()
                 return
