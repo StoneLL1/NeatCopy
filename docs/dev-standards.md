@@ -1,6 +1,6 @@
 # NeatCopy 开发规范文档
 
-> 版本：v1.0 | 日期：2026-03-23
+> 版本：v2.0.5 | 日期：2026-07-21 | 适用平台：Windows + macOS
 
 ---
 
@@ -13,20 +13,24 @@
 ### 1.2 依赖安装
 
 ```bash
-pip install PyQt6 keyboard pywin32 httpx langdetect pyperclip pyinstaller
+pip install -r requirements.txt
 ```
 
 `requirements.txt` 固定版本：
 
 ```
 PyQt6>=6.6.0
-keyboard>=0.13.5
-pywin32>=306
 httpx>=0.27.0
 langdetect>=1.0.9
 pyperclip>=1.8.2
 pyinstaller>=6.0.0
+pyobjc-framework-Quartz>=10.0.0; sys_platform == "darwin"
+pyobjc-framework-ApplicationServices>=10.0.0; sys_platform == "darwin"
+keyboard>=0.13.5; sys_platform == "win32"
+pywin32>=306; sys_platform == "win32"
 ```
+
+平台原生依赖必须使用环境标记，确保在另一平台安装依赖时不会尝试加载不可用的系统框架。
 
 ### 1.3 开发命令
 
@@ -37,8 +41,11 @@ python src/main.py
 # 运行测试
 python -m pytest tests/ -v
 
-# 打包
-pyinstaller --onefile --windowed --name NeatCopy --icon assets/icon_idle.ico --add-data "assets;assets" --hidden-import langdetect --collect-all pywin32 src/main.py
+# Windows 打包
+pyinstaller NeatCopy.spec
+
+# macOS Apple Silicon 打包（.app + .dmg）
+installer/build_macos.sh
 ```
 
 ---
@@ -128,17 +135,25 @@ class LLMWorker(QThread):
 class LLMWorker(QThread):
     def run(self):
         result = asyncio.run(self._fetch())
-        win32clipboard.SetClipboardData(...)  # 会崩溃
+        QApplication.clipboard().setText(result)  # 跨线程操作 Qt 剪贴板，会崩溃或丢数据
 ```
 
-### 3.3 RuleEngine 规范
+### 3.3 平台边界规范
+
+- 公共业务模块不得在模块顶层无条件导入 `win32*`、AppKit、Quartz 或 ApplicationServices。
+- 平台默认快捷键统一从 `platform_defaults.py` 读取，用户数据目录统一从 `platform_paths.py` 读取。
+- Windows 原生输入逻辑保留在 `hotkey_manager.py` 的 Windows 分支；macOS 原生输入逻辑集中在 `macos_input.py`。
+- 配置键 `startup_with_windows`、`double_ctrl_c` 为历史兼容字段，不代表功能只支持 Windows。
+- 修改全局热键、剪贴板、轮盘焦点或开机启动时，必须同时验证 Windows 和 macOS 行为，不能用一套平台语义替代另一套。
+
+### 3.4 RuleEngine 规范
 
 - `RuleEngine` 的所有方法必须是**纯函数**（无副作用，不读写外部状态）
 - 规则函数签名统一为 `_rule_name(text: str) -> str`
 - 执行顺序在 `clean()` 主函数中集中管理，各规则函数不互相调用
 - 每条规则函数对应一个单元测试
 
-### 3.4 LLMClient 规范
+### 3.5 LLMClient 规范
 
 - `format()` 方法只抛出异常，不返回错误信息（由调用方处理）
 - 不在 LLMClient 内部 catch 异常后静默失败
@@ -159,7 +174,7 @@ async def format(self, text: str, prompt: str, config: dict) -> str | None:
         return None  # 调用方无法区分失败原因
 ```
 
-### 3.5 设置界面规范
+### 3.6 设置界面规范
 
 - 每个控件的信号连接到统一的 `_on_setting_changed(key, value)` 方法
 - 不在各控件 handler 中直接调用 `ConfigManager.set()`，统一入口便于调试
@@ -228,6 +243,13 @@ ERROR_MESSAGES = {
 | `LLMClient` | 单元测试（Mock httpx） | P1，建议 |
 | `HotkeyManager` | 手动测试 | P2，不自动化 |
 | `TrayManager` | 手动测试 | P2，不自动化 |
+
+提交影响平台层时，CI 必须同时通过 `windows-latest` 与 `macos-14`。全局快捷键属于系统集成功能，除单元测试外还需按以下清单人工验证：
+
+- 在其他应用前台时，清洗、轮盘、预览和历史快捷键均能响应。
+- Windows `Ctrl` 与 macOS `Control` / `Command` 录制结果符合物理按键。
+- macOS 未授权时只限制需要权限的功能，普通面板快捷键仍可使用。
+- 清洗快捷键读取的是本次复制内容，而不是触发前的旧剪贴板。
 
 ### 5.2 RuleEngine 测试用例规范
 
@@ -301,12 +323,12 @@ scope（可选）：
 ```
 Step 1: ConfigManager + 默认配置文件读写
 Step 2: RuleEngine（全部8条规则 + 单元测试）
-Step 3: TrayManager（托盘图标 + 右键菜单，热键触发先用按钮模拟）
-Step 4: HotkeyManager（独立热键 Ctrl+Shift+C）
+Step 3: TrayManager（Windows 托盘 + macOS 菜单栏，热键触发先用按钮模拟）
+Step 4: HotkeyManager（Windows RegisterHotKey / macOS Carbon）
 Step 5: ClipProcessor（规则模式完整链路打通）
 Step 6: SettingsWindow（规则 Tab + 通用 Tab）
 Step 7: LLMClient + ClipProcessor LLM 分支
 Step 8: SettingsWindow 大模型 Tab + Prompt 管理
-Step 9: 双击 Ctrl+C + 热键自定义
-Step 10: PyInstaller 打包验证
+Step 9: 双击平台复制键 + 热键自定义
+Step 10: Windows `.exe` 与 macOS `.app` / `.dmg` 打包验证
 ```

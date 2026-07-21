@@ -11,7 +11,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776ab?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![Stars](https://img.shields.io/github/stars/StoneLL1/NeatCopy?style=flat-square&logo=github)](https://github.com/StoneLL1/NeatCopy/stargazers)
 
-NeatCopy 是一款常驻 Windows/macOS 菜单栏的剪贴板文本处理工具。复制文本后按下全局快捷键，
+NeatCopy 是一款常驻 Windows 系统托盘或 macOS 菜单栏的剪贴板文本处理工具。复制文本后按下全局快捷键，
 即可通过本地规则或大模型完成清洗、翻译、润色与摘要。
 
 查看官网：https://stonell1.github.io/neatcopy-website/
@@ -36,15 +36,15 @@ NeatCopy 是一款常驻 Windows/macOS 菜单栏的剪贴板文本处理工具�
 展，大语言模型在自然语言处
 理领域取得了重大突破。
 
-按下 Ctrl+Shift+C 后：
+按下处理快捷键后：
 随着人工智能技术的不断发展，大语言模型在自然语言处理领域取得了重大突破。
 ```
 
 中英文混排也可以一键整理：
 
 ```text
-处理前：NeatCopy是一款Windows工具,支持LLM模式
-处理后：NeatCopy 是一款 Windows 工具，支持 LLM 模式
+处理前：NeatCopy是一款桌面工具,支持LLM模式
+处理后：NeatCopy 是一款桌面工具，支持 LLM 模式
 ```
 
 NeatCopy 让这类重复操作变成一个简单流程：
@@ -65,7 +65,7 @@ NeatCopy 不只是文本清洗工具。接入 OpenAI 兼容接口后，可以把
 例如，将一段中文翻译为英文：
 
 ```text
-复制中文 -> 按 Ctrl+Shift+C -> 在轮盘中选择「翻译」
+复制中文 -> 按处理快捷键 -> 在轮盘中选择「翻译」
          -> 预览面板查看结果 -> 确认后直接粘贴
 ```
 
@@ -85,11 +85,11 @@ NeatCopy 不只是文本清洗工具。接入 OpenAI 兼容接口后，可以把
 | 内容摘要 | 从长文本中提炼重点 |
 | 随时提问 | 将剪贴板内容作为问题快速获取回答 |
 
-常用 Prompt 也可以通过 `Ctrl+Shift+P` 锁定。锁定后，后续处理会直接使用该模板。
+常用 Prompt 也可以通过轮盘快捷键（Windows 默认 `Ctrl+Shift+P`，macOS 默认 `⌘⇧P`）锁定。锁定后，后续处理会直接使用该模板。
 
 ### 预览面板：应用前先看一眼
 
-按 `Ctrl+Q` 打开悬浮预览面板。大模型返回结果后，可以先检查和编辑内容，再应用到剪贴板。
+按预览快捷键（Windows/macOS 默认均为 `Control+Q`）打开悬浮预览面板。大模型返回结果后，可以先检查和编辑内容，再应用到剪贴板。
 即使预览面板未打开，结果也会正常写入剪贴板，保持快速粘贴体验。
 
 ### 自定义 Prompt：把 AI 变成顺手的小工具
@@ -132,8 +132,8 @@ Prompt 模板支持自由编辑。除了翻译和润色，还可以用于会议�
 | 双击复制触发 | 可选开启双击 `Ctrl+C` / `⌘C` 自动清洗 |
 | Prompt 轮盘 | 在鼠标位置弹出扇形菜单，支持数字键 `1-5` |
 | 历史记录 | 自动保存处理记录，支持搜索、复制、删除和清空 |
-| 系统托盘 | 后台常驻，不占用任务栏空间 |
-| 状态提示 | 托盘图标和 Toast 显示处理中、成功或失败状态 |
+| 托盘 / 菜单栏 | Windows 常驻系统托盘，macOS 常驻菜单栏，不占用任务栏或 Dock 空间 |
+| 状态提示 | 托盘或菜单栏图标及通知显示处理中、成功或失败状态 |
 | 开机启动 | 可在设置中开启系统自动启动 |
 
 ## 🚀 快速开始
@@ -148,17 +148,17 @@ Prompt 模板支持自由编辑。除了翻译和润色，还可以用于会议�
 | `NeatCopy.exe` | 便携版。无需安装，下载后直接运行 |
 | `NeatCopy-*-macOS-arm64.dmg` | Apple Silicon 版本。打开后将 NeatCopy 拖入 Applications |
 
-macOS 的轮盘、预览和历史记录快捷键无需隐私权限。“处理剪贴板”需要在“系统设置 → 隐私与安全性 → 辅助功能”中允许 NeatCopy，以向前台应用发送 `⌘C`；可选的双击 `⌘C` 功能需要单独开启“输入监控”，以只读方式识别两次复制。
+macOS 的轮盘、预览和历史记录快捷键无需隐私权限。“处理剪贴板”需要在“系统设置 → 隐私与安全性 → 辅助功能”中允许 NeatCopy，以向前台应用发送 `⌘C`；可选的双击 `⌘C` 功能需要单独开启“输入监控”，以只读方式识别两次复制。完整说明见 [macOS 使用指南](docs/macos.md)。
 
-首次运行时，Windows 可能显示 SmartScreen 提示。由于当前发布版本未进行代码签名，可点击「更多信息」后选择「仍要运行」。
+当前安装包尚未完成平台代码签名。Windows 首次运行时可能显示 SmartScreen 提示；macOS 可能显示 Gatekeeper 提示。请仅从本仓库 Releases 下载，具体处理方式见下方[常见问题](#-常见问题)。
 
 ### 三步使用
 
-1. 选中文字，按 `Ctrl+C` 复制。
-2. 按 `Ctrl+Shift+C` 处理剪贴板。
-3. 按 `Ctrl+V` 粘贴整理后的内容。
+1. 选中文字，按 `Ctrl+C`（Windows）或 `⌘C`（macOS）复制。
+2. 按 `Ctrl+Shift+C`（Windows）或 `⌘⇧C`（macOS）处理剪贴板。
+3. 按 `Ctrl+V`（Windows）或 `⌘V`（macOS）粘贴整理后的内容。
 
-点击托盘图标即可打开设置。在「清洗规则」页面中可切换规则模式或大模型模式。
+点击 Windows 托盘或 macOS 菜单栏图标即可打开设置。在「清洗规则」页面中可切换规则模式或大模型模式。
 
 <div align="center">
   <img src="docs/assets/设置页面.png" width="780" alt="NeatCopy 设置页面">
@@ -181,7 +181,7 @@ macOS 的轮盘、预览和历史记录快捷键无需隐私权限。“处理�
 轮盘用于快速切换大模型模式下的 Prompt 模板：
 
 - **随清洗触发**：按下清洗快捷键后先选择 Prompt，再执行处理。
-- **锁定模式**：按 `Ctrl+Shift+P` 选择并锁定 Prompt，后续清洗直接使用该模板。
+- **锁定模式**：按轮盘快捷键（Windows `Ctrl+Shift+P` / macOS `⌘⇧P`）选择并锁定 Prompt，后续清洗直接使用该模板。
 - **快捷选择**：鼠标点击或按数字键 `1-5` 选择，按 `Esc` 取消。
 
 ### 大模型配置
@@ -202,10 +202,11 @@ macOS 的轮盘、预览和历史记录快捷键无需隐私权限。“处理�
 
 每次处理成功后，NeatCopy 会保存原文、结果、模式和时间戳。默认最多保留最近 `500` 条，可在设置中修改容量或关闭记录功能。
 
-历史记录文件保存在：
+历史记录文件保存在当前用户的应用数据目录：
 
 ```text
-%APPDATA%\NeatCopy\history.json
+Windows: %APPDATA%\NeatCopy\history.json
+macOS:   ~/Library/Application Support/NeatCopy/history.json
 ```
 
 <div align="center">
@@ -271,7 +272,13 @@ git clone https://github.com/StoneLL1/NeatCopy.git
 cd NeatCopy
 
 python -m venv .venv
-.venv\Scripts\activate
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+
+# macOS
+source .venv/bin/activate
+
 pip install -r requirements.txt
 
 python src/main.py
@@ -283,7 +290,7 @@ python src/main.py
 # 运行自动化测试
 python -m pytest tests -v
 
-# 使用仓库内的 PyInstaller 配置打包
+# Windows：生成 .exe
 pyinstaller NeatCopy.spec
 
 # macOS Apple Silicon：生成 .app 和 .dmg
@@ -300,19 +307,30 @@ NeatCopy/
 │   ├── rule_engine.py          # 本地规则引擎
 │   ├── llm_client.py           # OpenAI 兼容接口客户端
 │   ├── hotkey_manager.py       # 全局热键与键盘钩子
-│   ├── tray_manager.py         # 系统托盘与 Toast
+│   ├── macos_input.py          # macOS 原生热键、复制模拟与权限检测
+│   ├── platform_defaults.py    # 平台快捷键默认值
+│   ├── platform_paths.py       # 平台应用数据路径
+│   ├── tray_manager.py         # Windows 托盘 / macOS 菜单栏与通知
 │   ├── wheel_window.py         # Prompt 轮盘
 │   ├── history_manager.py      # 历史记录管理
 │   └── ui/                     # 设置、预览与历史记录窗口
 ├── assets/                     # 图标与资源文件
 ├── tests/                      # 自动化测试
 ├── docs/                       # 架构与开发文档
-└── installer/                  # Inno Setup 安装脚本
+├── NeatCopy.spec               # Windows PyInstaller 配置
+├── NeatCopy-macos.spec         # macOS PyInstaller 配置
+└── installer/                  # Windows 安装脚本与 macOS DMG 构建脚本
 ```
 
-更完整的技术细节见 [docs/architecture.md](docs/architecture.md)。
+更完整的技术细节见 [架构文档](docs/architecture.md)；macOS 权限和打包细节见 [macOS 使用指南](docs/macos.md)。
 
 ## 📝 更新日志
+
+### v2.0.5
+
+- 新增 macOS Apple Silicon 安装包，与 Windows 版本共享同一套核心功能
+- 支持 macOS 原生全局快捷键、双击 `⌘C`、菜单栏常驻与 LaunchAgent 开机启动
+- 修复 macOS 快捷键录制中 `Control` 与 `Command` 映射互换的问题
 
 ### v2.0.0
 
@@ -338,11 +356,11 @@ NeatCopy/
 
 ### 为什么首次运行会提示风险？
 
-当前发布版本尚未进行代码签名，Windows SmartScreen 可能显示安全提示。建议仅从本仓库的 [Releases](https://github.com/StoneLL1/NeatCopy/releases/latest) 页面下载。
+当前 Windows 与 macOS 发布包均尚未完成平台代码签名。Windows 遇到 SmartScreen 时可检查发布来源后选择「更多信息 → 仍要运行」；macOS 遇到 Gatekeeper 拦截时，可在“系统设置 → 隐私与安全性”中确认打开。建议仅从本仓库的 [Releases](https://github.com/StoneLL1/NeatCopy/releases/latest) 页面下载。
 
 ### 为什么快捷键没有响应？
 
-请确认 NeatCopy 正在系统托盘中运行，并检查快捷键是否被其他应用占用。低级键盘钩子在部分系统环境下可能需要管理员权限。
+请先确认 NeatCopy 正在 Windows 系统托盘或 macOS 菜单栏中运行，并检查快捷键是否被其他应用占用。Windows 可重新录制一个未冲突的组合；macOS 的普通面板快捷键无需隐私权限，但“处理剪贴板”需要“辅助功能”权限，双击 `⌘C` 需要“输入监控”权限。修改权限后建议退出并重新打开 NeatCopy。
 
 ### 大模型请求失败会覆盖剪贴板吗？
 

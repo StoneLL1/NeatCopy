@@ -1,6 +1,6 @@
 # NeatCopy 技术架构文档
 
-> 版本：v1.9.0 | 日期：2026-03-31
+> 版本：v2.0.5 | 日期：2026-07-21 | 平台：Windows 10/11 + macOS 11+
 
 ---
 
@@ -12,25 +12,25 @@ NeatCopy 采用单进程、事件驱动架构。所有模块在同一 Python 进
 ┌──────────────────────────────────────────────────────────────┐
 │                        NeatCopy 进程                          │
 │                                                              │
-│   主线程（Qt Event Loop）          后台线程                   │
+│   主线程（Qt Event Loop）          平台输入 / 后台任务          │
 │   ┌─────────────────────┐         ┌──────────────────────┐  │
 │   │    QApplication     │         │   HotkeyManager      │  │
-│   │    TrayManager      │◄───────►│   Win32 RegisterHotKey│  │
+│   │    TrayManager      │◄───────►│ Win32 / Carbon/Quartz│  │
 │   │    SettingsWindow   │  信号    └──────────────────────┘  │
 │   │    PreviewWindow    │                                    │
 │   └────────┬────────────┘                                    │
 │            │ Qt Signal                                        │
 │            ▼                                                  │
 │   ┌─────────────────────┐         ┌──────────────────────┐  │
-│   │   ClipProcessor     │────────►│    LLMClient         │  │
-│   │   (调度 + 写剪贴板)  │  asyncio│   (httpx 异步请求)   │  │
+│   │   ClipProcessor     │────────►│    LLM Worker        │  │
+│   │   (调度 + 写剪贴板)  │ QThread │   (httpx 同步请求)   │  │
 │   │   + 预览信号发射     │         └──────────────────────┘  │
 │   └────────┬────────────┘                                    │
 │            │                                                  │
 │            ▼                                                  │
 │   ┌─────────────────────┐   ┌──────────────────────────────┐ │
 │   │    RuleEngine       │   │       ConfigManager          │ │
-│   │   (纯同步，无IO)    │   │   %APPDATA%\NeatCopy\        │ │
+│   │   (纯同步，无IO)    │   │  平台用户应用数据目录         │ │
 │   └─────────────────────┘   │       config.json            │ │
 │                              └──────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────┘
@@ -41,10 +41,10 @@ NeatCopy 采用单进程、事件驱动架构。所有模块在同一 Python 进
 | 线程 | 内容 | 通信方式 |
 |------|------|---------|
 | 主线程 | Qt 事件循环，UI 渲染，剪贴板读写 | — |
-| HotkeyManager | Win32 `RegisterHotKey` API + `WM_HOTKEY` 消息过滤 | `pyqtSignal` 发射到主线程 |
-| LLM 异步任务 | `asyncio` + `httpx` 网络请求 | `QThread` 包装，完成后 signal 回调 |
+| HotkeyManager | Windows：`RegisterHotKey` / 低级钩子；macOS：Carbon 热键 / Quartz 监听 | `pyqtSignal` 发射到主线程 |
+| LLM Worker | `QThread` 中执行同步 `httpx` 网络请求 | 完成后 signal 回调主线程 |
 
-> **约束**：剪贴板读写（`win32clipboard`）必须在主线程执行，否则 Windows API 会报错。
+> **约束**：剪贴板读写必须在 Qt 主线程执行。Windows 使用 `win32clipboard`，macOS 使用 Qt Clipboard。
 
 ---
 
@@ -62,8 +62,8 @@ NeatCopy 采用单进程、事件驱动架构。所有模块在同一 Python 进
 启动流程：
 main()
   ├── ConfigManager.load()
-  ├── sync_from_config()           # 同步开机自启动注册表状态
-  ├── TrayManager.__init__()       # 创建托盘图标
+  ├── sync_from_config()           # 同步注册表 / LaunchAgent 开机启动状态
+  ├── TrayManager.__init__()       # 创建托盘 / 菜单栏图标
   ├── HotkeyManager.__init__()     # 注册全局热键
   ├── ClipProcessor.__init__()     # 剪贴板处理调度器
   ├── WheelWindow.__init__()       # 轮盘选择器
@@ -78,14 +78,14 @@ main()
   └── app.exec()                   # 进入事件循环
 ```
 
-### 2.2 tray_manager.py — 托盘管理
+### 2.2 tray_manager.py — 托盘 / 菜单栏管理
 
 ```
 职责：
-- QSystemTrayIcon 生命周期管理
-- 右键菜单（打开设置 / 暂停 / 退出）
+- QSystemTrayIcon 生命周期管理（Windows 系统托盘 / macOS 菜单栏）
+- 图标菜单（打开设置 / 暂停 / 退出）
 - 图标三态切换（idle / processing / success / error）
-- Windows Toast 通知（QSystemTrayIcon.showMessage）
+- 平台通知（QSystemTrayIcon.showMessage）
 
 图标状态机：
 idle ──[触发热键]──► processing ──[成功]──► success ──[1.5s]──► idle
@@ -111,38 +111,26 @@ process_done = pyqtSignal(bool, str)  # (success, message)
 
 ```
 职责：
-- 使用 Win32 RegisterHotKey API 注册全局热键
-- 支持三种热键：清洗热键、轮盘热键、预览热键
-- 通过 QAbstractNativeEventFilter 过滤 WM_HOTKEY 消息
-- 双击 Ctrl+C 检测通过 WH_KEYBOARD_LL 低级键盘钩子实现
-- 热键变更时动态注销/注册
+- 注册清洗、轮盘、预览和历史记录四类全局热键
+- 可选检测双击平台复制键：Windows `Ctrl+C`，macOS `⌘C`
+- 清洗热键先让前台应用完成复制，确认剪贴板变化后再触发处理
+- 热键变更时动态注销并重新注册
 
-热键 ID 定义：
-  HOTKEY_ID_CUSTOM = 1     # 清洗热键（Ctrl+Shift+C）
-  HOTKEY_ID_WHEEL = 2      # 轮盘热键（Ctrl+Shift+P）
-  HOTKEY_ID_PREVIEW = 3    # 预览热键（Ctrl+Q）
+Windows 实现：
+  - `RegisterHotKey` + `QAbstractNativeEventFilter` 接收 `WM_HOTKEY`
+  - `WH_KEYBOARD_LL` 检测可选的双击 `Ctrl+C`
+  - 跳过 `LLKHF_INJECTED` 事件，避免模拟复制自触发
 
-实现逻辑：
-  _HotkeyFilter(QAbstractNativeEventFilter):
-    nativeEventFilter(eventType, message):
-      if eventType == "windows_generic_MSG":
-        msg = MSG.from_address(int(message))
-        if msg.message == WM_HOTKEY:
-          if msg.wParam == HOTKEY_ID_CUSTOM:
-            _on_hotkey()  # 注入 Ctrl+C 模拟复制 + 延迟触发
-          elif msg.wParam == HOTKEY_ID_WHEEL:
-            emit wheel_hotkey_triggered
-          elif msg.wParam == HOTKEY_ID_PREVIEW:
-            emit preview_hotkey_triggered
-          return True, 0
-      return False, 0
+macOS 实现（`macos_input.py`）：
+  - Carbon `RegisterEventHotKey` 注册普通全局快捷键，不要求输入监控权限
+  - Quartz 发送 `⌘C`，要求“辅助功能”权限
+  - Quartz listen-only event tap 检测双击 `⌘C`，仅在开启该功能时要求“输入监控”权限
+  - 通过剪贴板 change count 判断前台复制是否完成，避免处理旧内容
 
-双击 Ctrl+C（WH_KEYBOARD_LL）：
-  - 默认关闭，可在设置中启用
-  - 检测两次 Ctrl+C 间隔 ≤ 300ms 触发清洗
-  - 跳过注入事件（LLKHF_INJECTED 标志），避免自触发
-
-注意：RegisterHotKey 只支持 Modifier+Key 组合（Ctrl/Shift/Alt + 普通键）。
+平台默认值：
+  - Windows：清洗 `Ctrl+Shift+C`，轮盘 `Ctrl+Shift+P`，预览 `Ctrl+Q`，历史 `Ctrl+H`
+  - macOS：清洗 `⌘⇧C`，轮盘 `⌘⇧P`，预览 `Control+Q`，历史 `Control+H`
+  - macOS 不使用 `⌘Q` / `⌘H`，避免覆盖系统退出和隐藏语义
 ```
 
 ### 2.4 clip_processor.py — 剪贴板处理调度
@@ -181,10 +169,9 @@ process() 流程：
            emit failed(error_msg)
            emit preview_failed(error_msg)
 
-剪贴板读写（win32clipboard 优先）：
-  read:  OpenClipboard → GetClipboardData(CF_UNICODETEXT) → CloseClipboard
-  write: OpenClipboard → EmptyClipboard → SetClipboardData → CloseClipboard
-  备用:  pyperclip.copy() / pyperclip.paste()
+剪贴板读写：
+  Windows: OpenClipboard → Get/SetClipboardData(CF_UNICODETEXT) → CloseClipboard
+  macOS:   QApplication.clipboard().text() / setText()
 ```
 
 ### 2.5 ui/preview_window.py — LLM 预览面板（新增）
@@ -198,7 +185,7 @@ process() 流程：
 
 窗口属性：
   WindowFlags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
-  背景毛玻璃：Windows 11 DWM API (DwmExtendFrameIntoClientArea)
+  背景效果：Windows 可使用 DWM；macOS 使用 Qt 透明置顶窗口
 
 交互实现：
   拖动：整个窗口区域（除文本编辑框）可拖动
@@ -229,16 +216,17 @@ process() 流程：
 窗口属性：
   WindowFlags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
   WA_TranslucentBackground: 透明背景
-  固定尺寸: 268x268
+  固定尺寸: 260x260
 
 外部点击检测：
-  使用 WH_MOUSE_LL 低级鼠标钩子（不依赖 Qt 焦点）
-  点击在轮盘外部 → QTimer.singleShot(0) 延迟关闭
+  Windows: 使用 WH_MOUSE_LL 低级鼠标钩子（不依赖 Qt 焦点）
+  macOS:   临时激活 NeatCopy 接收鼠标/数字键/Esc，关闭后恢复原应用焦点
+  点击在轮盘外部 → 延迟关闭
 
 关键实现：
   show_at(pos, prompts, callback, last_prompt_id):
     将轮盘中心放在鼠标位置，确保不超出屏幕
-    安装 WH_MOUSE_LL 钩子检测外部点击
+    按平台建立外部点击 / 焦点处理
     启动淡入动画
 
   _index_at(x, y) -> int:
@@ -360,7 +348,9 @@ class _LLMWorker(QThread):
 ### 2.9 config_manager.py — 配置管理
 
 ```
-配置文件路径：%APPDATA%\NeatCopy\config.json
+配置文件路径：
+  Windows: %APPDATA%\NeatCopy\config.json
+  macOS:   ~/Library/Application Support/NeatCopy/config.json
 
 职责：
 - 首次启动时写入默认配置
@@ -385,7 +375,7 @@ Tab 1 —— 通用：
   ├── 启动：开机自启开关
   ├── 界面主题：浅色/深色切换
   ├── 独立热键：QCheckBox + 按键录制 QPushButton
-  ├── 双击 Ctrl+C：QCheckBox + QSlider（间隔 100~500ms）
+  ├── 双击复制键：QCheckBox + QSlider（间隔 100~500ms）
   ├── 轮盘 Prompt 选择器：启用/随清洗触发/切换热键
   └── 预览面板：启用/快捷键/主题切换
 
@@ -418,14 +408,14 @@ Tab 4 —— 关于：
 ### 3.1 规则模式触发流程
 
 ```
-用户按 Ctrl+Shift+C
+用户按处理快捷键（Windows Ctrl+Shift+C / macOS ⌘⇧C）
     │
     ▼
-HotkeyManager（后台线程）
+HotkeyManager（平台原生全局热键）
     │ emit hotkey_triggered (pyqtSignal)
     ▼
 ClipProcessor.process()（主线程）
-    │ win32clipboard.GetClipboardData()
+    │ 读取平台剪贴板
     │ text = "乱排版文本..."
     │
     ├── RuleEngine.clean(text, config)
@@ -436,7 +426,7 @@ ClipProcessor.process()（主线程）
     │     ├── 中英文间距
     │     └── return cleaned_text
     │
-    │ win32clipboard.SetClipboardData(cleaned_text)
+    │ 写入平台剪贴板
     │
     ▼
 TrayManager（主线程）
@@ -447,7 +437,7 @@ TrayManager（主线程）
 ### 3.2 大模型模式触发流程
 
 ```
-用户按 Ctrl+Shift+C
+用户按处理快捷键（Windows Ctrl+Shift+C / macOS ⌘⇧C）
     │
     ▼
 ClipProcessor.process()（主线程）
@@ -458,11 +448,10 @@ ClipProcessor.process()（主线程）
     │     └── TrayManager 图标变黄
     │
     ├── 启动 LLMWorker(QThread)
-    │     └── asyncio.run(LLMClient.format(...))
-    │           └── httpx POST /chat/completions（最长30s）
+    │     └── httpx POST /chat/completions（最长30s）
     │
     ├── [成功] LLMWorker.finished(result)
-    │     ├── win32clipboard.SetClipboardData(result)
+    │     ├── 写入平台剪贴板
     │     └── emit success → 图标变绿 + Toast
     │
     └── [失败] LLMWorker.error(message)
@@ -474,22 +463,22 @@ ClipProcessor.process()（主线程）
 
 ## 4. 关键技术决策
 
-### 4.1 为什么用 Win32 API 而不是 keyboard 库
+### 4.1 为什么使用平台原生热键 API
 
-`RegisterHotKey` 通过 Windows 消息机制在 Qt 主线程接收热键事件，与 PyQt6 事件循环无缝集成，无需额外线程。
+Windows 的 `RegisterHotKey` 通过消息机制接收热键；macOS 的 Carbon `RegisterEventHotKey` 直接提供系统级热键注册。两者都不需要为了普通快捷键开启全量键盘监听。
 
-**双击 Ctrl+C 检测**：通过 `WH_KEYBOARD_LL` 低级键盘钩子实现时间戳逻辑，默认关闭（可能与部分应用冲突）。
+只有可选的双击复制功能使用监听：Windows 通过 `WH_KEYBOARD_LL`，macOS 通过 Quartz listen-only event tap。该功能默认关闭。
 
 **优势**：
-- 不依赖第三方 Python 库
-- 与 Qt 事件循环无缝集成
-- 热键触发时自动注入 Ctrl+C 模拟复制（解决部分应用复制延迟问题）
+- 普通全局快捷键不依赖焦点窗口，NeatCopy 在后台也能响应
+- 平台事件通过 Qt signal 安全回到主线程
+- 清洗热键自动发送平台复制键，并等待剪贴板实际变化，避免读取旧内容
 
-**已知限制**：部分安全软件可能阻止低级钩子，需要以管理员身份运行。
+**权限边界**：Windows 低级钩子可能被安全软件拦截；macOS 模拟复制需要“辅助功能”，双击 `⌘C` 监听需要“输入监控”。轮盘、预览和历史等普通注册热键不要求这两项权限。
 
-### 4.2 为什么 LLM 请求用 QThread 包装而不是直接 asyncio
+### 4.2 为什么 LLM 请求放在 QThread 中
 
-PyQt6 的事件循环与 asyncio 事件循环不兼容，直接在主线程跑 asyncio 会阻塞 UI。用 `QThread` 包装后在子线程运行独立的 asyncio event loop，通过 signal 回调主线程，是最简洁的方案。
+网络请求不能阻塞 Qt 主线程。LLM Worker 在 `QThread` 中运行同步 `httpx.Client`，再通过 signal 将成功或失败结果交回主线程处理 UI 与剪贴板。
 
 ### 4.3 剪贴板写入时机
 
@@ -504,23 +493,20 @@ LLM 模式下，仅在收到成功结果后才写入剪贴板。网络请求期�
 ## 5. 打包与发布
 
 ```bash
-# 打包命令
-pyinstaller \
-  --onefile \
-  --windowed \
-  --name NeatCopy \
-  --icon assets/icon_idle.ico \
-  --add-data "assets;assets" \
-  src/main.py
+# Windows
+pyinstaller NeatCopy.spec
 
-# 输出
-dist/NeatCopy.exe  # 单文件，约 40~60MB
+# macOS Apple Silicon（生成 .app 与 .dmg）
+installer/build_macos.sh
 ```
 
+输出包括 Windows `dist/NeatCopy.exe` 和 macOS `release-macos/NeatCopy-*-macOS-arm64.dmg`。
+
 **已知打包问题：**
-- `langdetect` 需要显式加入 `--hidden-import langdetect`
-- `win32clipboard` 的 DLL 需要 `--collect-all pywin32`
-- PyInstaller 生成的 exe 可能被杀软误报（无代码签名），建议用户添加白名单
+- `langdetect` 需要显式加入隐藏导入
+- Windows 的 `win32clipboard` DLL 需要收集 `pywin32`
+- macOS 需要打包 PyObjC 的 Quartz / ApplicationServices 框架，并设置稳定的 bundle identifier
+- 未签名 Windows 包可能触发 SmartScreen，未签名 / 未公证 macOS 包可能触发 Gatekeeper
 
 ---
 
@@ -532,12 +518,16 @@ NeatCopy/
 │   ├── main.py
 │   ├── tray_manager.py
 │   ├── hotkey_manager.py
+│   ├── macos_input.py          # macOS Carbon / Quartz 输入层
 │   ├── clip_processor.py
 │   ├── rule_engine.py
 │   ├── llm_client.py
 │   ├── wheel_window.py        # Prompt 轮盘选择器
 │   ├── history_manager.py     # 历史记录数据管理
 │   ├── autostart_manager.py   # 开机自启动管理
+│   ├── platform_defaults.py   # 平台快捷键默认值
+│   ├── platform_paths.py      # 平台用户数据路径
+│   ├── storage.py             # 原子 JSON 持久化
 │   ├── assets.py              # 共享资源路径
 │   ├── version.py             # 版本号定义
 │   ├── config_manager.py
@@ -560,7 +550,11 @@ NeatCopy/
 │   └── test_history_manager.py
 ├── docs/
 │   ├── architecture.md     # 本文档
+│   ├── macos.md            # macOS 安装、权限与打包说明
 │   └── dev-standards.md
+├── NeatCopy.spec           # Windows PyInstaller 配置
+├── NeatCopy-macos.spec     # macOS PyInstaller 配置
+├── installer/              # Inno Setup 与 macOS DMG 脚本
 ├── PRD.md
 ├── CLAUDE.md
 └── requirements.txt
@@ -624,7 +618,7 @@ NeatCopy/
 
 窗口属性：
   WindowFlags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
-  背景毛玻璃：Windows 11 DWM API (DwmSetWindowAttribute)
+  背景效果：Windows 可使用 DWM；macOS 使用 Qt 透明置顶窗口
   最小尺寸：400x300
 
 UI 结构：
